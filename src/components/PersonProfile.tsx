@@ -5,6 +5,7 @@ import type { MyClan } from '@/lib/myClans';
 import CreatorChip from '@/components/CreatorChip';
 import { YOUR_CLANS_HEADING, groupClansAndSpaces } from '@/lib/creatorSpaces';
 import SupporterName from '@/components/SupporterName';
+import { WriterBadge, type QuillTone } from '@/components/guides/osrs';
 import type { SupporterView } from '@/components/SupporterSection';
 import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
 import type { ShownProfileMedia } from '@/lib/profileMediaRules';
@@ -41,7 +42,10 @@ export default function PersonProfile({
   media = null,
   discordAvatar = null,
   boosts = null,
+  writer = null,
 }: {
+  /** Their guide writer rank (lib/guideCredit), shown beside the name with an impact band. */
+  writer?: { rank: string; tone: QuillTone; band: string } | null;
   /** Their clan boosts (lib/clanBoosts myBoosts): only ever shown to them, on this private page. */
   boosts?: Pick<MyBoosts, 'slots' | 'free' | 'placements'> | null;
   /** Their Discord avatar, shown when they have not uploaded one of their own. */
@@ -97,6 +101,12 @@ export default function PersonProfile({
           <h1 className="text-3xl font-bold text-gold">
             <SupporterName name={displayName} tier={supporter?.tier} style={supporter?.style} plain />
           </h1>
+          {writer && (
+            <ClanLink href="/guides/writers" className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-0.5 text-xs text-foreground hover:text-gold">
+              <WriterBadge tone={writer.tone} supporter={!!supporter} size={14} title={writer.rank} />
+              {writer.rank} · {writer.band} helped
+            </ClanLink>
+          )}
           <p className="text-sm text-text-muted">
             {/* The clans listed under "Your clans" below: a seat, or running it (an owner is in their clan). */}
             {characters.length} character{characters.length === 1 ? '' : 's'} · {clanCount} clan

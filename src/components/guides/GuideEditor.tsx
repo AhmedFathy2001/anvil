@@ -366,6 +366,7 @@ export default function GuideEditor({
             uploadUrl={`${api}/upload`}
             strictLevels={scope === 'library'}
             categories={data.categories}
+            draftKey={`${scope}:${g.id}`}
           />
 
           {!readOnly && (

@@ -319,6 +319,34 @@ export function collapseGear(body: string): { display: string; gear: string | nu
   return { display: [...lines.slice(0, start), token, ...lines.slice(end + 1)].join('\n'), gear: json };
 }
 
+// The route block, the same way: one readable token line in the editor, the JSON put back on save.
+const ROUTE_TOKEN_RE = /^\s*\[\[🧭 Progression route[^\n]*\]\]\s*$/;
+
+export function collapseRoute(body: string): { display: string; route: string | null } {
+  const lines = body.replace(/\r\n?/g, '\n').split('\n');
+  const start = lines.findIndex((l) => ROUTE_OPEN_RE.test(l));
+  if (start === -1) return { display: body, route: null };
+  let end = start + 1;
+  while (end < lines.length && !FENCE_RE.test(lines[end])) end++;
+  const json = lines.slice(start + 1, end).join('\n');
+  let steps = 0;
+  try {
+    steps = ((JSON.parse(json) as { chapters?: { steps?: unknown[] }[] }).chapters ?? []).reduce((a, c) => a + (c.steps?.length ?? 0), 0);
+  } catch {
+    /* shown as unreadable */
+  }
+  const token = `[[🧭 Progression route: ${steps} steps · edit with the 🧭 button]]`;
+  return { display: [...lines.slice(0, start), token, ...lines.slice(end + 1)].join('\n'), route: json };
+}
+
+export function expandRoute(display: string, route: string | null): string {
+  if (route == null) return display;
+  const lines = display.split('\n');
+  const at = lines.findIndex((l) => ROUTE_TOKEN_RE.test(l));
+  if (at === -1) return display;
+  return [...lines.slice(0, at), '```route', route, '```', ...lines.slice(at + 1)].join('\n');
+}
+
 /** Undo collapseGear on edited text: the token line becomes the gear block again (if still there). */
 export function expandGear(display: string, gear: string | null): string {
   if (gear == null) return display;

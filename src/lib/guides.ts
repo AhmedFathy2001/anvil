@@ -21,7 +21,7 @@ import { guidePosts, guideRevisions, guides, type Guide } from '@/db/schema';
 import { getSetting } from '@/lib/settings';
 import { log } from '@/lib/logger';
 import { GUIDE_LIMITS, isCategoryKey, slugify } from '@/lib/guideCategories';
-import { coverage } from '@/lib/guideTiers';
+import { coverage, splitSegments } from '@/lib/guideTiers';
 import { categoryRequiresLevels, categoryUsable } from '@/lib/guideCategoryStore';
 import { guideImageProblem, guideImageProblems } from '@/lib/guideMarkdown';
 
@@ -287,6 +287,11 @@ export async function assertLibraryCoverage(g: { clanId: number | null; status: 
   }
 }
 
+/** A guide's kind follows its body: one with a route block is a progression route. */
+export function kindOf(body: string): 'guide' | 'route' {
+  return splitSegments(body).some((s) => s.kind === 'route') ? 'route' : 'guide';
+}
+
 /** A slug free in this scope, suffixing -2, -3… as needed. */
 async function freeSlug(clanId: number | null, wanted: string, exceptId?: number): Promise<string> {
   const base = RESERVED_SLUGS.has(slugify(wanted)) ? `${slugify(wanted)}-guide` : slugify(wanted);
@@ -348,6 +353,7 @@ export async function createGuide(
       status,
       sortOrder: clean.sortOrder ?? 0,
       version: 1,
+      kind: kindOf(clean.body ?? ''),
       createdByUserId: userId,
       updatedByUserId: userId,
       createdAt: at,
@@ -393,6 +399,7 @@ export async function saveGuide(
     updatedByUserId: userId,
   };
   if (becamePublished) patch.publishedAt = at;
+  if (clean.body !== undefined) patch.kind = kindOf(clean.body);
   if (contentChanged) {
     patch.version = g.version + 1;
     // THE COPY RULE: the first edit makes a copy the clan's own.
@@ -431,6 +438,7 @@ export async function copyFromLibrary(clanId: number, sourceId: number, userId: 
       status: 'published',
       sortOrder: src.sortOrder,
       version: 1,
+      kind: src.kind,
       sourceGuideId: src.id,
       sourceVersion: src.version,
       followsSource: true,
@@ -462,6 +470,7 @@ export async function syncFromSource(copy: Guide, userId: number | null, follow 
       body: src.body,
       category: src.category,
       coverUrl: src.coverUrl,
+      kind: src.kind,
       sourceVersion: src.version,
       followsSource: follow,
       version: changed ? copy.version + 1 : copy.version,

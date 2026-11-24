@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
@@ -10,7 +10,9 @@ import { clanFetch } from '@/lib/clanFetch';
 import { GUIDE_CATEGORIES, GUIDE_LIMITS, type CategoryView } from '@/lib/guideCategories';
 import GuideBody from './GuideBody';
 import GearBuilder from '@/components/gear/GearBuilder';
-import { collapseGear, coverage, expandGear, firstGearBlock, TIERS, upsertGearBlock } from '@/lib/guideTiers';
+import { collapseGear, collapseRoute, coverage, expandGear, expandRoute, firstGearBlock, TIERS, upsertFencedBlock, upsertGearBlock } from '@/lib/guideTiers';
+import { parseYouTube, youTubeLink } from '@/lib/youtube';
+import RouteBuilder from './RouteBuilder';
 import DiscordPreview from './DiscordPreview';
 
 // The writing half of a guide — fields, the markdown toolbar, image upload, and the two previews —
@@ -89,7 +91,10 @@ export function GuideFieldsEditor({
   uploadUrl,
   strictLevels = false,
   categories = GUIDE_CATEGORIES,
+  draftKey,
 }: {
+  /** Autosave the text in this browser under this key, with a "Restore draft" offer. */
+  draftKey?: string;
   value: GuideFieldValues;
   onChange: (patch: Partial<GuideFieldValues>) => void;
   readOnly?: boolean;
@@ -100,10 +105,37 @@ export function GuideFieldsEditor({
   categories?: readonly CategoryView[];
 }) {
   const [gearOpen, setGearOpen] = useState(false);
+  const [draft, setDraft] = useState<{ body: string; at: string } | null>(null);
+  // Autosave: the body, a second after typing stops; a saved draft that differs is offered back.
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      const j = JSON.parse(localStorage.getItem(`anvil.guides.draft:${draftKey}`) ?? 'null') as { body: string; at: string } | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time restore offer from storage
+      if (j?.body && j.body !== value.body) setDraft(j);
+    } catch {
+      /* storage unavailable */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on open
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftKey || readOnly) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(`anvil.guides.draft:${draftKey}`, JSON.stringify({ body: value.body, at: new Date().toISOString() }));
+      } catch {
+        /* storage unavailable */
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [draftKey, readOnly, value.body]);
   // The gear block's JSON never shows in the textarea: it is one readable line there, and goes back
   // in when the text changes (lib/guideTiers collapseGear/expandGear).
-  const { display, gear } = useMemo(() => collapseGear(value.body), [value.body]);
-  const setBody = (text: string) => onChange({ body: expandGear(text, gear) });
+  const { display: gearDisplay, gear } = useMemo(() => collapseGear(value.body), [value.body]);
+  // A route block collapses to one line the same way (lib/guideTiers collapseRoute).
+  const { display, route } = useMemo(() => collapseRoute(gearDisplay), [gearDisplay]);
+  const setBody = (text: string) => onChange({ body: expandGear(expandRoute(text, route), gear) });
+  const [routeOpen, setRouteOpen] = useState(false);
   const gearBlock = useMemo(() => firstGearBlock(value.body), [value.body]);
   const { upload, uploading } = useGuideUpload(uploadUrl);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -261,8 +293,28 @@ export function GuideFieldsEditor({
             />
             <button
               type="button"
-              onClick={() => setGearOpen(true)}
+              title="YouTube video (paste a watch, youtu.be or shorts link)"
+              onClick={() => {
+                const url = window.prompt('YouTube link (watch, youtu.be or shorts; add ?t= to start later)');
+                const yt = url ? parseYouTube(url) : null;
+                if (url && !yt) return window.alert('That isn’t a YouTube link we can embed.');
+                if (yt) applyTool({ label: '', title: '', insert: `\n${youTubeLink(yt)}\n` });
+              }}
+              className="rounded px-2 py-1 text-xs text-text-muted hover:bg-white/10 hover:text-foreground"
+            >
+              ▶ Video
+            </button>
+            <button
+              type="button"
+              onClick={() => setRouteOpen(true)}
               className="ml-auto rounded bg-gold/15 px-2 py-1 text-xs text-gold hover:bg-gold/25"
+            >
+              🧭 {route != null ? 'Edit route' : 'Route'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setGearOpen(true)}
+              className="rounded bg-gold/15 px-2 py-1 text-xs text-gold hover:bg-gold/25"
             >
               ⚔️ {gearBlock ? 'Edit gear' : 'Gear progression'}
             </button>
@@ -276,6 +328,17 @@ export function GuideFieldsEditor({
             </button>
           </div>
         )}
+        {draft && !readOnly && (
+          <div className="flex items-center gap-2 rounded-t border border-b-0 border-gold/40 bg-gold/10 px-3 py-1.5 text-xs">
+            <span className="flex-1">A draft from this browser ({draft.at.slice(0, 16).replace('T', ' ')}) differs from what is saved.</span>
+            <button type="button" onClick={() => { onChange({ body: draft.body }); setDraft(null); }} className="font-semibold text-gold hover:underline">
+              Restore draft
+            </button>
+            <button type="button" onClick={() => setDraft(null)} className="text-text-muted hover:text-foreground">
+              Dismiss
+            </button>
+          </div>
+        )}
         <Textarea
           ref={bodyRef}
           value={display}
@@ -286,6 +349,13 @@ export function GuideFieldsEditor({
             if (files.length && !readOnly) {
               e.preventDefault();
               void uploadImages(files);
+              return;
+            }
+            // A pasted YouTube link becomes its own line: the page shows it as a click-to-play video.
+            const yt = !readOnly ? parseYouTube(e.clipboardData.getData('text')) : null;
+            if (yt) {
+              e.preventDefault();
+              applyTool({ label: '', title: '', insert: `\n${youTubeLink(yt)}\n` });
             }
           }}
           onDrop={(e) => {
@@ -331,6 +401,16 @@ export function GuideFieldsEditor({
           strict={strictLevels}
         />
       </div>
+      {routeOpen && (
+        <RouteBuilder
+          initial={route}
+          onClose={() => setRouteOpen(false)}
+          onSave={(json) => {
+            onChange({ body: upsertFencedBlock(value.body, 'route', json) });
+            setRouteOpen(false);
+          }}
+        />
+      )}
       {gearOpen && (
         <GearBuilder
           initial={gearBlock}
