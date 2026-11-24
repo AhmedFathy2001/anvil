@@ -58,6 +58,8 @@ interface Common {
   k?: string;
   /** Under a filter: shown only while something is typed. */
   q?: boolean;
+  /** Under a filter with `at`: this row's values for that template ("{1}", "{2}"…). */
+  av?: (string | number)[];
   /** Right-click menu: an item without `on` is shown greyed out (it says why something can't be done). */
   menu?: { label: string; on?: Action }[];
   /**
@@ -176,6 +178,17 @@ export type Node =
       more?: string;
       /** The searched rows are the children of these (a grid's cells, a column's rows). */
       c: Node[];
+      /**
+       * A row whose `k` is "name|part|part" and that matched only by a later part is drawn as this
+       * template instead: "{0}" the part that matched, "{1}"… the row's `av`. A quoted "{i}" whole
+       * takes the value as it is (a number stays a number); inside a text it is spliced in.
+       * Plugins from before it ignore it and draw the row.
+       */
+      at?: Node;
+      /** Search-only rows as values for template `xt` ("{0}" = the searched key), built only once they match, under `xh`. */
+      x?: (string | number | boolean)[][];
+      xt?: Node;
+      xh?: Node;
     })
   /**
    * `nav`: a pane replaces the page (a race tile's detail) — `open` names the pane shown first, and

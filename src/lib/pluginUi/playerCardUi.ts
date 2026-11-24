@@ -5,6 +5,7 @@ import { XP_TABLE } from '@/lib/xp';
 
 import {
   type Action,
+  type Color,
   type Node,
   badge,
   button,
@@ -24,7 +25,7 @@ import {
   text,
 } from './nodes';
 import { mediaRevision, revisedMediaPath } from './mediaRevision';
-import { GOLD, GREEN, PURPLE, big, section, small, title } from './sections';
+import { GOLD, GREEN, PROGRESS, PURPLE, SOFT, big, chip, section, small, title } from './sections';
 
 // A player card as the plugin's Lookup and You tabs draw it (was PlayerCardView.java). Pure: the
 // route loads the card, this decides every line.
@@ -137,6 +138,8 @@ export interface CardOptions {
   tint?: string | null;
   /** Cards under the profile that a log page replaces along with it (You: goals). */
   below?: Node[];
+  /** The plugin fills filter templates (`at`, `x`): the log search names the item it matched and lists the items. */
+  logSearch?: boolean;
   /** Cards over the profile, inside the same page. */
   above?: Node[];
 }
@@ -177,20 +180,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
 
   if (c.skills.length) sections.push({ label: 'Stats', c: skills(c) });
   const bosses = c.bosses.length ? c.bosses : c.topBosses;
-  if (bosses.length) {
-    const killed = new Set(bosses.map((b) => b.key));
-    const cells: Node[] = bosses.map((b) => {
-      const on = opens(b.clogPage, kills.get(b.clogPage?.toLowerCase() ?? ''));
-      return countCell(icon({ boss: b.key }), b.label, b.kc, `${b.label} — ${fmt(b.kc)} kills${on ? ' · click for its log' : ''}`, on);
-    });
-    // A boss they've never killed isn't on the card; a search for it still answers: 0 KC.
-    for (const b of BOSSES) {
-      if (!killed.has(b.key)) {
-        cells.push({ ...countCell(icon({ boss: b.key }), b.label, 0, `${b.label} — 0 kills`), k: [b.label, ...(b.aliases ?? [])].join(' '), q: true });
-      }
-    }
-    sections.push({ label: 'Bosses', c: searchable('bosses', bosses.length, { t: 'grid', cols: 3, gap: 3, vgap: 3, c: cells }) });
-  }
+  if (bosses.length) sections.push({ label: 'Bosses', c: bossList(bosses, kills, opens, opts.sectionKey) });
   if (anvil && c.clog && c.clog.total > 0) sections.push({ label: 'Log', c: logTab(c, kills) });
   else if (anvil) sections.push({ label: 'Log', c: card([muted('No collection log synced yet. Sync profile (the gear button) sends it.', { wrap: true })]) });
 
@@ -243,7 +233,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   }
   const main = col([...(opts.above ?? []), ...parts, ...(opts.below ?? [])], { gap: 8 });
   // The log's categories and pages are pages of their own over the whole view (one ‹ Back at the top).
-  return anvil && c.clogPages.length ? { t: 'slot', id: 'prof', nav: true, open: 'main', panes: { main, ...logPanes(c, kills) }, c: gap(0) } : main;
+  return anvil && c.clogPages.length ? { t: 'slot', id: 'prof', nav: true, open: 'main', panes: { main, ...logPanes(c, kills, !!opts.logSearch) }, c: gap(0) } : main;
 }
 
 /** "Not on Anvil" — the same words whether the name is unknown or hidden. */
@@ -285,10 +275,9 @@ const PIN_WRAP = 96;
 
 function displayCase(c: PlayerCard, slots?: number): Node {
   const pins = c.displayCase ?? [];
-  /** What the pin says big: a headline, else the luck line, else the KC it came at, else a count owned, else the month it came; null when none is known. */
+  /** What the pin says big (a pin with a luck read says that instead): a headline, else the KC it came at, else a count owned, else the month it came; null when none is known. */
   const value = (p: NonNullable<PlayerCard['displayCase']>[number]): string | null => {
     if (p.headline) return p.headline;
-    if (p.luck) return p.luck.text;
     if (p.kc) return `${fmt(p.kc)} KC`;
     if (p.qty && p.qty > 1) return `×${fmt(p.qty)} owned`;
     const d = p.when ? new Date(p.when) : null;
@@ -296,7 +285,7 @@ function displayCase(c: PlayerCard, slots?: number): Node {
   };
   const picture = (p: NonNullable<PlayerCard['displayCase']>[number]): Node => {
     // An item sprite is 36x32: the box is made for it so it's never cut.
-    if ((p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0) return icon({ item: p.itemId, w: 36, h: 32 });
+    if ((p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0) return icon({ item: p.itemId, w: 36, h: 32, ...(p.qty && p.qty > 1 ? { qty: p.qty } : {}) });
     const key = p.kind === 'pb' ? (p.statKey?.replace(/^\d+:/, '') ?? '') : (p.statKey ?? '');
     return icon({ boss: key, w: 32, h: 32, or: icon({ glyph: 'star', color: 'brand', w: 14, h: 14 }) });
   };
@@ -309,11 +298,22 @@ function displayCase(c: PlayerCard, slots?: number): Node {
       vgap: 4,
       c: pins.map((p) => {
         const item = p.kind === 'drop' || p.kind === 'clog';
+        // With a luck read the pin says what it is, then how it went under it ("2 in 200 kc · expected 0.5 · mega spooned").
+        if (p.luck) {
+          return col(
+            [
+              picture(p),
+              small(p.name, item ? PURPLE : GOLD, { font: 'bold', wrap: PIN_WRAP, tip: p.name }),
+              small(p.luck.text, p.luck.tone === 'green' ? GREEN : SOFT, { wrap: PIN_WRAP }),
+            ],
+            { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(' · ') },
+          );
+        }
         return col(
           [
             picture(p),
             ...(value(p)
-              ? [small(value(p)!, p.luck ? (p.luck.tone === 'green' ? GREEN : 'muted') : item ? PURPLE : GOLD, { font: 'bold', wrap: PIN_WRAP }), small(p.name, item ? PURPLE : 'muted', { wrap: PIN_WRAP, tip: p.name })]
+              ? [small(value(p)!, item ? PURPLE : GOLD, { font: 'bold', wrap: PIN_WRAP }), small(p.name, item ? PURPLE : 'muted', { wrap: PIN_WRAP, tip: p.name })]
               : // Nothing known: the name, in the normal small font, wrapped — never the big line.
                 [small(p.name, item ? PURPLE : GOLD, { wrap: PIN_WRAP, tip: p.name })]),
           ],
@@ -370,13 +370,59 @@ function logIndex(c: PlayerCard): Node {
   return card([{ t: 'filter', hint: 'Search pages and items…', box: true, none: 'Nothing matches.', max: 12, more: 'Keep typing to narrow it.', c: [{ t: 'grid', cols: 1, vgap: 4, c: [...cats, ...found] }] }]);
 }
 
-/** One pane per category: its pages, each opening its items. */
-function logPanes(c: PlayerCard, kills: Map<string, number>): Record<string, Node> {
+/**
+ * One pane per category: its pages, each opening its items. A search over this category only finds a
+ * page by its name or by an item on it ("tanz" finds Zulrah) — the client filters, nothing is fetched.
+ * A page found only by an item says which ("matched item: Tanzanite fang"), and the matching items
+ * follow under "Matching items" with what this player has of each. Both are templates the plugin
+ * fills as it searches (filter `at`, `x`); a plugin from before them shows the pages alone.
+ */
+function logPanes(c: PlayerCard, kills: Map<string, number>, templates: boolean): Record<string, Node> {
   const panes: Record<string, Node> = {};
+  const held = c.clogQty ?? {};
   for (const [group, pages] of groupsOf(c)) {
     const got = pages.reduce((t, p) => t + p.obtained, 0);
     const of = pages.reduce((t, p) => t + p.total, 0);
-    panes[`cat:${group}`] = col([backHeader(group, `${got}/${of}`, got >= of, toMain), gap(6), ...pages.flatMap((p) => [pageRow(c.rsn, p, kills.get(p.name.toLowerCase()), `cat:${group}`), gap(2)])]);
+    const back = `cat:${group}`;
+    const items: (string | number | boolean)[][] = [];
+    const rows = pages.map((p) => {
+      const on = clogPageItems(p.name);
+      if (templates) for (const i of on) items.push([i.name, i.id, p.name, held[i.id] ? `got ${fmt(held[i.id])}` : 'not yet', !held[i.id]]);
+      const kc = kills.get(p.name.toLowerCase());
+      return {
+        ...pageRow(c.rsn, p, kc, back),
+        // "|" between the parts: the plugin folds punctuation away, so an older one searches it as one text.
+        k: [p.name, ...on.map((i) => i.name)].join(templates ? '|' : ' '),
+        ...(templates ? { av: [p.name, p.iconItemId ?? 0, `${p.obtained}/${p.total}`, p.total > 0 && p.obtained >= p.total ? 'done' : 'white', kc ? String(kc) : ''] } : {}),
+      };
+    });
+    const matched = row(
+      icon({ item: '{2}', w: 36, h: 32 } as unknown as Omit<Extract<Node, { t: 'icon' }>, 't'>),
+      col([text('{1}', '{4}' as Color), muted('matched item: {0}', { font: 'small' })]),
+      row(undefined, muted('{3}'), icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' })),
+      { pad: 3, tip: 'See the items on this page', on: { a: 'load', v: 'clog-page', args: { rsn: c.rsn, page: '{1}', back, kc: '{5}' }, into: 'prof' } },
+    );
+    const item = row(
+      icon({ item: '{1}', w: 36, h: 32, dim: '{4}' } as unknown as Omit<Extract<Node, { t: 'icon' }>, 't'>),
+      col([text('{0}'), muted('{2} · {3}', { font: 'small' })]),
+      undefined,
+      { pad: 3, tip: 'See the items on this page', on: { a: 'load', v: 'clog-page', args: { rsn: c.rsn, page: '{2}', back }, into: 'prof' } },
+    );
+    panes[back] = col([
+      backHeader(group, `${got}/${of}`, got >= of, toMain),
+      gap(6),
+      {
+        t: 'filter',
+        hint: `Search ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} and items…`,
+        box: pages.length >= 4,
+        none: `Nothing in ${group} matches.`,
+        max: 40,
+        more: 'Keep typing to narrow it.',
+        // A one-column grid, not a col with a gap: the filter only searches a list whose rows are its children.
+        c: [{ t: 'grid', cols: 1, vgap: 2, c: rows }],
+        ...(templates ? { at: matched, x: items, xt: item, xh: col([gap(6), text('Matching items', 'brand', { font: 'bold' }), gap(2)]) } : {}),
+      },
+    ]);
   }
   return panes;
 }
@@ -427,6 +473,46 @@ function latest(c: PlayerCard): Node {
       ),
     ),
   ]);
+}
+
+/** The kill count's ink in the boss list: the warm yellow a count reads in. */
+const KC_INK: Color = PROGRESS;
+
+/**
+ * The Bosses tab: a list, one boss a row — icon, name, the kill count in full at the right (a grid
+ * cell cut "1,378" to "1,3…"). Most kills first, or A–Z: the two orders are a toggle's two faces, so
+ * the switch is the client's own. A boss they've never killed isn't listed; a search still answers it: 0.
+ */
+function bossList(
+  bosses: PlayerCard['bosses'],
+  kills: Map<string, number>,
+  opens: (page: string | null | undefined, kc?: number) => Action | undefined,
+  sectionKey: string,
+): Node {
+  const killed = new Set(bosses.map((b) => b.key));
+  const line = (key: string, label: string, kc: number, on?: Action, extra: Partial<Extract<Node, { t: 'row' }>> = {}): Node =>
+    row(
+      icon({ boss: key, w: 24, h: 22 }),
+      text(label, kc > 0 ? 'white' : 'muted'),
+      text(fmt(kc), kc > 0 ? KC_INK : 'muted', { font: 'bold' }),
+      { pad: 3, gap: 6, k: [label, ...(BOSSES.find((b) => b.key === key)?.aliases ?? [])].join(' '), ...(on ? { on, tip: 'See its collection log page' } : {}), ...extra },
+    );
+  const rowsOf = (list: PlayerCard['bosses']): Node[] => [
+    ...list.map((b) => line(b.key, b.label, b.kc, opens(b.clogPage, kills.get(b.clogPage?.toLowerCase() ?? '')))),
+    ...BOSSES.filter((b) => !killed.has(b.key)).map((b) => line(b.key, b.label, 0, undefined, { q: true })),
+  ];
+  const byKc = [...bosses].sort((a, b) => b.kc - a.kc || a.label.localeCompare(b.label));
+  const byName = [...bosses].sort((a, b) => a.label.localeCompare(b.label));
+  const key = `boss-sort:${sectionKey}`;
+  const sortChip = (label: string, lit: boolean): Node =>
+    lit ? chip(label, 'gold', { font: 'bold' }) : chip(label, 'grey', { on: { a: 'flip', key }, tip: `Sort by ${label === 'A–Z' ? 'name' : 'kill count'}` });
+  const face = (alpha: boolean): Node =>
+    card([
+      row(row(sortChip('Most kc', !alpha), undefined, sortChip('A–Z', alpha), { gap: 6 }), undefined, undefined),
+      gap(4),
+      { t: 'filter', hint: `Search ${bosses.length} bosses…`, box: bosses.length >= SEARCH_FROM, none: 'Nothing matches.', c: [{ t: 'grid', cols: 1, vgap: 1, c: rowsOf(alpha ? byName : byKc) }] },
+    ]);
+  return { t: 'toggle', key, off: face(false), lit: face(true) };
 }
 
 /** A count with the game's own picture; the name stands in when the plugin has no picture for it. */

@@ -1,7 +1,7 @@
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, users } from '@/db/schema';
+import { accounts, clanMemberships, memberClogItems, users } from '@/db/schema';
 import { apexCharacter, apexClan, type ApexCharacter } from '@/lib/apexProfiles';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { hasPlatformRole } from '@/lib/clanRoles';
@@ -17,6 +17,8 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import { displayCaseForPlayer } from '@/lib/displayCase';
 import { luckCandidates } from '@/lib/clogLuckBoard';
 import { pinLuck } from '@/lib/pinLuck';
+import { pluginVersionHeader } from '@/lib/pluginSeen';
+import { itemLuck } from '@/lib/logPageFacts';
 import { supporterForPlayer } from '@/lib/supporter';
 import { canAnimateProfileMedia } from '@/lib/profileMediaRules';
 import { mediaRevision } from '@/lib/pluginUi/mediaRevision';
@@ -80,6 +82,16 @@ async function modeStatsOver(card: PlayerCard): Promise<PlayerCard> {
 
 export async function loadPanelPlayerCard(character: ApexCharacter): Promise<PlayerCard> {
   const card = await loadPlayerCard(character);
+  if (card.clogPages.length) {
+    // What they hold of each log item, for the log search's "got 3" (playerCardUi logPanes).
+    // clan-scope: global -- an OSRS account is one account however many clans roster it.
+    const held = await db
+      .select({ itemId: memberClogItems.itemId, quantity: memberClogItems.quantity })
+      .from(memberClogItems)
+      .where(eq(memberClogItems.accountId, character.accountId))
+      .catch(() => []);
+    card.clogQty = Object.fromEntries(held.map((h) => [h.itemId, h.quantity]));
+  }
   if (!character.personId || !character.personMedia) return card;
   // Their own uploads show on every character by default; the Discord picture fallback says who the
   // person is, so it only stands in where they link characters publicly.
@@ -100,8 +112,14 @@ export async function loadPanelPlayerCard(character: ApexCharacter): Promise<Pla
   };
   const cands = luckCandidates();
   const kcOf = (key: string) => [...card.bosses, ...card.topBosses].find((b) => b.key === key)?.kc ?? 0;
+  const kills: Record<string, number> = {};
+  for (const b of [...card.bosses, ...card.topBosses]) kills[b.key] = Math.max(kills[b.key] ?? 0, b.kc);
   card.displayCase = displayCase.map((p) => {
-    const luck = (p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0 ? pinLuck({ itemId: p.itemId, source: p.source, kc: p.kc, qty: p.qty }, cands, kcOf) : null;
+    if ((p.kind !== 'drop' && p.kind !== 'clog') || p.itemId <= 0) return p;
+    // A log slot with its count: copies held against what the rate owed by today's kills (lib/logPageFacts).
+    // Else the drop's own KC against the rate (lib/pinLuck). Neither known: no line.
+    const held = p.kind === 'clog' && p.qty ? itemLuck({ quantity: p.qty, kcAtUnlock: p.kc }, cands.find((c) => c.itemId === p.itemId)?.sources ?? [], kills) : null;
+    const luck = held ? { text: held.text, tone: held.tone === 'green' ? ('green' as const) : ('muted' as const) } : pinLuck({ itemId: p.itemId, source: p.source, kc: p.kc, qty: p.qty }, cands, kcOf);
     return luck ? { ...p, luck } : p;
   });
   return card;
@@ -191,6 +209,25 @@ export function hasTabLinks(request: Request): boolean {
 /** ...and open the Feed tab ON a given list (`{ a: 'tab', tab: 'feed', args }`): a board's feed or chat. */
 export function hasTabArgs(request: Request): boolean {
   return Number(request.headers.get('X-Anvil-Tab-Links')) >= 2;
+}
+
+/** The first plugin build whose filter fills templates (`at`, `x`): the log search's matched item and item rows. */
+export const LOG_SEARCH_MIN_PLUGIN = '1.17.3';
+
+/**
+ * Does this plugin fill filter templates? By its X-Anvil-Plugin-Version; unknown reads as no. An older
+ * plugin would ignore them anyway, so this only spares it the bytes.
+ */
+export function hasLogSearch(request: Request): boolean {
+  const parts = (v: string | null | undefined) => /^\s*(\d+(?:\.\d+)*)/.exec(v ?? '')?.[1].split('.').map(Number) ?? null;
+  const a = parts(pluginVersionHeader(request));
+  const b = parts(LOG_SEARCH_MIN_PLUGIN)!;
+  if (!a) return false;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0);
+    if (d !== 0) return d > 0;
+  }
+  return true;
 }
 
 /** The plugin draws `img` nodes (capability 'panel-images'): proof thumbnails in a tile's detail. */

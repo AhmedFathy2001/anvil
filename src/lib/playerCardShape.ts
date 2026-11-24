@@ -120,6 +120,11 @@ export interface PlayerCard {
   activities: PlayerCardActivity[];
   /** Every log page, grouped and in group order; empty until the log is synced. */
   clogPages: PlayerCardPage[];
+  /**
+   * Panel only (lib/pluginUi/load): how many of each log item they hold, by item id, for the log
+   * search's "got 3" / "not yet". Never sent as card JSON.
+   */
+  clogQty?: Record<number, number>;
   /** Personal bests the plugin uploaded: one entry per boss and mode, best time first, team sizes behind it. */
   times: PbEntry[];
   /**

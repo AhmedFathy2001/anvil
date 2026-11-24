@@ -24,8 +24,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ rsn:
   const rsn = decodeURIComponent((await params).rsn).trim();
   const found = await lookupPlayerCard(request, rsn);
   switch (found.kind) {
-    case 'card':
-      return jsonWithEtag(request, found.card);
+    case 'card': {
+      // The per-item counts are for the panel's own views; the card JSON never carried them.
+      const card = { ...found.card };
+      delete card.clogQty;
+      return jsonWithEtag(request, card);
+    }
     case 'limited':
       return NextResponse.json({ error: 'Too many lookups' }, { status: 429, headers: { 'Retry-After': String(found.retryAfterSec) } });
     case 'busy':
