@@ -14,7 +14,7 @@ import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/plu
 import { getGuide, publicGuideBySlug, publicGuides } from '@/lib/guides';
 import { listCategories } from '@/lib/guideCategoryStore';
 import { categoryOf, readingMinutes } from '@/lib/guideCategories';
-import { firstGearBlock, splitSegments, TIERS, type GearBlock, type TierKey } from '@/lib/guideTiers';
+import { firstGearBlock, splitSegments, TIERS, type GearBlock, type GearSetup, type TierKey } from '@/lib/guideTiers';
 import { setupFit, viewerTier, type GuideAccount, type GuideBuild } from '@/lib/guideSetups';
 import { EMPTY_VIEWER, equivalentsFor, guideViewer, kcKeyOf, routeFacts, type GuideViewer } from '@/lib/guideViewer';
 import { ladderFor, loadGuideView, type SetupView } from '@/lib/guideView';
@@ -25,6 +25,8 @@ import { slotOptions } from '@/lib/gearOwnership';
 import { baseItem } from '@/lib/itemFamilies';
 import { formatGp } from '@/lib/itemPrices';
 import { fmtDuration } from '@/lib/dps/summary';
+import { effectiveGearIndex } from '@/lib/dps/store';
+import { gearNow, wornGear } from '@/lib/gearNow';
 import { spellbookName } from '@/lib/guideSelection';
 import { clearSkip, isSkipReason, setBudgetCap, setSkip } from '@/lib/playerItems';
 import { rateLimit } from '@/lib/rate-limit';
@@ -32,7 +34,7 @@ import { supporterForUsers } from '@/lib/supporter';
 import { hasGuidesPanel } from './load';
 import { gap, message, type Node, type View } from './nodes';
 import { plainLine, sectionsForTier, textTiers } from './guideBody';
-import { GUIDE_REGIONS, guideGoneUi, guidePanelUi, guidesSearchUi, nextUpUi, type GuidePic, type GuideRowData, type PanelAlternatives, type PanelCheck, type PanelRoute } from './guidesUi';
+import { GUIDE_REGIONS, guideGoneUi, guidePanelUi, guidesSearchUi, nextUpUi, type GuidePic, type GuideRowData, type PanelAlternatives, type PanelCheck, type PanelGearNow, type PanelRoute } from './guidesUi';
 
 type Args = Record<string, string>;
 
@@ -153,6 +155,32 @@ async function routePanel(viewer: GuideViewer, guideId: number, body: string): P
   };
 }
 
+/** "Ahrim the Blighted" → "Ahrim", "Great Olm (Head)" → "Great Olm": a name for a ~70px column. */
+const shortTarget = (name: string) => name.split(' the ')[0].replace(/\s*\(.*\)\s*$/, '').trim() || name;
+
+/** "1:12" per kill; an hour or more (or never) is past what a 30px column says. */
+const killTime = (t: number | null) => (t == null ? '—' : t >= 3600 ? '1h+' : fmtDuration(t));
+
+/**
+ * "Your gear now vs this setup" from the worn-gear push (owner only: viewer.snapshot is). Null with no
+ * equipment reading, or nothing to compare against.
+ */
+async function gearNowPanel(setup: GearSetup, block: GearBlock, viewer: GuideViewer): Promise<PanelGearNow | null> {
+  const items = viewer.snapshot?.equipment?.items ?? [];
+  if (!items.length) return null;
+  const idx = await effectiveGearIndex();
+  const eq = equivalentsFor(items.map((i) => i.id), 'holds');
+  const now = gearNow(setup, block, wornGear(items, idx, eq), idx, eq);
+  if (!now) return null;
+  const single = now.rows.length === 1 ? now.rows[0] : null;
+  const name = (id: number | null) => (id == null ? null : idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`);
+  return {
+    rows: now.rows.map((r) => ({ name: shortTarget(r.monster.n), you: r.you, guide: r.guide })),
+    ttk: single ? { you: killTime(single.youTtk), guide: killTime(single.guideTtk) } : null,
+    gap: now.gap ? { slot: now.gap.slot, guide: name(now.gap.guide)!, worn: name(now.gap.worn) } : null,
+  };
+}
+
 export async function guidePanelView(request: Request, args: Args, extra: { alternatives?: string; setup?: string; note?: string } = {}): Promise<View> {
   const region = regionArg(args);
   const guide = await getGuide(Number(args.id));
@@ -189,8 +217,10 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
     for (const [id, q] of [...supplies.entries()].slice(0, 6)) checklist.push({ text: `${names[id] ?? 'Item'}${q > 1 ? ` ×${q}` : ''}`, ok: current?.resolved ? !missingSupply.has(id) : null, pic: { item: id } });
   }
   let alternatives: PanelAlternatives | null = null;
-  if (extra.alternatives && current) {
-    const slot = extra.alternatives;
+  // A slot's alternatives: the 'guide-alt' post's slot, or a load's `alt`.
+  const altSlot = extra.alternatives ?? (SLOTS.includes(args.alt ?? '') ? args.alt : undefined);
+  if (altSlot && current) {
+    const slot = altSlot;
     const options = slotOptions(current.setup, slot as 'head');
     const row = ladder.find((r) => r.slot === slot);
     const base = row?.steps.find((x) => x.id === options[0])?.dps ?? null;
@@ -217,6 +247,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
     };
   }
   const tone = top ? (supporter ? 'quill-star' : `quill-${top.quill}`) : null;
+  const nowCard = current && view.block ? await gearNowPanel(current.setup, view.block, viewer) : null;
   const all = [...pills, ...comm];
   return {
     ui: guidePanelUi({
@@ -274,6 +305,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       phase2,
       alternatives,
       route: guide.kind === 'route' ? await routePanel(viewer, guide.id, guide.body) : null,
+      gearNow: nowCard,
     }),
   };
 }

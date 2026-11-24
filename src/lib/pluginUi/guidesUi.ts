@@ -23,7 +23,7 @@
 //             Before-you-go supply ticks fill themselves.
 // The Players | Clans | Guides switch is the plugin's own, above the view: none is drawn here.
 
-import { button, card, col, gap, icon, muted, row, text, type Action, type GuideQuillGlyph, type Node } from './nodes';
+import { button, card, col, gap, icon, muted, row, text, type Action, type Color, type GuideQuillGlyph, type Node } from './nodes';
 import { backHeader } from './playerCardUi';
 import { CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BodySection } from './guideBody';
@@ -254,6 +254,16 @@ export interface GuidePanelData {
   phase2: boolean;
   alternatives: PanelAlternatives | null;
   route: PanelRoute | null;
+  /** "Your gear now vs this setup": owner only, from the plugin's worn-gear push. Null hides it. */
+  gearNow?: PanelGearNow | null;
+}
+export interface PanelGearNow {
+  /** One per target the setup is for: its short name, worn DPS, the setup's DPS. */
+  rows: { name: string; you: number; guide: number }[];
+  /** A single-target guide: time per kill, yours and the guide's ("1:12"). */
+  ttk: { you: string; guide: string } | null;
+  /** The guide's item for the slot that raises the worn DPS most, and what is worn there now. */
+  gap: { slot: string; guide: string; worn: string | null } | null;
 }
 export interface PanelAlternatives {
   slot: string;
@@ -291,7 +301,9 @@ function centred(node: Node, width: number): Node {
 }
 
 const guideBack = (d: Pick<GuidePanelData, 'region'>): Action => ({ a: 'load', v: 'guides', ...(d.region ? { args: { region: d.region } } : {}) });
-const pickSetup = (d: GuidePanelData, setup: string): Action => ({ a: 'post', act: 'guide-pick', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup }, d.region) });
+// Loads, not posts: the plugin asks again for the last view it LOADED (its Refresh, and after a worn-gear
+// push), so a picked setup or an open slot stays on screen. The 'guide-pick' and 'guide-alt' posts still answer.
+const pickSetup = (d: GuidePanelData, setup: string): Action => openGuide(d.id, d.region, { tier: d.tier ?? '', setup });
 
 /** "‹ Vorkath" over "Bossing · Intermediate ↗", then the byline with the writer's quill. */
 function guideHead(d: GuidePanelData, back: Action = guideBack(d)): Node {
@@ -354,6 +366,50 @@ function setupPicker(d: GuidePanelData): Node | null {
   );
   return { t: 'toggle', key, off: head(false), lit: col([head(true), card(options, { inset: 3, gap: 2, edge: GOLD })], { gap: 4 }) };
 }
+/** The dry tone for a lower number (the luck chips' gold ink). */
+const DRY = '#ffb54d';
+/** The comparison's number columns: You, Guide, the change. */
+const NUM_W = [30, 30, 42];
+
+/** "▲ 12%" green (worn gear ahead), "▼ 26%" in the dry tone (behind), "even" within half a percent. */
+function deltaMark(you: number, guide: number): Node {
+  const w = NUM_W[2];
+  if (!(guide > 0)) return text('', 'muted', { w });
+  const pct = Math.round(((you - guide) / guide) * 100);
+  if (!pct) return small('even', FAINT, { w, align: 'r' });
+  const up = pct > 0;
+  const ink = up ? GREEN : DRY;
+  // Ten times over is still news, but "1250%" doesn't fit the column.
+  return small(Math.abs(pct) >= 1000 ? `${Math.round(up ? you / guide : guide / Math.max(you, 0.01))}×` : `${Math.abs(pct)}%`, ink, { w, align: 'r', icon: icon({ glyph: up ? 'up' : 'down', w: 7, h: 7, color: ink, alt: up ? '▲' : '▼' }), tip: `${up ? 'Ahead of' : 'Behind'} the guide by ${Math.abs(pct)}%` });
+}
+
+/** One line of the comparison: a name at the left, then You | Guide | change in fixed columns. */
+const gearLine = (name: Node, you: Node, guide: Node, change: Node): Node => row(name, undefined, row(you, guide, change, { gap: 4 }), { gap: 4 });
+
+/**
+ * "Your gear now vs this setup": per target, the DPS of what the character wears now beside the
+ * setup's, the change, and the one slot from the setup that helps most. ↻ loads the guide again.
+ */
+function gearNowCard(d: GuidePanelData): Node | null {
+  const g = d.gearNow;
+  if (!g?.rows.length) return null;
+  const again: Action = { a: 'load', v: 'guide', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '' }, d.region) };
+  const num = (s: string, i: number, color: Color = 'white') => small(s, color, { w: NUM_W[i], align: 'r' });
+  const lines: Node[] = [
+    gearLine(text('', 'muted'), num('You', 0, FAINT), num('Guide', 1, FAINT), text('↻', GOLD, { w: NUM_W[2], align: 'r', on: again, tip: 'Load it again with the gear you wear now' })),
+    ...g.rows.map((r) => gearLine(text(r.name, SOFT), num(r.you.toFixed(1), 0), num(r.guide.toFixed(1), 1, PROGRESS), deltaMark(r.you, r.guide))),
+  ];
+  if (g.ttk) lines.push(gearLine(small('Per kill', FAINT), num(g.ttk.you, 0, SOFT), num(g.ttk.guide, 1, SOFT), text('', 'muted', { w: NUM_W[2] })));
+  return section([
+    title('Your gear now vs this setup'),
+    col(lines, { gap: 3 }),
+    g.gap
+      ? text('', 'white', { font: 'small', runs: [{ s: 'Biggest gap: ', color: FAINT }, { s: `${g.gap.slot} (${g.gap.guide} vs ${g.gap.worn ? `your ${g.gap.worn}` : 'an empty slot'})` }], wrap: W_CARD })
+      : null,
+    small("Assumes the guide's prayers, boosts and levels.", FAINT, { wrap: W_CARD }),
+  ]);
+}
+
 const s32 = (id: number | null): Node => (id ? icon({ item: id, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }));
 
 /** The equipment screen: three 34px wells a row, as the game lays them out (quiver above ammo). */
@@ -371,7 +427,7 @@ function equipmentGrid(d: GuidePanelData): Node {
         continue;
       }
       const state = s.missing ? 'missing' : s.fallback ? 'fallback' : 'own';
-      const act: Action = { a: 'post', act: 'guide-alt', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot }, d.region) };
+      const act: Action = openGuide(d.id, d.region, { tier: d.tier ?? '', setup: d.current ?? '', alt: slot });
       cells.push(
         text('', 'white', {
           chip: WELL[state],
@@ -399,6 +455,8 @@ function inventoryGrid(d: GuidePanelData): Node {
 
 function setupTab(d: GuidePanelData): Node {
   const parts: Node[] = [];
+  const now = gearNowCard(d);
+  if (now) parts.push(now);
   const chips = levelChips(d);
   if (chips) parts.push(chips);
   const picker = setupPicker(d);
