@@ -176,6 +176,8 @@ export type Node =
       /** At most this many matches, then `more`. */
       max?: number;
       more?: string;
+      /** The results' height in px: they scroll inside it. Plugins before it draw them all. */
+      h?: number;
       /** The searched rows are the children of these (a grid's cells, a column's rows). */
       c: Node[];
       /**

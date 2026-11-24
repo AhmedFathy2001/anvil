@@ -49,6 +49,11 @@ export const SKILL_GRID = [
 
 const SEARCH_FROM = 10;
 
+/** A long list keeps to this height and scrolls inside itself instead of stretching the panel (plugin 1.17.3+). */
+const LIST_SCROLL_FROM = 15;
+const LIST_HEIGHT = 420;
+const listHeight = (rows: number): { h?: number } => (rows >= LIST_SCROLL_FROM ? { h: LIST_HEIGHT } : {});
+
 /** Clue tiers have no hiscore sprite; the game's own clue scroll items stand in. */
 const CLUE_ITEMS: Record<string, number> = {
   cluesBeginner: 23182, cluesEasy: 2677, cluesMedium: 2801, cluesHard: 2722, cluesElite: 12073, cluesMaster: 19835,
@@ -416,6 +421,7 @@ function logPanes(c: PlayerCard, kills: Map<string, number>, templates: boolean)
         hint: `Search ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} and items…`,
         box: pages.length >= 4,
         none: `Nothing in ${group} matches.`,
+        ...listHeight(pages.length),
         max: 40,
         more: 'Keep typing to narrow it.',
         // A one-column grid, not a col with a gap: the filter only searches a list whose rows are its children.
@@ -510,7 +516,7 @@ function bossList(
     card([
       row(row(sortChip('Most kc', !alpha), undefined, sortChip('A–Z', alpha), { gap: 6 }), undefined, undefined),
       gap(4),
-      { t: 'filter', hint: `Search ${bosses.length} bosses…`, box: bosses.length >= SEARCH_FROM, none: 'Nothing matches.', c: [{ t: 'grid', cols: 1, vgap: 1, c: rowsOf(alpha ? byName : byKc) }] },
+      { t: 'filter', hint: `Search ${bosses.length} bosses…`, box: bosses.length >= SEARCH_FROM, none: 'Nothing matches.', ...listHeight(bosses.length), c: [{ t: 'grid', cols: 1, vgap: 1, c: rowsOf(alpha ? byName : byKc) }] },
     ]);
   return { t: 'toggle', key, off: face(false), lit: face(true) };
 }
