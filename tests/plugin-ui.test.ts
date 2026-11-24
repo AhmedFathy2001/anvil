@@ -116,7 +116,7 @@ test('the log is pages of one nav slot: categories, then pages, then a fetched p
   assert.ok(ui.t === 'slot' && ui.nav && ui.id === 'prof' && ui.open === 'main');
   const panes = ui.panes!;
   assert.ok(panes.main && panes['cat:Bosses']);
-  const loads = actions(panes['cat:Bosses']).filter((a): a is Extract<Action, { a: 'load' }> => a.a === 'load');
+  const loads = actions(panes['cat:Bosses']).filter((a): a is Extract<Action, { a: 'load' }> => a.a === 'load' && !a.args?.page?.startsWith('{')); // not the search's templates
   assert.deepEqual(
     loads.map((a) => [a.v, a.args?.page, a.args?.back, a.args?.kc, a.into]),
     [
@@ -173,6 +173,39 @@ test('a log category pane searches only its own pages, by page name or an item o
   assert.equal(rows.length, 2, 'only this category’s pages');
   const zul = rows.find((r) => r.k?.startsWith('Zulrah'))!;
   assert.match(zul.k!, /Tanzanite fang/, 'an item on the page finds it');
+});
+
+/** The plugin's UiView.fill, as it fills a filter template: a quoted "{i}" takes the value whole, {i} in a text is spliced. */
+function fill(t: Node, v: (string | number | boolean)[]): Node {
+  let s = JSON.stringify(t);
+  v.forEach((e, i) => {
+    s = s.split(`"{${i}}"`).join(JSON.stringify(e)).split(`{${i}}`).join(JSON.stringify(String(e)).slice(1, -1));
+  });
+  return JSON.parse(s) as Node;
+}
+
+test('log category search: a page found by an item says which, and the matching items follow with what they hold', () => {
+  const ui = playerCardUi({ ...card, clogQty: { 12922: 2 } }, { sectionKey: 'lookup', cas: false, logSearch: true });
+  const filter = walk((ui as Extract<Node, { t: 'slot' }>).panes!['cat:Bosses']).find((x) => x.t === 'filter') as Extract<Node, { t: 'filter' }>;
+  const zul = (filter.c[0] as Extract<Node, { t: 'grid' }>).c.find((r) => r.k?.startsWith('Zulrah'))!;
+  assert.equal(zul.k!.split('|')[0], 'Zulrah', 'the page name first, the items after it');
+  const alt = fill(filter.at!, ['Tanzanite fang', ...zul.av!]);
+  assert.ok(texts(alt).includes('matched item: Tanzanite fang') && texts(alt).includes('Zulrah'));
+  assert.deepEqual(alt.on, { a: 'load', v: 'clog-page', args: { rsn: 'Drenvox mdps', page: 'Zulrah', back: 'cat:Bosses', kc: '812' }, into: 'prof' });
+  assert.ok(walk(alt).some((n) => n.t === 'icon' && typeof n.item === 'number'), 'the icon id stays a number');
+  const fang = filter.x!.find((e) => e[0] === 'Tanzanite fang')!;
+  const got = fill(filter.xt!, fang);
+  assert.ok(texts(got).includes('Zulrah · got 2'));
+  assert.ok(walk(got).some((n) => n.t === 'icon' && n.item === 12922 && n.dim === false));
+  const missing = fill(filter.xt!, filter.x!.find((e) => e[2] === 'Zulrah' && e[0] !== 'Tanzanite fang')!);
+  assert.ok(texts(missing).some((s) => s.endsWith(' · not yet')) && walk(missing).some((n) => n.t === 'icon' && n.dim === true));
+  assert.ok(texts(filter.xh!).includes('Matching items'));
+  // A plugin that doesn't fill templates gets the search as before: one text to match, no templates.
+  const old = playerCardUi({ ...card, clogQty: { 12922: 2 } }, { sectionKey: 'lookup', cas: false });
+  const plain = walk((old as Extract<Node, { t: 'slot' }>).panes!['cat:Bosses']).find((x) => x.t === 'filter') as Extract<Node, { t: 'filter' }>;
+  assert.ok(!plain.at && !plain.x && !plain.xt);
+  const row0 = (plain.c[0] as Extract<Node, { t: 'grid' }>).c.find((r) => r.k?.startsWith('Zulrah'))!;
+  assert.ok(!row0.k!.includes('|') && !row0.av && /Tanzanite fang/.test(row0.k!));
 });
 
 test('virtual levels are the lit face of a toggle', () => {

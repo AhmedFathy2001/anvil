@@ -138,6 +138,8 @@ export interface CardOptions {
   tint?: string | null;
   /** Cards under the profile that a log page replaces along with it (You: goals). */
   below?: Node[];
+  /** The plugin fills filter templates (`at`, `x`): the log search names the item it matched and lists the items. */
+  logSearch?: boolean;
   /** Cards over the profile, inside the same page. */
   above?: Node[];
 }
@@ -231,7 +233,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   }
   const main = col([...(opts.above ?? []), ...parts, ...(opts.below ?? [])], { gap: 8 });
   // The log's categories and pages are pages of their own over the whole view (one ‹ Back at the top).
-  return anvil && c.clogPages.length ? { t: 'slot', id: 'prof', nav: true, open: 'main', panes: { main, ...logPanes(c, kills) }, c: gap(0) } : main;
+  return anvil && c.clogPages.length ? { t: 'slot', id: 'prof', nav: true, open: 'main', panes: { main, ...logPanes(c, kills, !!opts.logSearch) }, c: gap(0) } : main;
 }
 
 /** "Not on Anvil" — the same words whether the name is unknown or hidden. */
@@ -371,17 +373,42 @@ function logIndex(c: PlayerCard): Node {
 /**
  * One pane per category: its pages, each opening its items. A search over this category only finds a
  * page by its name or by an item on it ("tanz" finds Zulrah) — the client filters, nothing is fetched.
+ * A page found only by an item says which ("matched item: Tanzanite fang"), and the matching items
+ * follow under "Matching items" with what this player has of each. Both are templates the plugin
+ * fills as it searches (filter `at`, `x`); a plugin from before them shows the pages alone.
  */
-function logPanes(c: PlayerCard, kills: Map<string, number>): Record<string, Node> {
+function logPanes(c: PlayerCard, kills: Map<string, number>, templates: boolean): Record<string, Node> {
   const panes: Record<string, Node> = {};
+  const held = c.clogQty ?? {};
   for (const [group, pages] of groupsOf(c)) {
     const got = pages.reduce((t, p) => t + p.obtained, 0);
     const of = pages.reduce((t, p) => t + p.total, 0);
-    const rows = pages.map((p) => ({
-      ...pageRow(c.rsn, p, kills.get(p.name.toLowerCase()), `cat:${group}`),
-      k: `${p.name} ${clogPageItems(p.name).map((i) => i.name).join(' ')}`,
-    }));
-    panes[`cat:${group}`] = col([
+    const back = `cat:${group}`;
+    const items: (string | number | boolean)[][] = [];
+    const rows = pages.map((p) => {
+      const on = clogPageItems(p.name);
+      if (templates) for (const i of on) items.push([i.name, i.id, p.name, held[i.id] ? `got ${fmt(held[i.id])}` : 'not yet', !held[i.id]]);
+      const kc = kills.get(p.name.toLowerCase());
+      return {
+        ...pageRow(c.rsn, p, kc, back),
+        // "|" between the parts: the plugin folds punctuation away, so an older one searches it as one text.
+        k: [p.name, ...on.map((i) => i.name)].join(templates ? '|' : ' '),
+        ...(templates ? { av: [p.name, p.iconItemId ?? 0, `${p.obtained}/${p.total}`, p.total > 0 && p.obtained >= p.total ? 'done' : 'white', kc ? String(kc) : ''] } : {}),
+      };
+    });
+    const matched = row(
+      icon({ item: '{2}', w: 36, h: 32 } as unknown as Omit<Extract<Node, { t: 'icon' }>, 't'>),
+      col([text('{1}', '{4}' as Color), muted('matched item: {0}', { font: 'small' })]),
+      row(undefined, muted('{3}'), icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' })),
+      { pad: 3, tip: 'See the items on this page', on: { a: 'load', v: 'clog-page', args: { rsn: c.rsn, page: '{1}', back, kc: '{5}' }, into: 'prof' } },
+    );
+    const item = row(
+      icon({ item: '{1}', w: 36, h: 32, dim: '{4}' } as unknown as Omit<Extract<Node, { t: 'icon' }>, 't'>),
+      col([text('{0}'), muted('{2} · {3}', { font: 'small' })]),
+      undefined,
+      { pad: 3, tip: 'See the items on this page', on: { a: 'load', v: 'clog-page', args: { rsn: c.rsn, page: '{2}', back }, into: 'prof' } },
+    );
+    panes[back] = col([
       backHeader(group, `${got}/${of}`, got >= of, toMain),
       gap(6),
       {
@@ -389,8 +416,11 @@ function logPanes(c: PlayerCard, kills: Map<string, number>): Record<string, Nod
         hint: `Search ${pages.length} ${pages.length === 1 ? 'page' : 'pages'} and items…`,
         box: pages.length >= 4,
         none: `Nothing in ${group} matches.`,
+        max: 40,
+        more: 'Keep typing to narrow it.',
         // A one-column grid, not a col with a gap: the filter only searches a list whose rows are its children.
         c: [{ t: 'grid', cols: 1, vgap: 2, c: rows }],
+        ...(templates ? { at: matched, x: items, xt: item, xh: col([gap(6), text('Matching items', 'brand', { font: 'bold' }), gap(2)]) } : {}),
       },
     ]);
   }

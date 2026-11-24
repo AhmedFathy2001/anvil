@@ -69,7 +69,7 @@ import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { boardChatOn } from '@/lib/eventChat';
-import { hasFeedTab, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { hasFeedTab, hasLogSearch, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevels } from '@/lib/clanBoosts';
@@ -111,7 +111,7 @@ async function playerView(request: Request, rsn: string): Promise<View> {
   const retry = button('Try again', { a: 'load', v: 'player', args: { rsn } });
   switch (found.kind) {
     case 'card':
-      return { ui: playerCardUi(found.card, { tint: (await supporterInksForRsns([found.card.rsn]).catch(() => null))?.get(found.card.rsn)?.color ?? null, sectionKey: 'lookup', cas: true, me: playedCharacter(request)?.rsn ?? null, images: hasPanelImages(request) }) };
+      return { ui: playerCardUi(found.card, { tint: (await supporterInksForRsns([found.card.rsn]).catch(() => null))?.get(found.card.rsn)?.color ?? null, sectionKey: 'lookup', cas: true, me: playedCharacter(request)?.rsn ?? null, images: hasPanelImages(request), logSearch: hasLogSearch(request) }) };
     case 'busy':
       return message('Hiscores busy — try again in a moment.', [gap(6), retry]);
     case 'limited':
@@ -187,6 +187,7 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
         sectionKey: 'you',
         cas: true,
         images: hasPanelImages(request),
+        logSearch: hasLogSearch(request),
         own: true,
         ...(slots ? { slots } : {}),
         afterTop: challenges.length ? [h2hUi(challenges)] : [],
