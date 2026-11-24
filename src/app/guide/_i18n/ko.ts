@@ -34,10 +34,10 @@ const ko: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: '가이드 — Anvil',
+    metaTitle: '도움말 — Anvil',
     metaDescription:
       'Anvil 시작하기: 플레이어용 RuneLite 플러그인, 클랜 운영진을 위한 이벤트 운영, 그리고 방문 클랜을 맞이하는 방법.',
-    title: '가이드',
+    title: '도움말',
     dek: '시작하는 데 필요한 모든 것. 여기서 돌아가고 있는 바로 그 버전의 Anvil에 맞춰 쓰였습니다.',
     groups: {
       playing: '플레이',

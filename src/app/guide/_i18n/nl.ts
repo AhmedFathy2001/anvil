@@ -35,10 +35,10 @@ const nl: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: 'Handleidingen — Anvil',
+    metaTitle: 'Help — Anvil',
     metaDescription:
       'Aan de slag met Anvil: de RuneLite-plugin voor spelers, een event draaien voor de clanstaf, en een bezoekende clan ontvangen.',
-    title: 'Handleidingen',
+    title: 'Help',
     dek: 'Alles wat je nodig hebt om te beginnen, geschreven voor precies de versie van Anvil die hier draait.',
     groups: {
       playing: 'Spelen',

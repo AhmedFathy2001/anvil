@@ -34,10 +34,10 @@ const ja: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: 'ガイド — Anvil',
+    metaTitle: 'ヘルプ — Anvil',
     metaDescription:
       'Anvil をはじめる：プレイヤー向けの RuneLite プラグイン、クラン運営陣向けのイベント運営、そして招待クランの受け入れ方。',
-    title: 'ガイド',
+    title: 'ヘルプ',
     dek: 'はじめるのに必要なことのすべて。ここで動いている Anvil のバージョンに合わせて書かれています。',
     groups: {
       playing: 'プレイする',

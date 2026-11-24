@@ -35,10 +35,10 @@ const de: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: 'Anleitungen — Anvil',
+    metaTitle: 'Hilfe — Anvil',
     metaDescription:
       'Der Einstieg in Anvil: das RuneLite-Plugin für Spieler, ein Event für das Clan-Team durchführen, und einen Gastclan ausrichten.',
-    title: 'Anleitungen',
+    title: 'Hilfe',
     dek: 'Alles, was du zum Einstieg brauchst, geschrieben für genau die Anvil-Version, die hier läuft.',
     groups: {
       playing: 'Spielen',

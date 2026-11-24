@@ -32,10 +32,10 @@ const zhHans: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: '指南 — Anvil',
+    metaTitle: '帮助 — Anvil',
     metaDescription:
       '开始使用 Anvil：面向玩家的 RuneLite 插件、面向氏族管理层的活动运营，以及如何接待来访氏族。',
-    title: '指南',
+    title: '帮助',
     dek: '开始所需的一切，针对此处正在运行的这一版 Anvil 撰写。',
     groups: {
       playing: '参与游戏',
