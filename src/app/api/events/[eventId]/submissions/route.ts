@@ -41,6 +41,7 @@ import { isStandingsStaff, standingsScopeForRequest } from '@/lib/standingsAcces
 import { playerSubmission } from '@/lib/clientRows';
 import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
+import { suggestSetItem } from '@/lib/setCreditItem';
 import { claimUploads } from '@/lib/uploadClaims';
 import { raceProofBlockFor } from '@/lib/raceRoutesDb';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
@@ -130,8 +131,34 @@ export async function GET(
   const eventStaff = viewer ? await isStandingsStaff(scopedEvent, viewer.userId) : false;
 
   const extras = await attachmentsFor(filtered.map((s) => s.id));
+  // Staff only: a credit on an item set tile that names no item counts toward nothing. Offer the
+  // piece its chat lines name so staff can link it in one click (lib/setCreditItem).
+  const setReqs = new Map<number, { itemId: number; name: string }[]>();
+  if (eventStaff) {
+    for (const t of eventTiles) {
+      if (!t.itemRequirements) continue;
+      try {
+        const parsed = JSON.parse(t.itemRequirements) as { itemId: number; name: string }[];
+        if (Array.isArray(parsed) && parsed.length > 0) setReqs.set(t.id, parsed);
+      } catch {
+        /* not a set */
+      }
+    }
+  }
+  const linked = new Map<string, Set<number>>();
+  for (const s of filtered) {
+    if (s.itemId == null || !setReqs.has(s.tileId)) continue;
+    const key = `${s.tileId}:${s.teamId}`;
+    linked.set(key, (linked.get(key) ?? new Set()).add(s.itemId));
+  }
+  const suggested = (s: (typeof filtered)[number]) => {
+    const reqs = setReqs.get(s.tileId);
+    if (!reqs || s.itemId != null || s.goal != null) return {};
+    return { unlinkedItem: true, suggestedItemId: suggestSetItem(s.proofFacts, reqs, linked.get(`${s.tileId}:${s.teamId}`)) };
+  };
   const result = filtered.map((s) => ({
     ...(eventStaff ? publicSubmission(s) : playerSubmission(publicSubmission(s))),
+    ...suggested(s),
     attachments: extras.get(s.id) ?? [],
     uploaderName: s.playerId ? playerMap.get(s.playerId) || 'Unknown' : null,
     creditPlayerName: s.creditPlayerId ? playerMap.get(s.creditPlayerId) || 'Unknown' : null,
@@ -1080,8 +1107,42 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     }
     return NextResponse.json({ ok: true, amount });
   }
+  // Which piece of an item set a credit is. A credit filed while the tile was a plain drop pool (or
+  // by an older plugin) names no item, and an item set counts nothing without one: staff link it here.
+  if (body?.action === 'set-item') {
+    if (!atLeast(actingUser?.role, 'admin')) return NextResponse.json({ error: 'Only a clan admin can change which item a credit is' }, { status: 403 });
+    const itemId = body.itemId;
+    if (typeof itemId !== 'number' || !Number.isInteger(itemId) || itemId < 1) {
+      return NextResponse.json({ error: 'itemId must be an item id' }, { status: 400 });
+    }
+    const [row] = await db
+      .select({ id: submissions.id, tileId: submissions.tileId, teamId: submissions.teamId, itemId: submissions.itemId, note: submissions.note, reqs: tiles.itemRequirements })
+      .from(submissions)
+      .innerJoin(tiles, eq(tiles.id, submissions.tileId))
+      .where(and(eq(submissions.id, sId), eq(tiles.eventId, eId)))
+      .limit(1);
+    if (!row) return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+    let reqs: { itemId: number; name: string }[] = [];
+    try {
+      reqs = row.reqs ? (JSON.parse(row.reqs) as { itemId: number; name: string }[]) : [];
+    } catch {
+      reqs = [];
+    }
+    const req = reqs.find((r) => r.itemId === itemId);
+    if (!req) return NextResponse.json({ error: 'That item is not part of this tile' }, { status: 400 });
+    if (row.itemId !== itemId) {
+      const who = (await db.query.users.findFirst({ where: eq(users.id, actingUser!.userId) }))?.displayName || actingUser!.username || 'an admin';
+      const trail = `[Staff] item set to ${req.name} by ${who}`;
+      await db
+        .update(submissions)
+        .set({ itemId, note: [row.note, trail].filter(Boolean).join(' · ').slice(0, 1000) })
+        .where(eq(submissions.id, sId));
+      await syncDropTileCompletion(row.tileId, row.teamId);
+    }
+    return NextResponse.json({ ok: true, itemId });
+  }
   if (body?.action !== 'clear-flag') {
-    return NextResponse.json({ error: "Expected { action: 'clear-flag' | 'set-amount' }" }, { status: 400 });
+    return NextResponse.json({ error: "Expected { action: 'clear-flag' | 'set-amount' | 'set-item' }" }, { status: 400 });
   }
 
   // Only a submission on a tile of THIS event: the id came from the caller.

@@ -206,6 +206,9 @@ export interface Submission {
   uploaderName?: string | null;
   creditPlayerName?: string | null;
   itemId?: number | null;
+  /** Staff only: an item set credit that names no item (counts toward nothing), and the piece its chat lines name (lib/setCreditItem). */
+  unlinkedItem?: boolean;
+  suggestedItemId?: number | null;
   durationSeconds?: number | null; // timed-tile clear time in seconds
   /** Why this credit wants a human look: 'no_start_proof' (lib/startProof), or 'inferred_duplicate_pet' /
    * 'inferred_duplicate_scroll' when the plugin worked out an unnamed duplicate from context, or

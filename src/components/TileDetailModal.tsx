@@ -118,6 +118,8 @@ interface Props {
   onDelete?: (submissionId: number, reason: string) => Promise<void>;
   /** Staff: change one credit's amount in place (the admin team board passes it). */
   onSetAmount?: (submissionId: number, amount: number) => Promise<void>;
+  /** Staff: link an item set credit to the piece it was (the admin team board passes it). */
+  onSetItem?: (submissionId: number, itemId: number) => Promise<void>;
   onToggle?: (tileId: number) => Promise<void>;
   onClose: () => void;
   eventId: number;
@@ -169,6 +171,7 @@ export default function TileDetailModal({
   onSubmit,
   onDelete,
   onSetAmount,
+  onSetItem,
   onToggle,
   onClose,
   eventId,
@@ -243,6 +246,20 @@ export default function TileDetailModal({
       setActionError(err instanceof Error ? err.message : 'Could not change that amount.');
     } finally {
       setSavingAmountId(null);
+    }
+  }
+  const [itemDrafts, setItemDrafts] = useState<Record<number, string>>({});
+  const [linkingId, setLinkingId] = useState<number | null>(null);
+  async function linkItem(id: number, itemId: number) {
+    if (!onSetItem || !Number.isInteger(itemId)) return;
+    setLinkingId(id);
+    setActionError('');
+    try {
+      await onSetItem(id, itemId);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not link that item.');
+    } finally {
+      setLinkingId(null);
     }
   }
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -330,6 +347,7 @@ export default function TileDetailModal({
     }
   })();
   const isCollection = isDrop && itemReqs.length > 0;
+  const unlinked = isCollection ? submissions.filter((sub) => sub.unlinkedItem) : [];
   // "Different items only" pool: the site needs to know WHICH item, or it can't tell a repeat.
   const isDistinctPool = isDrop && !isCollection && tile.countMode === 'distinct';
   const [poolItems, setPoolItems] = useState<{ itemId: number; name: string }[]>([]);
@@ -1097,7 +1115,7 @@ export default function TileDetailModal({
                           </span>
                           {/* Only worth saying when the set doesn't need all of its items. */}
                           {set.require < set.items.length && (
-                            <span className="text-text-muted font-normal">any {set.require} \u00b7 {set.met}/{set.require}</span>
+                            <span className="text-text-muted font-normal">any {set.require} · {set.met}/{set.require}</span>
                           )}
                         </p>
                         <div className="space-y-1.5">{set.items.map(row)}</div>
@@ -1295,6 +1313,61 @@ export default function TileDetailModal({
           {/* Proof still in flight — say so, so an empty modal doesn't read as "no proof exists". */}
           {submissionsLoading && submissions.length === 0 && (
             <p className="text-xs text-text-muted">Loading proof…</p>
+          )}
+
+          {/* Item set credits that name no item count toward nothing (filed while the tile was a plain
+              drop pool, or by an older plugin). Staff pick the piece; the server re-checks the tile. */}
+          {isCollection && canManage && onSetItem && unlinked.length > 0 && (
+            <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs">
+              <p className="font-semibold text-yellow-200">
+                {unlinked.length === 1 ? '1 credit isn’t' : `${unlinked.length} credits aren’t`} linked to an item in the set, so{' '}
+                {unlinked.length === 1 ? 'it doesn’t' : 'they don’t'} count yet.
+              </p>
+              <p className="mt-1 text-text-muted">Pick which piece each one was. Check the screenshot if unsure.</p>
+              <ul className="mt-2 space-y-2">
+                {unlinked.map((sub) => {
+                  const pick = itemDrafts[sub.id] ?? (sub.suggestedItemId != null ? String(sub.suggestedItemId) : '');
+                  return (
+                    <li key={sub.id} className="flex flex-wrap items-center gap-2">
+                      {sub.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setViewer({ shots: [{ id: sub.id, imageUrl: sub.imageUrl!, cleanImageUrl: sub.cleanImageUrl ?? null, credit: sub.creditPlayerName ?? null, note: sub.note ?? null, createdAt: sub.createdAt, amountLabel: `${sub.amount} ${countNoun}${sub.amount !== 1 ? "s" : ""}` }], index: 0 })}
+                          className="rounded border border-card-border overflow-hidden hover:border-gold/60"
+                          aria-label="View the screenshot"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={sub.imageUrl} alt="" className="w-10 h-10 object-cover" />
+                        </button>
+                      )}
+                      <span className="text-foreground">
+                        {sub.creditPlayerName ?? 'Unattributed'} · {sub.amount} · <LocalTime date={sub.createdAt} format="date" />
+                      </span>
+                      <div className="min-w-[11rem] flex-1">
+                        <Select
+                          value={pick}
+                          onChange={(v) => setItemDrafts((d) => ({ ...d, [sub.id]: v }))}
+                          placeholder="Which item?"
+                          ariaLabel="Which item this credit was"
+                          options={itemReqs.map((it) => ({ value: String(it.itemId), label: it.name }))}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!pick || linkingId === sub.id}
+                        onClick={() => void linkItem(sub.id, parseInt(pick, 10))}
+                        className="rounded border border-gold/50 px-2.5 py-1.5 font-semibold text-gold hover:border-gold disabled:opacity-40"
+                      >
+                        {linkingId === sub.id ? 'Saving…' : 'Link'}
+                      </button>
+                      {sub.suggestedItemId != null && itemDrafts[sub.id] == null && (
+                        <span className="w-full text-[11px] text-text-muted">Suggested from the screenshot’s chat line.</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
 
           {/* Proof, grouped by who earned it. Timed tiles keep the per-run list — each run is a
@@ -1609,7 +1682,8 @@ export default function TileDetailModal({
           {/* Submit form for drop / kill tiles */}
           {isCount && canFile && onSubmit && teamId && (() => {
             const remaining = dropProgress ? Math.max(0, dropProgress.required - dropProgress.current) : undefined;
-            const maxAmount = remaining ?? 99;
+            // An item set's progress is SETS done, not drops: no drop count caps one credit's amount.
+            const maxAmount = isCollection ? 99 : remaining ?? 99;
             const isComplete = remaining === 0 || doneShort;
 
             if (isComplete) {
@@ -1634,7 +1708,9 @@ export default function TileDetailModal({
               )}
               {remaining !== undefined && (
                 <p className="text-xs text-yellow-400">
-                  {remaining} more {countNoun}{remaining !== 1 ? 's' : ''} needed to complete this tile
+                  {isCollection
+                    ? `${remaining} more set${remaining !== 1 ? 's' : ''} to go`
+                    : `${remaining} more ${countNoun}${remaining !== 1 ? 's' : ''} needed to complete this tile`}
                 </p>
               )}
 
@@ -1693,7 +1769,7 @@ export default function TileDetailModal({
               {!perUnitProof && !isClog && (
                 <div>
                   <label className="block text-xs text-text-muted mb-1">
-                    Amount {remaining !== undefined && <span className="text-yellow-400">(max: {maxAmount})</span>}
+                    Amount {remaining !== undefined && !isCollection && <span className="text-yellow-400">(max: {maxAmount})</span>}
                   </label>
                   <NumberInput
                     value={Number(amount) || 1}
@@ -2029,6 +2105,7 @@ export default function TileDetailModal({
             onSubmit={onSubmit}
             onDelete={onDelete}
             onSetAmount={onSetAmount}
+            onSetItem={onSetItem}
             onClose={() => setOpenPart(null)}
             eventId={eventId}
             teamId={teamId}
