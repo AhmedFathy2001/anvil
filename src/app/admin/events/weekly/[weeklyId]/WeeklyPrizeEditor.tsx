@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { clanFetch } from '@/lib/clanFetch';
 import { formatGp } from '@/lib/adminEventsFormat';
 import WeeklyPrizeLadder from '@/components/WeeklyPrizeLadder';
@@ -108,9 +109,13 @@ export default function WeeklyPrizeEditor({
       </p>
 
       {settledAt && (
-        <p className="text-xs text-accent-green-light mb-4">
-          Already paid out. The prizes are on the ledger now — adjust them there rather than here.
-        </p>
+        <div className="mb-4 space-y-2">
+          <p className="text-xs text-accent-green-light">
+            Prizes are set aside for the winners on the coffer page. A treasurer marks each one paid there
+            once it is sent in game.
+          </p>
+          {canEdit && <PrizeRedo competitionId={competitionId} />}
+        </div>
       )}
 
       <WeeklyPrizeLadder
@@ -142,5 +147,95 @@ export default function WeeklyPrizeEditor({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Standings corrected after the end (a forced track, a fixed baseline)? Move the prizes to match and
+ * post corrected results (lib/weeklyPrizeRedo). Refused by the server once any prize is marked paid.
+ */
+function PrizeRedo({ competitionId }: { competitionId: number }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  async function redo(repost: boolean) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await clanFetch(`/api/admin/weekly/${competitionId}/prizes/redo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repost }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not redo the prizes.');
+      setOpen(false);
+      setMessage({
+        type: 'success',
+        text: data.reposted
+          ? 'Prizes moved to the current standings, and corrected results posted to Discord.'
+          : 'Prizes moved to the current standings.',
+      });
+      router.refresh();
+    } catch (e) {
+      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Could not redo the prizes.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-card-border bg-brown-dark/40 p-3 text-xs">
+      {!open ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-text-muted">Standings changed after the end (for example after Update)?</span>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="rounded-lg border border-gold/50 px-3 py-1.5 font-semibold text-gold hover:border-gold"
+          >
+            Redo prizes from the current standings
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-foreground">
+            This cancels the prizes set aside now and gives each place to whoever holds it on the final
+            leaderboard below. Only works while none of them is marked paid.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void redo(true)}
+              className="rounded-lg bg-gold/90 px-3 py-1.5 font-semibold text-brown-dark hover:bg-gold disabled:opacity-50"
+            >
+              {busy ? 'Working…' : 'Redo and post corrected results'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void redo(false)}
+              className="rounded-lg border border-gold/50 px-3 py-1.5 font-semibold text-gold hover:border-gold disabled:opacity-50"
+            >
+              Redo without posting
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setOpen(false)}
+              className="rounded-lg border border-card-border px-3 py-1.5 text-text-muted hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {message && (
+        <p className={`mt-2 ${message.type === 'error' ? 'text-red-400' : 'text-accent-green-light'}`}>{message.text}</p>
+      )}
+    </div>
   );
 }
