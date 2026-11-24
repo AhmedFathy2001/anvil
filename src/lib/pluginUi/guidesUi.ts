@@ -119,12 +119,12 @@ function picWell(p: GuidePic, size = 32): Node {
   return text('', 'white', { chip: '#2e2e2e', w: size, align: 'c', icon: inner });
 }
 
-function guideRow(r: GuideRowData, region?: string): Node {
+function guideRow(r: GuideRowData, region?: string, open: Record<string, string> = {}): Node {
   return row(
     picWell(r.pic),
     col([text(r.title, 'white', { wrap: 125 }), small(r.meta, FAINT), r.by ? small(r.by, '#8c8c8c') : null], { gap: 1 }),
     icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }),
-    { bg: 'raised', pad: 5, inset: 6, gap: 7, on: openGuide(r.id, region), k: `${r.title} ${r.category} ${r.meta} ${r.by}`, tip: `Open ${r.title}` },
+    { bg: 'raised', pad: 5, inset: 6, gap: 7, on: openGuide(r.id, region, open), k: `${r.title} ${r.category} ${r.meta} ${r.by}`, tip: `Open ${r.title}` },
   );
 }
 
@@ -152,7 +152,10 @@ function filterChips(d: GuidesSearchData): Node {
       gap(6),
       card([
         small(f.title, FAINT),
-        { t: 'grid', cols: 2, gap: 4, vgap: 4, c: f.options.map((o) => boxChip(o.long ?? o.label, o.v === d.filters[f.name], act({ [f.name]: o.v }))) },
+        { t: 'grid', cols: 2, gap: 4, vgap: 4, c: f.options.map((o) =>
+          // The one already chosen just closes the list (its key wouldn't change, so it stayed open).
+          boxChip(o.long ?? o.label, o.v === d.filters[f.name], o.v === d.filters[f.name] ? { a: 'flip', key: `guides-filter:${f.name}:${state}` } : act({ [f.name]: o.v })),
+        ) },
       ], { inset: 6, gap: 5 }),
     ]),
   }));
@@ -174,12 +177,17 @@ export function guidesSearchUi(d: GuidesSearchData): Node {
     );
   }
   const lists: Node[] = [filterChips(d)];
+  // The filters carry into the guide it opens: its level, and setups for that account and build.
+  const chosen: Record<string, string> = {};
+  if (d.filters.level) chosen.tier = d.filters.level;
+  if (d.filters.account) chosen.account = d.filters.account;
+  if (d.filters.build && d.filters.build !== 'any') chosen.build = d.filters.build;
   // A column, not a one-column grid: a grid gives every cell the tallest row's height, so the header and
   // the spacer became tall blanks. Each row brings its own gap above it (one component per row, as the
   // filter's search needs).
   const list = (label: string, rows: GuideRowData[], count: boolean): Node => ({
     t: 'col',
-    c: [listHead(label, count ? String(rows.length) : undefined), ...rows.map((r) => spaced(guideRow(r, d.region))), { ...gap(8), k: '' }],
+    c: [listHead(label, count ? String(rows.length) : undefined), ...rows.map((r) => spaced(guideRow(r, d.region, chosen))), { ...gap(8), k: '' }],
   });
   if (d.recent.length) lists.push(list('Recent', d.recent, false));
   for (const s of d.sections) lists.push(list(s.label, s.rows, true));
@@ -230,6 +238,8 @@ export interface GuidePanelData {
   tiers: { key: string; label: string }[];
   byline: string;
   rankGlyph: string | null;
+  /** The search's account and build, kept on every action so the guide stays filtered (and Back keeps them). */
+  keep?: Record<string, string>;
   region?: string;
   /** This level's setups (the guide's, then community ones). Empty: no Setup tab. */
   setups: PanelSetup[];
@@ -294,8 +304,11 @@ function centred(node: Node, width: number): Node {
   return row(text('', 'muted', { w: pad }), row(node, undefined, undefined, { gap: 0 }), undefined, { gap: 0 });
 }
 
-const guideBack = (d: Pick<GuidePanelData, 'region'>): Action => ({ a: 'load', v: 'guides', ...(d.region ? { args: { region: d.region } } : {}) });
-const pickSetup = (d: GuidePanelData, setup: string): Action => ({ a: 'post', act: 'guide-pick', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup }, d.region) });
+const guideBack = (d: Pick<GuidePanelData, 'region' | 'keep'>): Action => {
+  const args = withRegion({ ...d.keep }, d.region);
+  return { a: 'load', v: 'guides', ...(Object.keys(args).length ? { args } : {}) };
+};
+const pickSetup = (d: GuidePanelData, setup: string): Action => ({ a: 'post', act: 'guide-pick', args: withRegion({ ...d.keep, id: String(d.id), tier: d.tier ?? '', setup }, d.region) });
 
 /** "‹ Vorkath" over "Bossing · Intermediate ↗", then the byline with the writer's quill. */
 function guideHead(d: GuidePanelData, back: Action = guideBack(d)): Node {
@@ -316,7 +329,7 @@ function levelChips(d: GuidePanelData): Node | null {
     t: 'grid',
     cols: d.tiers.length,
     gap: 4,
-    c: d.tiers.map((t) => boxChip(LEVEL_SHORT[t.key] ?? t.label, t.key === d.tier, openGuide(d.id, d.region, { tier: t.key }), `${t.label} level`)),
+    c: d.tiers.map((t) => boxChip(LEVEL_SHORT[t.key] ?? t.label, t.key === d.tier, openGuide(d.id, d.region, { ...d.keep, tier: t.key }), `${t.label} level`)),
   };
 }
 
@@ -375,7 +388,7 @@ function equipmentGrid(d: GuidePanelData): Node {
         continue;
       }
       const state = s.missing ? 'missing' : s.fallback ? 'fallback' : 'own';
-      const act: Action = { a: 'post', act: 'guide-alt', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot }, d.region) };
+      const act: Action = { a: 'post', act: 'guide-alt', args: withRegion({ ...d.keep, id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot }, d.region) };
       cells.push(
         text('', 'white', {
           chip: WELL[state],
@@ -603,7 +616,7 @@ function routeParts(d: GuidePanelData, r: PanelRoute): Node[] {
 /** A slot's alternatives, a page of their own over the guide (closed until a slot is clicked). */
 export function alternativesUi(d: GuidePanelData, a: PanelAlternatives): Node {
   const back = pickSetup(d, d.current ?? '');
-  const skipAct = (item: number, reason: string): Action => ({ a: 'post', act: 'guide-skip', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot: a.slot, item: String(item), reason }, d.region) });
+  const skipAct = (item: number, reason: string): Action => ({ a: 'post', act: 'guide-skip', args: withRegion({ ...d.keep, id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot: a.slot, item: String(item), reason }, d.region) });
   const pick = a.rows[0];
   const cur = a.rows.find((r) => r.inUse) ?? pick;
   const parts: Node[] = [
@@ -642,14 +655,14 @@ export function alternativesUi(d: GuidePanelData, a: PanelAlternatives): Node {
     parts.push(
       col([
         row(undefined, title('Budget cap'), small(a.budget ? `${a.budget}m` : 'none', a.budget ? PROGRESS : FAINT), { gap: 6 }),
-        row(undefined, { t: 'input', name: 'cap', kind: 'number', value: a.budget, min: 0, max: 2_147, step: 5, label: 'Million gp' }, button('Set', { a: 'post', act: 'guide-budget', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot: a.slot }, d.region) }), { gap: 6 }),
+        row(undefined, { t: 'input', name: 'cap', kind: 'number', value: a.budget, min: 0, max: 2_147, step: 5, label: 'Million gp' }, button('Set', { a: 'post', act: 'guide-budget', args: withRegion({ ...d.keep, id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot: a.slot }, d.region) }), { gap: 6 }),
         small(a.budget ? `Items over ${a.budget}m are suggested only as upgrades.` : 'Set a cap and pricier items are suggested only as upgrades.', FAINT, { wrap: W_CARD }),
       ], { gap: 5 }),
     );
     if (a.skipped.length) {
       parts.push(row(undefined, small(`Skipped items (${a.skipped.length})`, FAINT), undefined));
       for (const s of a.skipped) {
-        parts.push(row(icon({ item: s.id, w: 26, h: 23 }), text(s.name, 'white', { wrap: 96 }), small('undo', GOLD), { gap: 6, on: { a: 'post', act: 'guide-unskip', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot: a.slot, item: String(s.id) }, d.region) }, tip: 'Use it again' }));
+        parts.push(row(icon({ item: s.id, w: 26, h: 23 }), text(s.name, 'white', { wrap: 96 }), small('undo', GOLD), { gap: 6, on: { a: 'post', act: 'guide-unskip', args: withRegion({ ...d.keep, id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot: a.slot, item: String(s.id) }, d.region) }, tip: 'Use it again' }));
       }
     }
   } else {

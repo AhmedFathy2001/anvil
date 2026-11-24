@@ -229,6 +229,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       byline: `${byShort(credits)}${top && !phase2 ? ` · ${top.label}` : ''}` || writtenByLine(credits),
       rankGlyph: phase2 ? tone : null,
       region,
+      keep: Object.fromEntries((['account', 'build'] as const).filter((k) => args[k] && args[k] !== 'any').map((k) => [k, args[k]!])),
       setups: all.map((x) => ({
         key: x.key,
         name: x.community ? `${x.setup.name} (community)` : x.setup.name,

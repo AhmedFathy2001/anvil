@@ -324,3 +324,17 @@ test('You tab guides card: a section with the route, else recent guides and a wa
   assert.ok(card);
   assert.equal(nextUpUi({ route: null, done: 0, total: 0, lastDone: null, next: [], recent: [], followed: [] }), null);
 });
+
+test('guides search: the filters carry into the guide it opens, and picking the chosen option just closes its list', () => {
+  const ui = guidesSearchUi({ ...SEARCH, filters: { level: 'beginner', account: 'ironman', build: 'any' } });
+  const opens: Record<string, string>[] = [];
+  const flips: string[] = [];
+  walk(ui, (o) => {
+    const on = o.on as { a?: string; v?: string; key?: string; args?: Record<string, string> } | undefined;
+    if (on?.a === 'load' && on.v === 'guide') opens.push(on.args ?? {});
+    if (on?.a === 'flip' && on.key?.startsWith('guides-filter:')) flips.push(on.key);
+  });
+  assert.ok(opens.some((a) => a.tier === 'beginner' && a.account === 'ironman' && !('build' in a)), JSON.stringify(opens));
+  // Three chips open their lists, and each list's chosen option closes it again.
+  assert.equal(flips.length, 6);
+});
