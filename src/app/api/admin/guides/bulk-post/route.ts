@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { requireClanGuideEditorApi } from '@/lib/guideAccess';
 import { BULK_MAX, bulkPost, type BulkLayout } from '@/lib/guideBulk';
+import { cleanFilter } from '@/lib/guideSelection';
 
 // POST — post many guides at once: into new channels under a category, as posts in a new forum, or
 // into one existing channel. Everything is pre-checked before anything is created (lib/guideBulk).
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
     readOnly: b.readOnly === true,
     autoUpdate: b.autoUpdate !== false,
     userId: gate.actor.user.userId,
+    filter: cleanFilter(b.filter),
   });
   // A partial run is still a 200: some guides went out, and the per-guide results say which.
   if (!result.ok && result.results.length === 0) return NextResponse.json(result, { status: 400 });

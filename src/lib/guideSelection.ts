@@ -53,6 +53,34 @@ export function selectAll(block: GearBlock | null): PostSelection {
   return { v: 1, tiers: [...TIER_KEYS], setups: keys, known: keys, includeNew: false };
 }
 
+/** A bulk post's filter: levels, and account types / builds a setup must suit to go out. */
+export interface PostFilter {
+  tiers: TierKey[];
+  accounts: string[];
+  builds: string[];
+  includeNew: boolean;
+}
+
+export function cleanFilter(v: unknown): PostFilter | null {
+  const f = v as Partial<PostFilter> | null;
+  if (!f || typeof f !== 'object') return null;
+  const words = (a: unknown) => (Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string' && /^[a-z]{2,10}$/.test(x)).slice(0, 10) : []);
+  return { tiers: Array.isArray(f.tiers) ? TIER_KEYS.filter((t) => f.tiers!.includes(t)) : [...TIER_KEYS], accounts: words(f.accounts), builds: words(f.builds), includeNew: f.includeNew === true };
+}
+
+/**
+ * One guide's selection from a bulk filter: setups on the chosen levels that suit any chosen
+ * account type and build (a setup with no tags suits everyone).
+ */
+export function selectionFromFilter(block: GearBlock | null, f: PostFilter): PostSelection {
+  const all = (block?.setups ?? []).map((s, i) => ({ s, key: setupKey(s, i) }));
+  const suits = (s: GearSetup) =>
+    f.tiers.includes(s.tier) &&
+    (!f.accounts.length || !s.accounts?.length || s.accounts.some((a) => f.accounts.includes(a))) &&
+    (!f.builds.length || !s.builds?.length || s.builds.some((b) => f.builds.includes(b)));
+  return { v: 1, tiers: f.tiers, setups: all.filter((x) => suits(x.s)).map((x) => x.key), known: all.map((x) => x.key), includeNew: f.includeNew };
+}
+
 export function setupSelected(sel: PostSelection, s: GearSetup, i: number): boolean {
   const key = setupKey(s, i);
   if (!sel.tiers.includes(s.tier)) return false;

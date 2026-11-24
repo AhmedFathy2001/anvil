@@ -32,9 +32,15 @@ import { log } from '@/lib/logger';
 import { configuredOrigin } from '@/lib/request-origin';
 import { resolveClanById } from '@/lib/clanContext';
 import { renderGuideForDiscord, type DiscordGuideMessage } from '@/lib/guideDiscord';
-import { discordBody } from '@/lib/dps/summary';
+import { discordBody, type GearIndex } from '@/lib/dps/summary';
 import { effectiveGearIndex } from '@/lib/dps/store';
 import { clanPathOf } from '@/lib/clanScopedPaths';
+import { tipsMarkdown, type PostSelection } from '@/lib/guideSelection';
+import { firstGearBlock, type TierKey } from '@/lib/guideTiers';
+import { blockItemIds } from '@/lib/guideViewer';
+import { getItemMapping } from '@/lib/osrsItems';
+import { guideCredits, tipsFor } from '@/lib/guideCommunity';
+import { copyCreditLine, writtenByLine } from '@/lib/guideCredit';
 
 const CH_TEXT = 0;
 const CH_ANNOUNCEMENT = 5;
@@ -171,22 +177,52 @@ export function guideSiteUrl(clan: { slug: string; kind?: string | null } | null
   return clan ? `${origin}${clanPathOf(clan, `/guides/${slug}`)}` : `${origin}/guides/${slug}`;
 }
 
-/** The messages a guide becomes in this clan's Discord. */
-export async function guideMessages(guide: Guide): Promise<DiscordGuideMessage[]> {
+/**
+ * A selected post's body (pure over its inputs): only the chosen levels and setups, one block per
+ * setup. The tests call this to show a resync keeps a post's selection.
+ */
+export function postSelectionBody(body: string, selection: PostSelection, idx: GearIndex | null, siteUrl: string | null, title: string, names: Record<number, string> = {}): string {
+  return discordBody(body, idx, siteUrl, { selection, names, title });
+}
+
+/** Item names for every id a guide's gear block holds (supplies aren't in the gear data). */
+async function itemNamesFor(body: string): Promise<Record<number, string>> {
+  const ids = new Set(blockItemIds(firstGearBlock(body)));
+  if (!ids.size) return {};
+  const mapping = await getItemMapping().catch(() => []);
+  return Object.fromEntries(mapping.filter((m) => ids.has(m.id)).map((m) => [m.id, m.name]));
+}
+
+/**
+ * The messages a guide becomes in this clan's Discord. `selection` is the post's (guide_posts.
+ * selection): null keeps the original compact format so posts from before selections never change;
+ * a selection posts one block per chosen setup, the guide's tips and mistakes, and a credit footer.
+ */
+export async function guideMessages(guide: Guide, selection: PostSelection | null = null): Promise<DiscordGuideMessage[]> {
   const clan = guide.clanId != null ? await resolveClanById(guide.clanId) : null;
-  const byline = guide.clanId == null ? 'Anvil guide library' : guide.followsSource ? `${clan?.name ?? 'Clan'} · from the Anvil library` : clan?.name ?? null;
   const siteUrl = guideSiteUrl(clan, guide.slug);
+  const idx = await effectiveGearIndex();
+  let byline = guide.clanId == null ? 'Anvil guide library' : guide.followsSource ? `${clan?.name ?? 'Clan'} · from the Anvil library` : clan?.name ?? null;
+  let body: string;
+  if (!selection) {
+    // Levels become headed messages and gear blocks a DPS summary — Discord can't switch or calculate.
+    body = discordBody(guide.body, idx, siteUrl);
+  } else {
+    body = postSelectionBody(guide.body, selection, idx, siteUrl, guide.title, await itemNamesFor(guide.body));
+    const tips = await tipsFor(guide, null).catch(() => []);
+    const tipText = tipsMarkdown(tips.filter((t) => !t.tier || selection.tiers.includes(t.tier as TierKey)));
+    if (tipText) body = `${body}\n---\n${tipText}`;
+    const credits = await guideCredits(guide).catch(() => null);
+    if (credits) {
+      // Names escaped, no mentions; the footer carries the link (renderGuideForDiscord adds it).
+      byline =
+        guide.clanId != null && guide.sourceGuideId
+          ? copyCreditLine(credits.library, credits.clan, clan?.name ?? 'the clan', true)
+          : writtenByLine(credits.library, true) || byline;
+    }
+  }
   return renderGuideForDiscord(
-    {
-      title: guide.title,
-      summary: guide.summary,
-      // Levels become headed messages and gear blocks a DPS summary — Discord can't switch or calculate.
-      body: discordBody(guide.body, await effectiveGearIndex(), siteUrl),
-      coverUrl: guide.coverUrl,
-      siteUrl,
-      updatedAt: guide.updatedAt,
-      byline,
-    },
+    { title: guide.title, summary: guide.summary, body, coverUrl: guide.coverUrl, siteUrl, updatedAt: guide.updatedAt, byline },
     { origin: configuredOrigin(), color: GOLD },
   );
 }
@@ -295,6 +331,8 @@ export interface PostRequest {
   bulkRunId?: number | null;
   /** Anvil created this channel just for this guide. */
   ownsChannel?: boolean;
+  /** Which levels/setups go out (lib/guideSelection); kept on the post for every resync. */
+  selection?: PostSelection | null;
 }
 
 /** Post a guide to a channel or forum, and remember what it became. */
@@ -332,7 +370,7 @@ export async function postToChannel(
   channel: Pick<GuideChannel, 'id' | 'name' | 'kind'>,
   tagIds: string[],
 ): Promise<PostResult> {
-  const messages = await guideMessages(req.guide);
+  const messages = await guideMessages(req.guide, req.selection ?? null);
   const ids: string[] = [];
   let threadId: string | null = null;
   try {
@@ -374,6 +412,7 @@ export async function postToChannel(
       autoUpdate: req.autoUpdate !== false,
       ownsChannel: req.ownsChannel === true,
       bulkRunId: req.bulkRunId ?? null,
+      selection: req.selection ?? null,
       lastError: ids.length === messages.length ? null : `Posted ${ids.length} of ${messages.length} messages, then Discord refused the rest. Use "Update now" to retry.`,
       postedByUserId: req.userId,
       createdAt: at,
@@ -392,7 +431,8 @@ export async function resyncPost(
   guide: Guide,
   force = false,
 ): Promise<{ ok: boolean; error?: string; changed: boolean; gone?: boolean }> {
-  const messages = await guideMessages(guide);
+  // The post's own selection, every time: a resync posts the same chosen parts.
+  const messages = await guideMessages(guide, post.selection ?? null);
   const hash = hashMessages(guide.title, messages);
   if (!force && hash === post.contentHash && !post.lastError) return { ok: true, changed: false };
 

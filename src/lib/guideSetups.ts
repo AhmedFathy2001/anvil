@@ -6,6 +6,7 @@
 // the default pill; a setup that doesn't fit is still shown, greyed, with the one reason it doesn't.
 
 import { TIERS, type GearSetup, type TierKey } from './guideTiers';
+import { sanitizeMarkers } from './groundMarkers';
 
 export const GUIDE_ACCOUNTS = [
   { key: 'main', label: 'Main' },
@@ -174,4 +175,83 @@ export function combatLevel(l: Record<string, number>): number {
   const range = 0.325 * Math.floor(g('ranged') * 1.5);
   const mage = 0.325 * Math.floor(g('magic') * 1.5);
   return Math.floor(base + Math.max(melee, range, mage));
+}
+
+// ── Cleaning a setup someone submitted ─────────────────────────────────────────────────────────
+
+const SLOT_KEYS = ['head', 'cape', 'neck', 'ammo', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring', 'quiver'];
+const MAX_ITEM_ID = 100_000;
+const isId = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0 && v <= MAX_ITEM_ID;
+const lvl = (v: unknown, d: number) => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 99 ? v : d);
+
+/** Plain text: markup and control characters out, spaces folded, capped. */
+export function plainText(v: unknown, max: number): string {
+  if (typeof v !== 'string') return '';
+  return v
+    .replace(/<[^>]*>/g, '')
+    .replace(/[<>]/g, '')
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+    .slice(0, max);
+}
+
+/**
+ * A setup from a form or a request, rebuilt field by field: every id an integer in range, every list
+ * bounded, every word plain text. Unknown fields are dropped. Throws a sentence when it can't be used.
+ */
+export function cleanSetupInput(raw: unknown, tier: TierKey): GearSetup {
+  const s = (raw ?? {}) as Record<string, unknown>;
+  const name = plainText(s.name, 60);
+  if (!name) throw new Error('Give the setup a name.');
+  const gear: Record<string, number> = {};
+  const g = (s.gear ?? {}) as Record<string, unknown>;
+  for (const k of SLOT_KEYS) if (k !== 'quiver' && isId(g[k])) gear[k] = g[k] as number;
+  if (!Object.keys(gear).length) throw new Error('Put at least one item in the equipment.');
+  const alts: Record<string, number[]> = {};
+  const a = (s.alts ?? {}) as Record<string, unknown>;
+  for (const k of SLOT_KEYS) {
+    if (!Array.isArray(a[k])) continue;
+    const list = [...new Set((a[k] as unknown[]).filter(isId))].slice(0, 5);
+    if (list.length) alts[k] = list;
+  }
+  const item = (v: unknown) => {
+    const it = v as { id?: unknown; q?: unknown } | null;
+    if (!it || !isId(it.id)) return null;
+    const q = typeof it.q === 'number' && Number.isInteger(it.q) && it.q > 1 && it.q <= 2_147_483_647 ? it.q : undefined;
+    return q ? { id: it.id, q } : { id: it.id };
+  };
+  const inventory = Array.isArray(s.inventory) ? s.inventory.slice(0, 28).map(item) : [];
+  const runePouch = Array.isArray(s.runePouch) ? s.runePouch.slice(0, 4).map(item).filter((x): x is { id: number; q?: number } => !!x) : [];
+  const st = (s.stats ?? {}) as Record<string, unknown>;
+  const req = (s.req ?? {}) as { levels?: Record<string, unknown>; quests?: unknown };
+  const levels: Record<string, number> = {};
+  for (const [k, v] of Object.entries(req.levels ?? {})) if (/^[a-z]{3,12}$/.test(k) && typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 99) levels[k] = v;
+  const quests = Array.isArray(req.quests) ? req.quests.map((q) => plainText(q, 80)).filter(Boolean).slice(0, 5) : [];
+  const word = (v: unknown) => (typeof v === 'string' && /^[a-z_]{1,30}$/.test(v) ? v : null);
+  return {
+    tier,
+    name,
+    gear,
+    style: typeof s.style === 'number' && Number.isInteger(s.style) && s.style >= 0 && s.style <= 5 ? s.style : 0,
+    stats: { attack: lvl(st.attack, 70), strength: lvl(st.strength, 70), ranged: lvl(st.ranged, 70), magic: lvl(st.magic, 70) },
+    ...(word(s.prayer) ? { prayer: word(s.prayer) } : {}),
+    ...(word(s.boost) ? { boost: word(s.boost) } : {}),
+    ...(typeof s.spell === 'string' && plainText(s.spell, 40) ? { spell: plainText(s.spell, 40) } : {}),
+    ...(isId(s.dart) ? { dart: s.dart as number } : {}),
+    ...(Object.keys(alts).length ? { alts } : {}),
+    ...(isId(s.quiver) ? { quiver: s.quiver as number } : {}),
+    ...(inventory.some(Boolean) ? { inventory } : {}),
+    ...(runePouch.length ? { runePouch } : {}),
+    ...(typeof s.spellbook === 'number' && Number.isInteger(s.spellbook) && s.spellbook >= 0 && s.spellbook <= 3 ? { spellbook: s.spellbook } : {}),
+    ...(Array.isArray(s.spells) ? { spells: s.spells.map((x) => plainText(x, 40)).filter(Boolean).slice(0, 6) } : {}),
+    ...(Array.isArray(s.accounts) ? { accounts: GUIDE_ACCOUNTS.map((x) => x.key as string).filter((k) => (s.accounts as unknown[]).includes(k)) } : {}),
+    ...(Array.isArray(s.builds) ? { builds: GUIDE_BUILDS.map((x) => x.key as string).filter((k) => k !== 'any' && (s.builds as unknown[]).includes(k)) } : {}),
+    ...(Object.keys(levels).length || quests.length ? { req: { ...(Object.keys(levels).length ? { levels } : {}), ...(quests.length ? { quests } : {}) } } : {}),
+    ...(Array.isArray(s.steps) ? { steps: s.steps.map((x) => plainText(x, 400)).filter(Boolean).slice(0, 12) } : {}),
+    ...(plainText(s.note, 280) ? { note: plainText(s.note, 280) } : {}),
+    ...(plainText(s.tag, 20) ? { tag: plainText(s.tag, 20) } : {}),
+    ...(Array.isArray(s.markers) ? { markers: sanitizeMarkers(s.markers) } : {}),
+    ...(Array.isArray(s.targets) ? { targets: s.targets.filter((t): t is string => typeof t === 'string').map((t) => t.slice(0, 80)).slice(0, 12) } : {}),
+  };
 }
