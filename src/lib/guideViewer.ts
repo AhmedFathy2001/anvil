@@ -51,14 +51,14 @@ const DIARY_BITS: [number, string][] = [
 const regionOf = (key: string) => key.replace(/^diary/, '').toLowerCase();
 
 /** The signed-in person's main character, with what we know of it. */
-export async function guideViewer(user: { userId: number; playerId: number } | null, opts: { items?: boolean } = {}): Promise<GuideViewer> {
+export async function guideViewer(user: { userId: number; playerId: number } | null, opts: { items?: boolean; /** The character being played (plugin), when it is this person's. */ accountId?: number | null } = {}): Promise<GuideViewer> {
   if (!user?.playerId) return EMPTY_VIEWER;
   // clan-scope: global -- a person's own characters.
   const [main] = await db
     .select({ id: accounts.id, rsn: accounts.rsn, accountType: accounts.accountType, snapshot: accountStatSnapshots.snapshot })
     .from(accounts)
     .leftJoin(accountStatSnapshots, eq(accountStatSnapshots.accountId, accounts.id))
-    .where(eq(accounts.playerId, user.playerId))
+    .where(and(eq(accounts.playerId, user.playerId), opts.accountId ? eq(accounts.id, opts.accountId) : undefined))
     .orderBy(desc(accounts.isPrimary), asc(accounts.id))
     .limit(1);
   if (!main) return { ...EMPTY_VIEWER, userId: user.userId, playerId: user.playerId };

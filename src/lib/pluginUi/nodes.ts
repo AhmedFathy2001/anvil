@@ -9,6 +9,9 @@
 
 import type { TenureGlyph } from '@/lib/supporterTiers';
 
+/** PHASE 2: the writer-rank quills (guides bylines), sent only past GUIDES_PANEL_MIN_PLUGIN. */
+export type GuideQuillGlyph = 'quill-bronze' | 'quill-silver' | 'quill-gold' | 'quill-star';
+
 /** A row's or column's ground: the card's, the panel's, or a raised row's. */
 export type Ground = 'card' | 'panel' | 'raised';
 
@@ -47,7 +50,17 @@ export type Action =
   | { a: 'switch'; slug: string }
   /** Open one of the panel's own tabs. Only sent to a plugin that says it knows it (X-Anvil-Tab-Links). */
   /** `args`: the list to open it on (a board's feed or chat); only to a plugin with hasTabArgs. */
-  | { a: 'tab'; tab: 'feed'; args?: Record<string, string> };
+  | { a: 'tab'; tab: 'feed'; args?: Record<string, string> }
+  /**
+   * PHASE 2 (guides, sent only past GUIDES_PANEL_MIN_PLUGIN): the Lookup tab's Players | Guides
+   * switch. `args.mode` 'players' shows the plugin's own player lookup.
+   */
+  | { a: 'tab'; tab: 'lookup'; args?: Record<string, string> }
+  /**
+   * PHASE 2 (guides, sent only past GUIDES_PANEL_MIN_PLUGIN): fetch `path` (a path on this site,
+   * /api/plugin/guide-export?…) with the account token and put the answer's `text` on the clipboard.
+   */
+  | { a: 'copy'; path: string };
 
 interface Common {
   /** Tooltip, plain text. */
@@ -134,7 +147,7 @@ export type Node =
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
       /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down';
+      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
       color?: Color;
       w?: number;
       h?: number;

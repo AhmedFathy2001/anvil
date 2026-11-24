@@ -1,0 +1,254 @@
+// The data behind the plugin's Guides views (pluginUi/guidesUi): view names 'guides', 'guide',
+// 'guide-next', and the actions 'guides-filter', 'guide-pick', 'guide-alt', 'guide-skip',
+// 'guide-unskip', 'guide-budget', 'guide-route'. Everything here is the token owner's own: the
+// played character when it is theirs, else their main. Clanless players get the Anvil library; a
+// clan member pointed at their clan gets the clan's copies where it has them (lib/guides).
+
+import { eq } from 'drizzle-orm';
+
+import { db } from '@/db';
+import { users } from '@/db/schema';
+import { resolvePluginClan, verifyPluginTokenUser } from '@/lib/auth';
+import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
+import { getGuide, publicGuideBySlug, publicGuides } from '@/lib/guides';
+import { listCategories } from '@/lib/guideCategoryStore';
+import { categoryOf } from '@/lib/guideCategories';
+import { firstGearBlock, splitSegments, TIERS, type TierKey } from '@/lib/guideTiers';
+import { setupFit, viewerTier, type GuideAccount, type GuideBuild } from '@/lib/guideSetups';
+import { EMPTY_VIEWER, equivalentsFor, guideViewer, routeFacts, type GuideViewer } from '@/lib/guideViewer';
+import { ladderFor, loadGuideView, type SetupView } from '@/lib/guideView';
+import { bylines, communityCounts, followsOf, libraryIdOf, ranksFor, recentGuides, recordView } from '@/lib/guideCommunity';
+import { writtenByLine, byShort } from '@/lib/guideCredit';
+import { parseRouteBlock, goalLabel, routeProgress } from '@/lib/guideRoutes';
+import { slotOptions } from '@/lib/gearOwnership';
+import { formatGp } from '@/lib/itemPrices';
+import { fmtDuration } from '@/lib/dps/summary';
+import { spellbookName } from '@/lib/guideSelection';
+import { clearSkip, isSkipReason, setBudgetCap, setSkip } from '@/lib/playerItems';
+import { rateLimit } from '@/lib/rate-limit';
+import { supporterForUsers } from '@/lib/supporter';
+import { hasGuidesPanel } from './load';
+import { message, type View } from './nodes';
+import { GUIDE_REGIONS, guidePanelUi, guidesSearchUi, nextUpUi, type GuideRowData, type PanelAlternatives } from './guidesUi';
+
+type Args = Record<string, string>;
+
+/** The token owner as a guide reader: the played character when it is theirs, else their main. */
+async function pluginViewer(request: Request): Promise<GuideViewer> {
+  const login = await verifyPluginTokenUser(request).catch(() => null);
+  if (!login) return EMPTY_VIEWER;
+  const row = await db.query.users.findFirst({ where: eq(users.id, login.userId), columns: { playerId: true } });
+  if (!row?.playerId) return EMPTY_VIEWER;
+  const character = playedCharacter(request);
+  let accountId: number | null = null;
+  if (character && (await accountStanding(login.userId, character)) === 'yours') accountId = (await accountForCharacter(character))?.id ?? null;
+  return guideViewer({ userId: login.userId, playerId: row.playerId }, { items: true, accountId });
+}
+
+/** The clan the plugin is pointed at (its copies first), or null for the library. */
+async function pluginClanId(request: Request, args: Args): Promise<number | null> {
+  if (!args.clan) return null;
+  return (await resolvePluginClan(request).catch(() => null))?.id ?? null;
+}
+
+function rowOf(g: { id: number; title: string; category: string; body: string; kind: string }, community: number, by: string, catLabel: string): GuideRowData {
+  const block = firstGearBlock(g.body);
+  const levels = new Set(block?.setups.map((s) => s.tier) ?? []).size;
+  return {
+    id: g.id,
+    title: g.title.split(' — ')[0],
+    category: catLabel,
+    icon: block?.setups.find((s) => s.pick)?.gear.weapon ?? block?.setups[0]?.gear.weapon ?? null,
+    meta: g.kind === 'route' ? 'Progression route' : block ? `${levels} level${levels === 1 ? '' : 's'}${community ? ` · ${community} community` : ''}` : 'Guide',
+    by,
+  };
+}
+
+export async function guidesSearchView(request: Request, args: Args): Promise<View> {
+  const [viewer, clanId] = await Promise.all([pluginViewer(request), pluginClanId(request, args)]);
+  const [all, cats] = await Promise.all([publicGuides(clanId), listCategories(clanId)]);
+  const filters = { level: args.level ?? '', account: args.account ?? viewer.account ?? '', build: args.build ?? viewer.build ?? 'any' };
+  const counts = await communityCounts([...new Set(all.map(({ guide }) => libraryIdOf(guide)))]);
+  const by = await bylines(all.map(({ guide }) => guide.id));
+  const fits = (body: string) => {
+    const block = firstGearBlock(body);
+    if (!block) return true;
+    const tier = (filters.level || viewerTier(block.setups, viewer.levels) || '') as TierKey | '';
+    return block.setups.some((s) => (!tier || s.tier === tier) && setupFit(s, { account: (filters.account || null) as GuideAccount | null, build: filters.build as GuideBuild }).ok);
+  };
+  const rows = all.filter(({ guide }) => fits(guide.body)).map(({ guide }) => {
+    const b = by.get(guide.id);
+    return { g: guide, row: rowOf(guide, counts.get(libraryIdOf(guide)) ?? 0, b?.first ? `by ${b.first}${b.count > 1 ? ` +${b.count - 1}` : ''}` : '', categoryOf(guide.category, cats).label) };
+  });
+  const sections = cats.map((c) => ({ label: c.label, rows: rows.filter((r) => r.g.category === c.key).map((r) => r.row) })).filter((s) => s.rows.length);
+  const recent = viewer.userId ? (await recentGuides(viewer.userId, 3)).map((g) => rows.find((r) => r.g.id === g.id)?.row).filter((x): x is GuideRowData => !!x) : [];
+  // Phase 2: the plugin says where it stands; a region with a guide gets the "You're at" card.
+  const region = Number(args.region);
+  const slug = Number.isInteger(region) ? GUIDE_REGIONS[region] : undefined;
+  const at = slug ? await publicGuideBySlug(clanId, slug) : null;
+  const here = at ? { id: at.guide.id, title: at.guide.title.split(' — ')[0], where: 'here', icon: firstGearBlock(at.guide.body)?.setups[0]?.gear.weapon ?? null } : null;
+  return { ui: guidesSearchUi({ rows: rows.map((r) => r.row), recent, sections, filters, here, phase2: hasGuidesPanel(request) }) };
+}
+
+const SLOTS = ['head', 'cape', 'neck', 'ammo', 'quiver', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring'];
+
+export async function guidePanelView(request: Request, args: Args, extra: { alternatives?: string; setup?: string; note?: string } = {}): Promise<View> {
+  const guide = await getGuide(Number(args.id));
+  if (!guide || guide.status !== 'published') return message('That guide is not available.');
+  if (guide.kind === 'route') return guideNextView(request, { route: String(guide.id) });
+  const viewer = await pluginViewer(request);
+  if (viewer.userId) void recordView(viewer.userId, guide.id);
+  const view = await loadGuideView(guide, viewer, { account: args.account || null, build: args.build || null });
+  const main = view.setups.filter((s) => !s.community);
+  const tiers = TIERS.filter((t) => main.some((s) => s.setup.tier === t.key)).map((t) => ({ key: t.key as string, label: t.label }));
+  if (!tiers.length) return message('This guide has no setups to show in the panel.', []);
+  const tier = (tiers.some((t) => t.key === args.tier) ? args.tier : view.openTier && tiers.some((t) => t.key === view.openTier) ? view.openTier : tiers[0].key) as TierKey;
+  const pills = main.filter((s) => s.setup.tier === tier);
+  const want = extra.setup ?? args.setup;
+  const comm = view.setups.filter((s) => s.community && s.setup.tier === tier);
+  const current: SetupView = [...pills, ...comm].find((s) => s.key === want) ?? (view.defaults[tier] >= 0 ? view.setups[view.defaults[tier]] : pills[0]);
+  const s = current.resolved ? { ...current.setup, gear: current.resolved.gear, quiver: current.resolved.quiver } : current.setup;
+  const names = view.names;
+  const ladder = await ladderFor(current, view.setups, view.block, view.prices);
+  const credits = view.credits.library;
+  const ranks = await ranksFor(credits.slice(0, 1).map((c) => c.userId));
+  const top = credits[0] ? ranks.get(credits[0].userId)?.rank ?? null : null;
+  const supporter = credits[0] ? (await supporterForUsers([credits[0].userId]).catch(() => new Map())).has(credits[0].userId) : false;
+  const phase2 = hasGuidesPanel(request);
+  const slotNote = (slot: string) => current.resolved?.slots.find((x) => x.slot === slot);
+  const levelChecks = Object.entries(s.req?.levels ?? {}).map(([sk, n]) => ({ text: `${n} ${sk[0].toUpperCase()}${sk.slice(1)}`, ok: viewer.levels ? (viewer.levels[sk] ?? 0) >= n : null }));
+  const questChecks = (s.req?.quests ?? []).map((q) => ({ text: q, ok: viewer.quests ? viewer.quests.has(q.toLowerCase()) : null }));
+  const supplies = new Map<number, number>();
+  for (const it of s.inventory ?? []) if (it) supplies.set(it.id, (supplies.get(it.id) ?? 0) + (it.q ?? 1));
+  const missingSupply = new Set(current.resolved?.missingSupplies.map((m) => m.id) ?? []);
+  const supplyChecks = [...supplies.entries()].slice(0, 6).map(([id, q]) => ({ text: `${names[id] ?? 'Item'}${q > 1 ? ` ×${q}` : ''}`, ok: current.resolved ? !missingSupply.has(id) : null }));
+  const tierText = splitSegments(guide.body).filter((x) => x.kind === 'text' && x.tier === tier).map((x) => x.text).join('\n');
+  const steps = s.steps?.length ? s.steps : tierText.split('\n').map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').replace(/[*_`~|#>]/g, '').trim()).filter((l) => l && !l.startsWith('-#')).slice(0, 10);
+  let alternatives: PanelAlternatives | null = null;
+  if (extra.alternatives) {
+    const slot = extra.alternatives;
+    const options = slotOptions(current.setup, slot as 'head');
+    const row = ladder.find((r) => r.slot === slot);
+    const base = row?.steps.find((x) => x.id === options[0])?.dps ?? null;
+    const eq = equivalentsFor(options);
+    const owned = new Set<number>();
+    if (viewer.snapshot) for (const c of Object.values(viewer.snapshot)) for (const it of c?.items ?? []) for (const x of eq(it.id)) owned.add(x);
+    alternatives = {
+      slot,
+      rows: options.map((id, i) => {
+        const dps = row?.steps.find((x) => x.id === id)?.dps ?? null;
+        return {
+          id,
+          name: names[id] ?? `Item ${id}`,
+          price: view.prices[id] ? formatGp(view.prices[id]) : 'untradeable',
+          note: i === 0 ? "guide's pick" : base && dps != null ? `${dps >= base ? '+' : ''}${Math.round(((dps - base) / base) * 100)}% DPS` : `fallback ${i}`,
+          owned: owned.has(id),
+          inUse: (slotNote(slot)?.use ?? options[0]) === id,
+          skipped: viewer.prefs?.skipped.has(id) ?? false,
+        };
+      }),
+      skipped: [...(viewer.prefs?.skipped.keys() ?? [])].slice(0, 8).map((id) => ({ id, name: names[id] ?? `Item ${id}` })),
+      budget: viewer.prefs?.budgetCap ? String(Math.round(viewer.prefs.budgetCap / 1e6)) : '',
+      signedIn: !!viewer.accountId,
+    };
+  }
+  const tone = top ? (supporter ? 'quill-star' : `quill-${top.quill}`) : null;
+  return {
+    ui: guidePanelUi({
+      id: guide.id,
+      slug: guide.slug,
+      title: guide.title.split(' — ')[0],
+      tier,
+      tiers,
+      byline: `${byShort(credits)}${top && !phase2 ? ` · ${top.label}` : ''}` || writtenByLine(credits),
+      rankGlyph: phase2 ? tone : null,
+      setups: [...pills, ...comm].map((x) => ({ key: x.key, name: x.community ? `${x.setup.name} (community)` : x.setup.name, sub: [x.setup.pick ? 'Curator pick' : x.setup.tag ?? '', x.dps != null ? `${x.dps.toFixed(1)} DPS` : ''].filter(Boolean).join(' · '), weapon: x.setup.gear.weapon ?? null, blocked: x.fit.ok ? null : x.fit.reason })),
+      current: current.key,
+      dps: `${((current.resolved ? current.myDps : current.dps) ?? 0).toFixed(1)} DPS${current.ttk != null ? ` · ~${fmtDuration(current.ttk)}` : ''}`,
+      usingFallbacks: current.resolved?.slots.filter((x) => x.kind === 'fallback').map((x) => `${names[x.use!] ?? 'item'} for ${names[x.guide] ?? 'item'}`).join(', ') || null,
+      slots: SLOTS.map((slot) => {
+        const n = slotNote(slot);
+        const id = slot === 'quiver' ? s.quiver ?? null : s.gear[slot] ?? null;
+        return { slot, id, fallback: n?.kind === 'fallback' ? `you'll use ${names[n.use!] ?? 'a fallback'}` : null, missing: n?.kind === 'missing' };
+      }),
+      inventory: s.inventory ?? [],
+      pouch: (s.runePouch ?? []).map((r) => ({ id: r.id, q: r.q ?? 1 })),
+      spellbook: spellbookName(s.spellbook),
+      spells: s.spells ?? [],
+      hasMarkers: (s.markers?.length ? s.markers : view.block?.markers?.[tier] ?? []).length,
+      missing: current.resolved ? current.resolved.slots.filter((x) => x.kind === 'missing' && x.use).map((x) => ({ id: x.use!, name: names[x.use!] ?? 'Item', price: view.prices[x.use!] ? formatGp(view.prices[x.use!]) : 'untradeable' })) : null,
+      checkedAt: viewer.snapshot ? Object.values(viewer.snapshot).map((c) => c?.readAt ?? '').sort().pop()?.slice(0, 16).replace('T', ' ') ?? null : null,
+      checklist: [...questChecks, ...levelChecks, ...supplyChecks],
+      steps: steps.map((x) => x.replace(/https?:\/\/\S+/g, '(video on the site)')),
+      tips: view.tips.filter((t) => t.kind === 'tip' && (!t.tier || t.tier === tier)).slice(0, 4).map((t) => ({ text: t.text, useful: t.useful })),
+      mistakes: view.tips.filter((t) => t.kind === 'mistake' && (!t.tier || t.tier === tier)).slice(0, 3).map((t) => t.text),
+      upgrades: ladder
+        .filter((r) => r.next)
+        .sort((a, b) => (b.next!.perMillion ?? -1) - (a.next!.perMillion ?? -1))
+        .slice(0, 4)
+        .map((r) => ({ id: r.next!.id, name: names[r.next!.id] ?? 'Item', gain: `+${r.next!.gainPct}%`, price: r.next!.price ? formatGp(r.next!.price) : 'untradeable' })),
+      community: view.community.filter((c) => c.tier === tier && c.status !== 'promoted').slice(0, 3).map((c) => ({ key: c.key, name: c.setup.name, used: c.voters, weapon: c.setup.gear.weapon ?? null })),
+      phase2,
+      alternatives,
+    }),
+  };
+}
+
+/** The You tab's route card: the route followed (or chosen), done/total, what just ticked, next up. */
+export async function guideNextView(request: Request, args: Args): Promise<View> {
+  const viewer = await pluginViewer(request);
+  if (!viewer.userId) return message('Sign in with the plugin to follow a route.');
+  const follows = await followsOf(viewer.userId);
+  const pick = follows.find((f) => String(f.guideId) === args.route) ?? follows[0];
+  const recent = (await recentGuides(viewer.userId, 3)).filter((g) => g.kind !== 'route').map((g) => ({ id: g.id, title: g.title.split(' — ')[0], category: g.category, icon: firstGearBlock(g.body)?.setups[0]?.gear.weapon ?? null, meta: '', by: '' }));
+  if (!pick) return { ui: nextUpUi({ route: null, done: 0, total: 0, lastDone: null, next: [], recent, followed: [] }) };
+  const seg = splitSegments(pick.body).find((x) => x.kind === 'route');
+  const route = seg ? parseRouteBlock(seg.text) : null;
+  if (!route) return message('That route could not be read.');
+  const ids = route.chapters.flatMap((c) => c.steps.map((s) => (s.goal.kind === 'item' || s.goal.kind === 'clog' ? s.goal.id : 0))).filter(Boolean);
+  const facts = routeFacts(viewer, pick.manualDone, equivalentsFor(ids));
+  const p = routeProgress(route, facts, viewer.account, 3);
+  return {
+    ui: nextUpUi({
+      route: { id: pick.guideId, slug: pick.slug, title: pick.title },
+      done: p.done,
+      total: p.total,
+      lastDone: p.lastDone ? { title: p.lastDone.step.title, icon: p.lastDone.step.icon ?? null, source: p.lastDone.source ?? '' } : null,
+      next: p.next.map((x) => ({ title: x.step.title, icon: x.step.icon ?? null, line: x.line, reqs: x.reqs.map((r) => ({ text: goalLabel(r.goal, facts), met: r.met })) })),
+      recent,
+      followed: follows.map((f) => ({ id: f.guideId, title: f.title })),
+    }),
+  };
+}
+
+/** The guide panel's actions. Skips and the budget are the token owner's own character's. */
+export async function guideAct(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
+  switch (act) {
+    case 'guides-filter':
+      return guidesSearchView(request, { ...args, level: fields.level ?? '', account: fields.account ?? '', build: fields.build ?? 'any' });
+    case 'guide-pick':
+      return guidePanelView(request, args, { setup: fields.setup || args.setup });
+    case 'guide-alt':
+      return guidePanelView(request, args, { alternatives: args.slot });
+    case 'guide-route':
+      return guideNextView(request, { route: fields.route ?? '' });
+    case 'guide-skip':
+    case 'guide-unskip':
+    case 'guide-budget': {
+      const viewer = await pluginViewer(request);
+      if (!viewer.accountId) return guidePanelView(request, args, { alternatives: args.slot });
+      const rl = await rateLimit(request, `plugin-guide-prefs:${viewer.userId}`, { limit: 30, windowMs: 60_000 });
+      if (!rl.ok) return message('That’s a lot of changes — give it a minute.');
+      const item = Number(args.item);
+      if (act === 'guide-skip' && Number.isInteger(item) && item > 0) await setSkip(viewer.accountId, item, isSkipReason(args.reason) ? args.reason : 'dont_want');
+      if (act === 'guide-unskip' && Number.isInteger(item) && item > 0) await clearSkip(viewer.accountId, item);
+      if (act === 'guide-budget') {
+        const m = Number(fields.cap);
+        await setBudgetCap(viewer.accountId, Number.isFinite(m) && m > 0 ? m * 1e6 : null);
+      }
+      return guidePanelView(request, args, { alternatives: args.slot });
+    }
+    default:
+      return null;
+  }
+}
