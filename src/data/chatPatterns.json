@@ -859,6 +859,52 @@
           "expect": {}
         }
       ]
+    },
+    {
+      "key": "clue.tier",
+      "description": "The tier of the clue just finished, read from the count line printed with every casket. Names the source for clue.worth.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "You have completed [\\d,]+ (?<tier>beginner|easy|medium|hard|elite|master) Treasure Trails?",
+      "groups": [
+        "tier"
+      ],
+      "samples": [
+        {
+          "line": "You have completed 9 medium Treasure Trails.",
+          "expect": {
+            "tier": "medium"
+          }
+        }
+      ]
+    },
+    {
+      "key": "clue.worth",
+      "description": "The game's own value of a clue casket (GE guide prices). Loot-value tiles count a clue at this figure, not RuneLite's live price sum.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "Your treasure is worth around (?<gp>[\\d,]+) coins",
+      "groups": [
+        "gp"
+      ],
+      "samples": [
+        {
+          "line": "Your treasure is worth around 8,055 coins!",
+          "expect": {
+            "gp": "8,055"
+          }
+        }
+      ]
     }
   ]
 }

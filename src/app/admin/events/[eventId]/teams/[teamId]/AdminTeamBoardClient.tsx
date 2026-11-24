@@ -127,6 +127,17 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
     await fetchCompletions();
   }
 
+  async function handleSetItem(submissionId: number, itemId: number) {
+    const res = await clanFetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set-item', itemId }),
+    });
+    await throwUnlessOk(res, 'Could not link that item.');
+    await fetchSubmissions();
+    await fetchCompletions();
+  }
+
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions, completions, team.id);
 
   const pointsMode = isPointsMode(event.scoringMode);
@@ -191,6 +202,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
           onSubmit={handleSubmit}
           onDelete={handleDeleteSubmission}
           onSetAmount={handleSetAmount}
+          onSetItem={handleSetItem}
           onToggle={handleToggle}
           onClose={() => setSelectedTileId(null)}
           eventId={event.id}
