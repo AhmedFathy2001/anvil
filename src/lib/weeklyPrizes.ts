@@ -1,5 +1,6 @@
 import { MissionPlace } from '@/lib/eventRules';
 import { splitEvenly } from '@/lib/splitGp';
+import { huntBountyTotal, parseHunt } from '@/lib/itemHunt';
 
 // Coffer prizes for a Skill or Boss of the Week.
 //
@@ -37,6 +38,15 @@ export interface WeeklyPrizes {
    * evenly, which is what a host does by hand anyway.
    */
   splitTies: boolean;
+}
+
+/**
+ * Does this competition spend the clan's money: a prize ladder, or an item hunt with a bounty on any
+ * target (lib/itemHunt)? Every switch that commits that money again (making it repeat) or changes what
+ * it pays asks for a treasurer or admin when this is true, the same bar setting the prizes sits behind.
+ */
+export function paysMoney(comp: { prizes?: string | null; type?: string | null; hunt?: string | null }): boolean {
+  return !!comp.prizes || (comp.type === 'hunt' && huntBountyTotal(parseHunt(comp.hunt)) > 0);
 }
 
 export const NO_WEEKLY_PRIZES: WeeklyPrizes = { places: [], payZeroGain: false, splitTies: false };
