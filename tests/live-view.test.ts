@@ -63,7 +63,7 @@ test('tones and pictures by kind: a pet purple, a death coral on the skull, a 99
 
   const level = liveMomentRow(moment({ kind: 'level', itemId: null, itemName: 'Slayer', quantity: 99, valueGp: null }));
   assert.equal(level.title, '99 Slayer');
-  assert.equal(level.titleColor, '#5fd35f');
+  assert.equal(level.titleColor, '#6fdc6f');
   assert.equal((level.icon as { src: string }).src, '/img/wiki/Slayer_icon.png');
 
   const total = liveIcon(moment({ kind: 'level', itemId: null, itemName: null, quantity: 2_000, sourceKind: 'total', valueGp: null }));

@@ -12,6 +12,7 @@ import { bankLayout, type ExportSetup } from '@/lib/runeliteExport';
 import { bankGrid } from '@/lib/runeliteImport';
 import { spellbookName } from '@/lib/guideSelection';
 import type { InvItem } from '@/lib/guideTiers';
+import { SLOT_NAME } from '@/lib/slotNames';
 
 export type Names = Record<number, string>;
 
@@ -101,7 +102,7 @@ export function PaperDoll({
         if (!slot) return <span key={i} />;
         const id = slot === 'quiver' ? quiver ?? undefined : gear[slot];
         const note = notes[slot];
-        const label = SLOT_LABEL[slot];
+        const label = SLOT_NAME[slot];
         const empty = !id;
         return (
           <button
