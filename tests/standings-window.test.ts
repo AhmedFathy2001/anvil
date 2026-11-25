@@ -9,6 +9,7 @@ import {
   competitionRanks,
   gapToPlaceAbove,
   rankMove,
+  scoredMoves,
   teamRanksFromDay,
   isManyTeams,
   isSoloLike,
@@ -178,4 +179,20 @@ test('gapToPlaceAbove: score that passes the row directly above, null at the top
   assert.equal(gapToPlaceAbove(rows, () => false, sc), null);
   // best of several of the viewer's lines
   assert.deepEqual(gapToPlaceAbove(rows, (r) => r.id === 4 || r.id === 2, sc), { toPass: 11, aboveRank: 1 });
+});
+
+test('weekly moves count only scorers passed: stepping over idle names is not a climb', () => {
+  // Day began in name order, everyone on 0. Now: d got 1 kill, b got 5.
+  const before = new Map([['a', 1], ['b', 2], ['c', 3], ['d', 4], ['e', 5]]);
+  const rows = [{ key: 'b', gained: 5 }, { key: 'd', gained: 1 }, { key: 'a', gained: 0 }, { key: 'c', gained: 0 }, { key: 'e', gained: 0 }];
+  const m = scoredMoves(rows, before);
+  assert.equal(m.get('d'), null, 'd stepped over a and c, both on 0');
+  assert.equal(m.get('b'), null, 'b stepped over a, on 0');
+  assert.equal(m.get('a'), -2, 'a was passed by b and d, both scorers');
+  assert.equal(m.get('e'), null, 'e was passed by nobody (d started above it)');
+  // A real pass: c (3 kc) overtakes b (2 kc), who was ahead at the start of the day.
+  const m2 = scoredMoves([{ key: 'c', gained: 3 }, { key: 'b', gained: 2 }], new Map([['b', 1], ['c', 2]]));
+  assert.equal(m2.get('c'), 1);
+  assert.equal(m2.get('b'), -1);
+  assert.equal(scoredMoves([{ key: 'z', gained: 4 }], null).get('z'), null, 'no baseline');
 });

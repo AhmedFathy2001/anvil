@@ -163,6 +163,31 @@ export function rankMove(before: number | null | undefined, now: number | null |
   return before - now;
 }
 
+/**
+ * A weekly's "▲3 today", counted in PEOPLE PASSED rather than places: a place only counts when the
+ * person it was taken from has scored (gained > 0). On a fresh board most of the clan sits on 0 in
+ * name order, so a first kill would otherwise read as "▲40" for stepping over forty idle names.
+ *
+ * `rows` is the board in rank order; `before` is each key's rank as the day began. Net of the
+ * scorers who passed you the other way; null when that is 0 or there is no baseline for you.
+ */
+export function scoredMoves(rows: readonly { key: string; gained: number }[], before: ReadonlyMap<string, number> | null | undefined): Map<string, number | null> {
+  const out = new Map<string, number | null>();
+  rows.forEach((me, i) => {
+    const was = before?.get(me.key);
+    if (was == null || was <= 0) return void out.set(me.key, null);
+    let net = 0;
+    rows.forEach((other, j) => {
+      const otherWas = before?.get(other.key);
+      if (j === i || otherWas == null || other.gained <= 0) return;
+      if (j > i && otherWas < was) net++; // was ahead of you, now behind: passed
+      else if (j < i && otherWas > was) net--; // was behind you, now ahead: passed you
+    });
+    out.set(me.key, net === 0 ? null : net);
+  });
+  return out;
+}
+
 /** A day snapshot's teams ranked as the standings rank them (ties share a rank). */
 export function teamRanksFromDay(data: unknown): Map<number, number> {
   const teams = (data as { teams?: Record<string, { score?: number }> } | null)?.teams ?? {};

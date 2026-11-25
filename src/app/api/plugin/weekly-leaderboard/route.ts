@@ -6,7 +6,8 @@ import { db } from '@/db';
 import { resolvePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import { users, weeklyCompetitions } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { rankMove, weeklyBaselineRanks, weeklyBoard } from '@/lib/rankMoves';
+import { weeklyBaselineRanks, weeklyBoard } from '@/lib/rankMoves';
+import { scoredMoves } from '@/lib/standingsWindow';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { canSeeClan } from '@/lib/clanAccess';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
@@ -102,6 +103,8 @@ export async function GET(request: Request) {
     const at = (rsn: string) => place.get(weeklyRsnKey(rsn)) ?? Number.MAX_SAFE_INTEGER;
     board.sort((a, b) => at(a.rsn) - at(b.rsn));
   }
+  // "▲2 today" counts only scorers passed (lib/standingsWindow scoredMoves), never idle 0-kc names.
+  const moves = hunt ? null : scoredMoves(board.map((e) => ({ key: weeklyRsnKey(e.rsn), gained: Math.max(0, e.gained) })), since);
   const row = (e: (typeof board)[number], i: number) => ({
     rank: i + 1,
     rsn: e.rsn,
@@ -112,8 +115,8 @@ export async function GET(request: Request) {
     // computeLeaderboard treats as 0, yielding a spurious negative gain (0 - baseline). You
     // can't lose KC/XP, so floor it at 0.
     gained: Math.max(0, e.gained),
-    // Places climbed since the UTC day began; null when unchanged or not yet recorded.
-    move: hunt ? null : rankMove(since?.get(weeklyRsnKey(e.rsn)), i + 1),
+    // Scorers passed since the UTC day began; null when none, on a hunt, or not yet recorded.
+    move: moves?.get(weeklyRsnKey(e.rsn)) ?? null,
     // A Hardcore Worlds character gets its "HCW" mark, and one that died there says so (lib/competitionGame).
     ...(isHardcoreEntrant(e.hiscoresTable, comp.countsOn) ? { tag: 'HCW' } : {}),
     ...(e.stoppedAt ? { stopped: true } : {}),

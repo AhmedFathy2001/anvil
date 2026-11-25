@@ -224,7 +224,8 @@ export type Node =
       t: 'input';
       name: string;
       /** A search fires `on` as the member pauses typing; a select fires it on change. */
-      kind: 'select' | 'number' | 'check' | 'search';
+      /** 'text': a one-line typed answer — only for a plugin that says it draws one (signupPanel hasTextInput). */
+      kind: 'select' | 'number' | 'check' | 'search' | 'text';
       options?: { v: string; label: string }[];
       value?: string;
       min?: number;
