@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { socialMetadata } from '@/lib/seo';
 
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 
@@ -45,10 +46,11 @@ import ScrollStrip from '@/components/ScrollStrip';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = socialMetadata({
   title: 'Pricing — Anvil',
   description: `Free for clans up to ${PLANS.free.memberCap} members. Paid tiers scale with your roster.`,
-};
+  canonical: '/pricing',
+});
 
 /**
  * /pricing — apex only.

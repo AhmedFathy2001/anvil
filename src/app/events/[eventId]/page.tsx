@@ -11,16 +11,13 @@ import { parseBoardAccess } from '@/lib/cohostBoardAccess';
 import type { Metadata } from 'next';
 
 import { db } from '@/db';
-import { clanPrefix, currentClan, requireClan, resolveClanById } from '@/lib/clanContext';
-import { canSeeEvent } from '@/lib/eventAccess';
-import { getClanDisplayName } from '@/lib/pluginConfig';
-import { canonicalPathFor, socialMetadata } from '@/lib/seo';
-import { eventLinkDescription } from '@/lib/linkText';
+import { requireClan, resolveClanById } from '@/lib/clanContext';
+import { eventPageMetadata } from '@/lib/eventPageMetadata';
 import { JsonLd, breadcrumbLd, eventLd } from '@/lib/jsonLd';
 import { clanTrail } from '@/lib/seoPages';
 import { clanHref } from '@/lib/clanPath';
 import { clanPathOf } from '@/lib/clanScopedPaths';
-import { eventInClan, requireEventForParticipantPage } from '@/lib/eventScope';
+import { requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import { eventIconUrl } from '@/lib/eventImage';
 import { accounts, events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants, eventCohosts } from '@/db/schema';
@@ -36,6 +33,7 @@ import { parseStamp } from '@/lib/dbTime';
 import { tileKindKey } from '@/lib/tileKinds';
 import { isManualTile } from '@/lib/clogManual';
 import { signupWindowState, signupEditState } from '@/lib/signup';
+import { signedUpNames } from '@/lib/signupPublicList';
 import { countPaidEntries, computePrizePool } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
 import { placementAmounts } from '@/lib/payouts';
@@ -74,7 +72,7 @@ import { loadRulesFacts } from '@/lib/eventRulebook';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
-import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
+import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
 import { atLeast } from '@/lib/clanRoles';
@@ -110,29 +108,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ eventId: string }>;
 }): Promise<Metadata> {
-  const clan = await currentClan();
-  const id = Number((await params).eventId);
-  if (!clan || !Number.isInteger(id)) return {};
-
-  const event = await eventInClan(clan.id, id);
-  // No event, or one this visitor may not read: say nothing and let the layout's clan-level
-  // metadata stand. Naming it here would describe a page that is about to 404.
-  const session = await verifyUser();
-  if (!event || !(await canSeeEvent({ eventId: id, playerId: session?.playerId ?? null }))) return {};
-
-  // A link card is as public as it gets: while the standings are hidden it names no leader.
-  const curtained = standingsHidden(event);
-  const [clanName, prefix, standings] = await Promise.all([
-    getClanDisplayName(clan.id, clan.name),
-    clanPrefix(),
-    curtained ? Promise.resolve([]) : getTeamStandings(id, event.scoringMode),
-  ]);
-  return socialMetadata({
-    title: `${event.name} — ${clanName || clan.name}`,
-    description: eventLinkDescription(event, standings, Date.now(), { standingsHidden: curtained }),
-    canonical: canonicalPathFor({ prefix, pathname: `/events/${id}`, clanSlug: clan.slug, clanKind: clan.kind }),
-    image: `/api/og/event/${id}`,
-  });
+  return eventPageMetadata((await params).eventId);
 }
 
 export default async function EventScoreboardPage({
@@ -459,6 +435,8 @@ export default async function EventScoreboardPage({
   // tile content must never reach the client. Staff keep the full board. The aggregate counts
   // (hidden count, next reveal time) are safe to share and feed the board's countdown banner.
   const rules = parseEventRules(event.rules);
+  // Shown until the board ends; after that the standings say who played.
+  const publicNames = rules.signupFields.publicList && !isEventEnded(event) ? await signedUpNames(event.id) : null;
   // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
   // (lib/moments isEventFeedWorthy) — never any part of the scoring.
   // Back-to-back repeats (someone's run of deaths) collapse to one line with a count (lib/feedRuns)
@@ -897,6 +875,16 @@ export default async function EventScoreboardPage({
         feeText={feeLabel(event)}
         signupClosesAt={event.signupDeadline ?? event.startDate}
       />
+      )}
+      {/* The host shows who's in (Sign-up settings → Show who's signed up): names only, so friends find each other. */}
+      {publicNames && publicNames.length > 0 && (
+        <div className="mb-6 rounded-xl border border-card-border bg-card-bg p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="h-5 w-1 bg-gold" />
+            <h2 className="text-sm font-semibold text-white">Signed up · {publicNames.length}</h2>
+          </div>
+          <p className="text-sm leading-relaxed text-text-muted">{publicNames.join(', ')}</p>
+        </div>
       )}
       {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
           rather than two stacked gold banners shouting the same "event ended" note twice. */}

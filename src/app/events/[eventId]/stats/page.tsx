@@ -1,3 +1,5 @@
+import type { Metadata } from 'next';
+import { eventPageMetadata } from '@/lib/eventPageMetadata';
 import EventFirsts from '@/components/events/EventFirsts';
 import { firstsForViewer } from '@/lib/eventFirstsView';
 import { getEventLuck } from '@/lib/eventLuck';
@@ -53,6 +55,10 @@ function Notice({ title, children }: { title: string; children?: React.ReactNode
  * Event stats — per member, per team and per hour, for the whole event or one day (lib/eventStats).
  * Open to everyone who can see the board, while it runs: the live numbers are the point.
  */
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
+  return eventPageMetadata((await params).eventId, 'stats');
+}
+
 export default async function EventStatsPage({
   params,
   searchParams,

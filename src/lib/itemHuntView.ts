@@ -117,6 +117,8 @@ export interface HuntView {
   statUnit: 'kills' | 'xp' | null;
   rows: HuntViewRow[];
   me: HuntViewRow | null;
+  /** Every one of the viewer's characters on this hunt, best placed first (`me` is the first). */
+  mine: HuntViewRow[];
   drops: number;
   hunters: number;
   /** Drops the "after N drops" ending is waiting on staff for. */
@@ -217,6 +219,7 @@ export function buildHuntView(
     statUnit: stat ? (stat.type === 'boss' ? 'kills' : 'xp') : null,
     rows,
     me: rows.find((r) => r.isMe) ?? null,
+    mine: rows.filter((r) => r.isMe),
     drops: standings.drops.length,
     hunters: rows.filter((r) => r.count > 0).length,
     awaiting: standings.awaiting.map((d) => ({ rsn: rsnOf.get(d.rsnKey) ?? d.rsnKey, itemName: d.itemName, occurredAt: d.occurredAt })),

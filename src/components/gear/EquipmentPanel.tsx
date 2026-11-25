@@ -6,6 +6,7 @@ import type { GearItem } from '@/lib/dps/engine';
 import type { Slot } from '@/lib/dps/tables';
 import { wikiImageUrl } from '@/lib/assetUrls';
 import { itemIcon } from './useGearData';
+import { SLOT_NAME } from '@/lib/slotNames';
 
 // The in-game equipment screen: the slots where a player's eye expects them.
 const LAYOUT: (Slot | null)[][] = [
@@ -58,7 +59,7 @@ function SlotBox({
         type="button"
         disabled={readOnly}
         onClick={onOpen}
-        aria-label={item ? `${SLOT_LABEL[slot]}: ${item.n}` : `${SLOT_LABEL[slot]}: empty`}
+        aria-label={item ? `${SLOT_NAME[slot]}: ${item.n}` : `${SLOT_NAME[slot]}: empty`}
         className={`flex h-full w-full items-center justify-center rounded-[5px] border bg-[#1d1812] shadow-[inset_0_2px_4px_rgba(0,0,0,0.7),inset_0_-1px_0_rgba(255,255,255,0.04)] transition-colors ${
           active ? 'border-gold' : 'border-[#4a3f31] enabled:hover:border-gold/60'
         } disabled:cursor-default`}
@@ -118,7 +119,7 @@ function SlotSearch({ slot, items, value, onPick, onClose }: { slot: Slot; items
             if (e.key === 'Escape') onClose();
             if (e.key === 'Enter' && matches[0]) onPick(matches[0].id);
           }}
-          placeholder={`Search ${SLOT_LABEL[slot].toLowerCase()} items…`}
+          placeholder={`Search ${SLOT_NAME[slot].toLowerCase()} items…`}
           className="min-w-0 flex-1 rounded border border-card-border bg-brown-dark px-2 py-1 text-xs focus:border-gold focus:outline-none"
         />
         {value != null && (

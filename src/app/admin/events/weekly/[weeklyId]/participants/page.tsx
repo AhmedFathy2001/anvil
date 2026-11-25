@@ -1,4 +1,5 @@
 import { competitionStat } from '@/lib/weeklyMetric';
+import { guestMode } from '@/lib/weeklyGuests';
 import { notFound } from 'next/navigation';
 import { requireClan } from '@/lib/clanContext';
 import { getWeeklyRow, getWeeklyStandings } from '@/lib/weeklyWorkspace';
@@ -27,7 +28,7 @@ export default async function WeeklyParticipantsPage({ params }: { params: Promi
   return (
     <>
       <WeeklyFeesPanel competitionId={id} canCollect={atLeast(session?.role, 'treasurer')} canConfirm={atLeast(session?.role, 'admin')} />
-      <WeeklyRosterClient competitionId={id} type={competitionStat(comp)?.type ?? 'boss'} standings={standings} startingStats={startingStats} mode="participants" includeGuests={comp.includeGuests === 1} selectedOnly={comp.hostEntrants === 'selected'} />
+      <WeeklyRosterClient competitionId={id} type={competitionStat(comp)?.type ?? 'boss'} standings={standings} startingStats={startingStats} mode="participants" includeGuests={guestMode(comp.includeGuests)} selectedOnly={comp.hostEntrants === 'selected'} />
     </>
   );
 }

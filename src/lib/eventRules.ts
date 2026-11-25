@@ -359,6 +359,12 @@ export interface SignupFields {
   skills: boolean;
   /** The free-text "anything else for captains?" box. */
   notes: boolean;
+  /**
+   * Not a section of the form: whether everyone can see WHO has signed up (their names, on the
+   * event page and in the side panel), so people join their friends. Off by default — a sign-up
+   * list is the host's to show. Answers are never shown, only names.
+   */
+  publicList: boolean;
 }
 
 export const DEFAULT_SIGNUP_FIELDS: SignupFields = {
@@ -367,6 +373,7 @@ export const DEFAULT_SIGNUP_FIELDS: SignupFields = {
   bosses: true,
   skills: true,
   notes: true,
+  publicList: false,
 };
 
 /** Is this exactly the shipped set? Used to decide whether the rules JSON can be dropped entirely. */
@@ -388,6 +395,7 @@ export function parseSignupFields(raw: unknown): SignupFields {
     bosses: pick('bosses'),
     skills: pick('skills'),
     notes: pick('notes'),
+    publicList: pick('publicList'),
   };
 }
 

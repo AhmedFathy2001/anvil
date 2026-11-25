@@ -79,6 +79,7 @@ import { racePageUi } from './raceUi';
 import { boardFeedLinks } from './feedUi';
 import { type Action, type Node, type View, applyFlair, backRow, button, card, col, gap, message, muted, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
+import { bingoSignupAct, bingoSignupForm, bingoSignupState, bingoWithdrawAct, clanEventForm, clanEventSignupAct, weeklyEntryState, weeklyOptAct } from './signupPanel';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
 import { missingStartShots, rosterUi, teamsUi } from './teamsUi';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
@@ -791,6 +792,14 @@ async function homeView(request: Request, a: Args): Promise<View> {
     // Past the top 50 the route still names your own row.
     weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? (b.you ? { ...b.you, self: true } : null), groups: b.groups ?? null, highlights: b.highlights ?? null });
   }
+  // An opened board on the schedule: its sign-up; an opened weekly: this character's entry. Only for
+  // the page on screen, and never a reason the page fails.
+  const openEvent = /^event:(\d+)$/.exec(open);
+  const openWeekly = /^weekly:(\d+)$/.exec(open);
+  const [signup, weeklyEntry] = await Promise.all([
+    openEvent ? bingoSignupState(request, Number(openEvent[1])).catch(() => null) : Promise.resolve(null),
+    openWeekly ? weeklyEntryState(request, Number(openWeekly[1])).catch(() => null) : Promise.resolve(null),
+  ]);
   // Cheap and best effort: the support line is a nudge, never a reason the panel fails.
   const viewer = await verifyPluginTokenUser(request).catch(() => null);
   const [supporterNow, notice] = viewer
@@ -799,6 +808,8 @@ async function homeView(request: Request, a: Args): Promise<View> {
   const supportCta = !supporterNow;
   const chatEventId = cfg.event?.id ?? null;
   const data: HomeData = {
+    signup,
+    weeklyEntry,
     feedTab: hasTabArgs(request),
     chatOn: chatEventId ? await boardChatOn(chatEventId).catch(() => true) : false,
     cfg,
@@ -1058,6 +1069,10 @@ async function viewFor(request: Request, v: string, a: Args): Promise<View | nul
       return momentsView(request, a);
     case 'feed':
       return feedView(request, a);
+    case 'event-signup':
+      return bingoSignupForm(request, a);
+    case 'clan-event-signup':
+      return clanEventForm(request, a);
     // Guides (pluginUi/guidesView): the Lookup tab's Guides half, one guide, the You tab's route card.
     case 'guides':
       return guidesSearchView(request, a);
@@ -1090,6 +1105,11 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
   if (act === 'race-lifeline') return raceLifelineAct(request, args);
   if (act === 'proof-delete') return proofDeleteAct(request, args, fields.note);
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);
+  // Signing up from the panel (lib/pluginUi/signupPanel): the site's own writes, then the page again.
+  if (act === 'event-signup') return bingoSignupAct(request, args, fields, homeView);
+  if (act === 'event-withdraw') return bingoWithdrawAct(request, args, homeView);
+  if (act === 'clan-event-signup') return clanEventSignupAct(request, args, fields, homeView);
+  if (act === 'weekly-opt') return weeklyOptAct(request, args, homeView);
   if (act === 'react') return reactAct(request, args);
   if (act === 'react-row') return reactRowAct(request, args);
   if (act === 'h2h-accept' || act === 'h2h-decline') return h2hAct(request, act, args);

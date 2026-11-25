@@ -18,6 +18,7 @@ import { bankTagString } from './runeliteExport';
 import { groundMarkersJson } from './groundMarkers';
 import { discordName } from './guideCredit';
 import { parseYouTube, youTubeLink } from './youtube';
+import { SLOT_NAME } from '@/lib/slotNames';
 
 export interface PostSelection {
   v: 1;
@@ -87,9 +88,6 @@ export function setupSelected(sel: PostSelection, s: GearSetup, i: number): bool
   return sel.setups.includes(key) || (sel.includeNew && !sel.known.includes(key));
 }
 
-const SLOT_LABEL: Record<Slot | 'quiver', string> = {
-  head: 'Head', cape: 'Cape', neck: 'Neck', ammo: 'Ammo', weapon: 'Weapon', body: 'Body', shield: 'Shield', legs: 'Legs', hands: 'Hands', feet: 'Feet', ring: 'Ring', quiver: 'Quiver',
-};
 const SPELLBOOKS = ['Standard', 'Ancient', 'Lunar', 'Arceuus'];
 export const spellbookName = (n: number | undefined) => SPELLBOOKS[n ?? 0] ?? 'Standard';
 
@@ -143,7 +141,7 @@ export function setupDiscordBlock(
     const id = slot === 'quiver' ? s.quiver : s.gear[slot];
     if (!id) continue;
     const alts = (s.alts?.[slot] ?? []).filter((x) => Number.isInteger(x) && x > 0);
-    gear.push(`${SLOT_LABEL[slot]}: ${discordText(name(id))}${alts.length ? ` (or ${alts.map((a) => discordText(name(a))).join(' / ')})` : ''}`);
+    gear.push(`${SLOT_NAME[slot]}: ${discordText(name(id))}${alts.length ? ` (or ${alts.map((a) => discordText(name(a))).join(' / ')})` : ''}`);
   }
   if (gear.length) lines.push(gear.join(' · '));
   const inv = new Map<number, number>();

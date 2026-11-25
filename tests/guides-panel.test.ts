@@ -166,7 +166,7 @@ test('guide panel: a guide with no setups shows its sections, steps, notes and a
   for (const head of ['About this guide', 'How a raid runs', 'Your first raids', 'Etiquette']) assert.ok(t.includes(head), `section ${head}`);
   assert.ok(!t.includes('Speed runs'), 'the other level stays out');
   assert.ok(t.includes('Base 75+ combat, 70+ Prayer.'), 'the -# requirement line');
-  assert.ok(t.some((s) => s === 'Step 1') && t.some((s) => s.startsWith('Start: the leader')), 'numbered steps in boxes');
+  assert.ok(t.some((s) => s === '1.') && t.some((s) => s.startsWith('Start: the leader')), 'numbered steps');
   assert.ok(t.some((s) => s.startsWith('•  Join learner raids')), 'bullets, marks stripped');
   assert.ok(t.includes('Watch the video on the site'));
   assert.ok(t.some((s) => s.includes('Bring a spare antifire')), 'tips');
@@ -199,8 +199,8 @@ test('guide panel: level chips fit (short labels), the picker lists every setup,
   const ui = guidePanelUi(DATA);
   const t = texts(ui);
   assert.ok(t.includes('Mid') && !t.some((s) => s.startsWith('Intermedi') && s.length < 12));
-  // The picker: "1 of 2 ▾", then each setup loads the guide with its key.
-  assert.ok(t.includes('1 of 2 ▾'));
+  // The picker: "1 of 2" and a chevron, then each setup loads the guide with its key.
+  assert.ok(t.includes('1 of 2'));
   const picks = actions(ui).filter((a) => a.a === 'load' && a.v === 'guide').map((a) => (a.args as Record<string, string>).setup);
   assert.ok(picks.includes('intermediate-dhl'));
   // An empty slot shows the game's slot picture; a missing one its own well colour.

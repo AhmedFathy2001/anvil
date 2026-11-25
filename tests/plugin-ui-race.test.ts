@@ -126,7 +126,7 @@ test('mid-race on road B: one tile, its count, the road with names and the switc
   assert.ok(s.includes('PK Some Pker'));
   assert.ok(s.includes("C: 3 Seers' laps"));
   const segs = walk(main).find((x) => x.t === 'segs') as { c: string[] };
-  assert.deepEqual(segs.c, ['#5fd35f', '#ff981f', '#4a4a4a', '#4a4a4a']);
+  assert.deepEqual(segs.c, ['#6fdc6f', '#ff981f', '#4a4a4a', '#4a4a4a']);
   assert.ok(s.includes('· · ·'));
   assert.ok(s.some((x) => /^\d+ {2}You$/.test(x)));
 });

@@ -227,8 +227,8 @@ test('the card open: slot by slot, worse first in the dry tone, better in green,
     if (o.t === 'text' && typeof o.s === 'string' && /^[+−]\d+%$/.test(o.s)) signs.push({ s: o.s, color: o.color });
   });
   assert.deepEqual(signs.map((x) => x.s), ['−12%', '−2%', '+38%']);
-  assert.equal(signs[2].color, '#5fd35f', 'yours better: green');
-  assert.notEqual(signs[0].color, '#5fd35f', 'yours worse: not green');
+  assert.equal(signs[2].color, '#6fdc6f', 'yours better: green');
+  assert.notEqual(signs[0].color, '#6fdc6f', 'yours worse: not green');
   assert.ok(t.includes('Same or even: Cape, Body'));
   assert.ok(t.includes('Also worn: Mystery ring (unknown stats, not counted)'));
 });

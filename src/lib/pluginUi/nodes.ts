@@ -12,8 +12,8 @@ import type { TenureGlyph } from '@/lib/supporterTiers';
 /** PHASE 2: the writer-rank quills (guides bylines), sent only past GUIDES_PANEL_MIN_PLUGIN. */
 export type GuideQuillGlyph = 'quill-bronze' | 'quill-silver' | 'quill-gold' | 'quill-star';
 
-/** A row's or column's ground: the card's, the panel's, or a raised row's. */
-export type Ground = 'card' | 'panel' | 'raised';
+/** A row's or column's ground: the card's, the panel's, a raised row's, or a '#rrggbb' hex (plugins past the hex-grounds update). */
+export type Ground = 'card' | 'panel' | 'raised' | `#${string}`;
 
 /** A colour by role, or "#rrggbb". */
 export type Color = 'white' | 'text' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | 'progress' | `#${string}`;
@@ -147,7 +147,8 @@ export type Node =
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
       /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
+      /** 'chevron-down': an open accordion's chevron; a plugin without it draws the `alt` (▾). */
+      glyph?: 'check' | 'chevron-right' | 'chevron-down' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
       color?: Color;
       w?: number;
       h?: number;
@@ -224,7 +225,8 @@ export type Node =
       t: 'input';
       name: string;
       /** A search fires `on` as the member pauses typing; a select fires it on change. */
-      kind: 'select' | 'number' | 'check' | 'search';
+      /** 'text': a one-line typed answer — only for a plugin that says it draws one (signupPanel hasTextInput). */
+      kind: 'select' | 'number' | 'check' | 'search' | 'text';
       options?: { v: string; label: string }[];
       value?: string;
       min?: number;
@@ -232,7 +234,7 @@ export type Node =
       step?: number;
       label?: string;
     })
-  | (Common & { t: 'button'; label: string; /** Shown but can't be pressed. */ off?: boolean })
+  | (Common & { t: 'button'; label: string; /** Shown but can't be pressed. */ off?: boolean; /** Look: orange fill, orange outline, or grey outline (older plugins ignore it). */ kind?: 'primary' | 'outline' | 'plain' })
   | (Common & { t: 'gap'; h: number })
   | (Common & {
       t: 'countdown';
@@ -383,7 +385,7 @@ export function eventName(all: readonly { id: number; name: string }[], it: { id
 }
 /** A full-width message card: loading, nothing found, couldn't reach. */
 export const message = (s: string, extra: Node[] = []): View => ({ ui: card([muted(s, { wrap: true }), ...extra]) });
-export const button = (label: string, on: Action, tip?: string): Node => ({ t: 'button', label, on, ...(tip ? { tip } : {}) });
+export const button = (label: string, on: Action, tip?: string, kind?: 'primary' | 'outline' | 'plain'): Node => ({ t: 'button', label, on, ...(tip ? { tip } : {}), ...(kind ? { kind } : {}) });
 
 /** Part of a whole as 0..100, rounded down so a goal never reads as reached before it is. */
 export function percent(part: number, whole: number): number {
