@@ -215,7 +215,7 @@ export default async function WeeklyLeaderboardPage({
         <CompetitionTabs competitionId={compId} active="standings" />
         <CompetitionPrizes prizes={competition.prizes} currency={competition.prizeCurrency} hunt feePot={feePot} />
         {selfEntry}
-        {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} />}
+        {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} seats={huntEntry.seats} />}
         {seats.length > 0 && <HuntClaim competitionId={compId} proof={hunt.proof} characters={seats} />}
         {hunt.status === 'completed' && hunt.statUnit === 'kills' && (
           <div className="mb-5">
@@ -332,9 +332,9 @@ export default async function WeeklyLeaderboardPage({
         </ClanLink>
         {hero}
         <CompetitionTabs competitionId={compId} active="feed" recap={ended} />
-        {view.me && (
-          <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
-        )}
+        {view.mine.map((m) => (
+          <YouStrip key={m.entry.rsn} me={m} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
+        ))}
         <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0">
             <CompetitionFeed
@@ -417,11 +417,12 @@ export default async function WeeklyLeaderboardPage({
       <CompetitionPrizes prizes={competition.prizes} currency={competition.prizeCurrency} feePot={feePot} />
       {selfEntry}
 
-      {view.me && (
-        <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
-      )}
+      {/* One strip per character of yours on the board: an alt racing too is yours to see. */}
+      {view.mine.map((m) => (
+        <YouStrip key={m.entry.rsn} me={m} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
+      ))}
 
-      {entry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={entry.optedOut} />}
+      {entry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={entry.optedOut} seats={entry.seats} />}
 
       {groups && <GroupStandings view={groups} type={view.type} unit={view.unit} myRsns={myRsns} tagsOf={tagsOf} />}
 

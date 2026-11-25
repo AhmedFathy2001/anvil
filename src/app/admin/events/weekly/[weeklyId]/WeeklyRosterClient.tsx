@@ -1,5 +1,6 @@
 'use client';
 
+import type { GuestMode } from '@/lib/weeklyGuests';
 import { useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { useRouter } from 'next/navigation';
@@ -36,8 +37,8 @@ export default function WeeklyRosterClient({
   type: string;
   standings: WeeklyStanding[];
   mode: 'participants' | 'baselines';
-  /** The competition's guest switch — shown and flippable on the participants view. */
-  includeGuests?: boolean;
+  /** The competition's guest setting (lib/weeklyGuests) — shown and changeable on the participants view. */
+  includeGuests?: GuestMode;
   /** "Selected people" (Format page): only the names added here race; nothing is entered automatically. */
   selectedOnly?: boolean;
   /** Mid-competition additions: are their starting stats in yet (lib/startingStats)? By participant id. */
@@ -66,9 +67,12 @@ export default function WeeklyRosterClient({
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(ROSTER_CHUNK);
 
-  const visible = search.trim()
-    ? standings.filter((s) => s.rsn.toLowerCase().includes(search.trim().toLowerCase()))
-    : standings;
+  // Who to show: everyone, members, members' alts (a guest whose person also has a member seat), or
+  // the other guests — the ones "drop guests who aren't alts" would take out.
+  const [who, setWho] = useState<'all' | 'members' | 'alts' | 'others'>('all');
+  const whoOk = (s: WeeklyStanding) =>
+    who === 'all' || (who === 'members' ? s.kind !== 'guest' : s.kind === 'guest' && (who === 'alts') === s.memberAlt);
+  const visible = standings.filter((s) => whoOk(s) && (!search.trim() || s.rsn.toLowerCase().includes(search.trim().toLowerCase())));
 
   // ONE HUMAN, TWO CHARACTERS. The fanout walks seats — (account × clan) — so somebody whose main
   // is a member and whose alt was pinged in as a guest enters twice and races themselves. Nothing
@@ -87,15 +91,17 @@ export default function WeeklyRosterClient({
   // pass would drop. Kept as a set so the table can mark them without re-deriving per row.
   const surplusIds = new Set(surplus);
   const enteredGuests = standings.filter((r) => r.kind === 'guest' && !r.left);
+  const otherGuests = enteredGuests.filter((r) => !r.memberAlt);
+  const altGuests = enteredGuests.length - otherGuests.length;
 
-  async function removeParticipants(ids: number[], said: string, opts: { dropGuests?: boolean } = {}) {
+  async function removeParticipants(ids: number[], said: string, opts: { dropGuests?: boolean | 'non-alts' } = {}) {
     if (ids.length === 0) return;
     await call(
       `/api/admin/weekly/${competitionId}/participants`,
       {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantIds: ids, dropGuests: opts.dropGuests === true }),
+        body: JSON.stringify({ participantIds: ids, dropGuests: opts.dropGuests ?? false }),
       },
       said,
     );
@@ -127,6 +133,21 @@ export default function WeeklyRosterClient({
     });
     if (!ok) return;
     await removeParticipants(ids, `${ids.length} guest${ids.length === 1 ? '' : 's'} removed.`, { dropGuests: true });
+  }
+
+  async function dropNonAltGuests() {
+    const ids = otherGuests.map((g) => g.participantId);
+    const scoring = otherGuests.filter((g) => g.gained > 0).length;
+    const ok = await confirm({
+      title: `Take ${ids.length} guest${ids.length === 1 ? '' : 's'} who ${ids.length === 1 ? 'isn\u2019t' : 'aren\u2019t'} an alt out?`,
+      body:
+        `Guests whose owner also has a member account here stay in (${altGuests}). ` +
+        (scoring > 0 ? `${scoring} of the ones leaving already scored, and that goes with them. ` : '') +
+        'From now on only members\u2019 alts are entered as guests.',
+      confirmLabel: 'Take them out',
+    });
+    if (!ok) return;
+    await removeParticipants(ids, `${ids.length} guest${ids.length === 1 ? '' : 's'} removed — alts kept.`, { dropGuests: 'non-alts' });
   }
 
   async function keepOnePerPerson() {
@@ -163,17 +184,19 @@ export default function WeeklyRosterClient({
 
   // The comp's guest switch, reversible after creation. Off stops the roster sweep entering guests
   // (the ones already in stay until dropped); on enters them on the next tick.
-  async function setIncludeGuests(on: boolean) {
+  async function setIncludeGuests(mode: GuestMode) {
     await call(
       `/api/admin/weekly/${competitionId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ includeGuests: on }),
+        body: JSON.stringify({ includeGuests: mode }),
       },
-      on ? 'Guests will be entered on the next sweep.' : 'Guests will no longer be entered.',
+      mode === 'all' ? 'Guests will be entered on the next sweep.' : mode === 'alts' ? 'Only members\u2019 alts will be entered as guests.' : 'Guests will no longer be entered.',
     );
   }
+  const NEXT_GUEST_MODE: Record<GuestMode, GuestMode> = { all: 'alts', alts: 'off', off: 'all' };
+  const GUEST_MODE_WORDS: Record<GuestMode, string> = { all: 'on', alts: 'alts only', off: 'off' };
 
   async function addNames() {
     const rsns = names
@@ -372,17 +395,23 @@ export default function WeeklyRosterClient({
               <button
                 type="button"
                 role="switch"
-                aria-checked={includeGuests}
-                onClick={() => setIncludeGuests(!includeGuests)}
+                aria-checked={includeGuests !== 'off'}
+                onClick={() => setIncludeGuests(NEXT_GUEST_MODE[includeGuests])}
                 disabled={busy}
-                title={includeGuests ? 'Guests are entered automatically — click to stop' : 'Guests are left out — click to enter them'}
+                title={
+                  includeGuests === 'all'
+                    ? 'Every guest is entered automatically — click for members\u2019 alts only'
+                    : includeGuests === 'alts'
+                      ? 'Only guests who are a member\u2019s alt are entered — click to stop entering guests'
+                      : 'Guests are left out — click to enter them'
+                }
                 className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 ${
-                  includeGuests
+                  includeGuests !== 'off'
                     ? 'border-gold/40 text-gold hover:bg-gold/10'
                     : 'border-card-border text-text-muted hover:border-gold/40 hover:text-gold'
                 }`}
               >
-                Guests: {includeGuests ? 'on' : 'off'}
+                Guests: {GUEST_MODE_WORDS[includeGuests]}
               </button>
             )}
             {/* Drop the guests already entered. Also switches guests off, or the next sweep would
@@ -397,6 +426,17 @@ export default function WeeklyRosterClient({
                 Drop all guests
               </button>
             )}
+            {mode === 'participants' && otherGuests.length > 0 && altGuests > 0 && (
+              <button
+                type="button"
+                onClick={dropNonAltGuests}
+                disabled={busy}
+                title="Keep guests whose owner also has a member account here; take the rest out"
+                className="whitespace-nowrap rounded-lg border border-card-border px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:border-red-500/40 hover:text-red-400 disabled:opacity-50"
+              >
+                Drop guests who aren&apos;t alts
+              </button>
+            )}
             {message && <span className="text-xs text-text-muted">{message}</span>}
             <Input
               value={search}
@@ -406,6 +446,29 @@ export default function WeeklyRosterClient({
             />
           </div>
         </div>
+
+        {mode === 'participants' && enteredGuests.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+            {([
+              ['all', `Everyone (${standings.length})`],
+              ['members', `Members (${standings.length - standings.filter((s) => s.kind === 'guest').length})`],
+              ['alts', `Guests who are alts (${standings.filter((s) => s.kind === 'guest' && s.memberAlt).length})`],
+              ['others', `Other guests (${standings.filter((s) => s.kind === 'guest' && !s.memberAlt).length})`],
+            ] as const).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setWho(k)}
+                aria-pressed={who === k}
+                className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                  who === k ? 'border-gold/50 bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:text-gold'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <StartingStatsSummary
           ids={unreadIds(standings.map((r) => r.participantId), startingStats, startingStatsPoll.lapsed)}
@@ -435,8 +498,11 @@ export default function WeeklyRosterClient({
                     <span className="flex items-center gap-2 min-w-0">
                       <span className="truncate">{row.rsn}</span>
                       {row.kind === 'guest' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 whitespace-nowrap">
-                          guest
+                        <span
+                          title={row.memberAlt ? 'Their owner also has a member account in this clan' : undefined}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 whitespace-nowrap"
+                        >
+                          {row.memberAlt ? 'guest · alt' : 'guest'}
                         </span>
                       )}
                       {surplusIds.has(row.participantId) && (

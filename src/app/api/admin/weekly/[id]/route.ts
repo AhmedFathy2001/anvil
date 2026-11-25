@@ -1,4 +1,5 @@
 import { getSetting } from '@/lib/settings';
+import { GUEST_MODE_VALUE, type GuestMode } from '@/lib/weeklyGuests';
 import { getWeeklyPool } from '@/lib/coffer';
 import { setWeeklyPool } from '@/lib/coffer';
 import { checkCountsOn, cleanPingRole, HCW_COFFER_SETTING_KEY, prizeCurrencyFor, type PrizeCurrency } from '@/lib/competitionGame';
@@ -141,6 +142,8 @@ export async function PUT(
   // Reversible after creation: turning it off stops the cron re-entering guests; it does not remove
   // the ones already entered (that is "Drop all guests"). Turning it on enters them on the next tick.
   if (typeof includeGuests === 'boolean') updates.includeGuests = includeGuests ? 1 : 0;
+  // The three-way setting (lib/weeklyGuests): 'off' | 'all' | 'alts'.
+  else if (includeGuests === 'off' || includeGuests === 'all' || includeGuests === 'alts') updates.includeGuests = GUEST_MODE_VALUE[includeGuests as GuestMode];
   if (!modeChanged && typeof body.teamLateJoin === 'boolean') updates.teamLateJoin = body.teamLateJoin;
   // Who from this clan races: 'all' (roster swept in) or 'selected' (only the people an admin adds).
   if (body.hostEntrants === 'all' || body.hostEntrants === 'selected') updates.hostEntrants = body.hostEntrants;

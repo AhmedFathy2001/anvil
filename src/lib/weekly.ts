@@ -3,6 +3,7 @@ import { getSetting } from '@/lib/settings';
 import { accounts, clanMemberships, clanRoster, pendingRenames, playerSnapshots, weeklyCompetitionClans, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { rosterClanSeat } from '@/lib/seatScope';
+import { sweepSeatsSql } from '@/lib/weeklyGuests';
 import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { fetchHiscoresOnce, fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
@@ -55,7 +56,6 @@ export async function enrollAllPlayers(competitionId: number) {
       return 0;
     }
   }
-  const trackGuests = comp.includeGuests === 1;
   // Skip unranked/banned/archived members — re-enrolling them just re-creates rows the
   // cron will immediately quarantine. They become eligible again when a re-probe job
   // (or manual mod action) flips status back to 'active'.
@@ -71,9 +71,9 @@ export async function enrollAllPlayers(competitionId: number) {
     // An event player's seat is not on the roster, guests included or not: never enrolled.
     rosterClanSeat(),
   );
-  const whereClause = trackGuests
-    ? baseClause
-    : and(baseClause, eq(clanRoster.kind, 'member'));
+  // Members always; guests by the competition's setting — all of them, only members' alts, or none
+  // (lib/weeklyGuests).
+  const whereClause = and(baseClause, sweepSeatsSql(comp.includeGuests));
 
   // The clan predicate is spelled out HERE rather than only inside whereClause, so the rule that
   // exists to catch an unscoped roster read can actually see it. It was hidden in a variable, and a

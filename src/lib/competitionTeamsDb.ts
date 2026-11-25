@@ -7,6 +7,7 @@
  *    visibility rule: a clan sees a competition it owns, or one it ACCEPTED an invite into — and an
  *    accepted partner only reads; every write stays with the owning clan.
  */
+import { sweepSeatsSql } from '@/lib/weeklyGuests';
 import { clanBeforeSpace, parseTypedSlug, slugWhere } from '@/lib/clanSlugLookup';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, or } from 'drizzle-orm';
 
@@ -592,12 +593,16 @@ export async function setOptOut(
   competitionId: number,
   by: { playerId: number } | { accountId: number },
   optedOut: boolean,
+  /** One character of theirs only (a seat id); omitted = every character they have entered. */
+  seatId?: number | null,
 ): Promise<{ ok: true; changed: number } | { ok: false; error: string }> {
   // clan-scope: this clan -- the caller resolved the competition through competitionForClan.
   const comp = await db.query.weeklyCompetitions.findFirst({ where: eq(weeklyCompetitions.id, competitionId), columns: { status: true } });
   if (!comp) return { ok: false, error: 'Not found' };
   if (comp.status === 'completed') return { ok: false, error: 'This competition has ended' };
-  const seatIds = await mySeatIds(by);
+  const all = await mySeatIds(by);
+  // A seat that isn't theirs is simply not in the list: nothing of anybody else's moves.
+  const seatIds = seatId != null ? all.filter((id) => id === seatId) : all;
   if (!seatIds.length) return { ok: false, error: 'You are not entered in this competition' };
   const r = await db
     .update(weeklyParticipants)
@@ -621,15 +626,17 @@ async function mySeatIds(by: { playerId: number } | { accountId: number }): Prom
 export async function entryStatus(
   competitionId: number,
   by: { playerId: number } | { accountId: number },
-): Promise<{ entered: boolean; optedOut: boolean }> {
+): Promise<{ entered: boolean; optedOut: boolean; seats: { seatId: number; rsn: string; optedOut: boolean }[] }> {
   const seatIds = await mySeatIds(by);
-  if (!seatIds.length) return { entered: false, optedOut: false };
+  if (!seatIds.length) return { entered: false, optedOut: false, seats: [] };
   const rows = await db
-    .select({ optedOut: weeklyParticipants.optedOut })
+    .select({ optedOut: weeklyParticipants.optedOut, seatId: weeklyParticipants.clanMemberId, rsn: weeklyParticipants.rsn })
     .from(weeklyParticipants)
     .where(and(eq(weeklyParticipants.competitionId, competitionId), inArray(weeklyParticipants.clanMemberId, seatIds)));
-  if (!rows.length) return { entered: false, optedOut: false };
-  return { entered: true, optedOut: rows.every((r) => r.optedOut) };
+  if (!rows.length) return { entered: false, optedOut: false, seats: [] };
+  // Each character of theirs on its own, so one can sit a week out while another races.
+  const seats = rows.map((r) => ({ seatId: r.seatId!, rsn: r.rsn, optedOut: r.optedOut })).sort((a, b) => a.rsn.localeCompare(b.rsn));
+  return { entered: true, optedOut: rows.every((r) => r.optedOut), seats };
 }
 
 /** Host removes a partner (any status). Its participants leave the board with it. */
@@ -763,7 +770,7 @@ export async function enrollPartnerClans(competitionId: number): Promise<number>
           isNull(clanRoster.leftAt),
           eq(clanRoster.status, 'active'),
           rosterClanSeat(),
-          comp.includeGuests === 1 ? undefined : eq(clanRoster.kind, 'member'),
+          sweepSeatsSql(comp.includeGuests),
         ),
       );
     for (const s of seats) {
