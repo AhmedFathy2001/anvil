@@ -1,3 +1,5 @@
+import type { Metadata } from 'next';
+import { eventPageMetadata } from '@/lib/eventPageMetadata';
 import { db } from '@/db';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
@@ -25,6 +27,10 @@ function Notice({ title, children }: { title: string; children?: React.ReactNode
       {children && <div className="text-sm text-text-muted">{children}</div>}
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
+  return eventPageMetadata((await params).eventId, 'recap');
 }
 
 export default async function EventRecapPage({

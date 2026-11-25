@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import {
   compact,
   eventLinkDescription,
+  eventPageWords,
   headToHeadDescription,
   headToHeadValue,
   headToHeadVerdict,
@@ -114,6 +115,22 @@ test('a head-to-head counts only rows both sides have, and says who leads', () =
 
 test('a held start says the same words as the events list, not a countdown', () => {
   const held = { startDate: new Date(NOW + 60_000).toISOString(), endDate: null, forceEndedAt: null, startHoldNotified: 1, startNotified: 0 };
-  assert.equal(eventLinkDescription(held, [], NOW), 'Start is waiting on teams');
+  assert.equal(eventLinkDescription(held, [], NOW), 'Starts once teams are ready');
   assert.equal(eventLinkDescription({ ...held, startNotified: 1 }, [], NOW), 'Starts in 1m');
+});
+
+test('event sub-pages: each link names its own page, all on the event card', () => {
+  const base = 'Starts in 2d · 4 teams ready';
+  assert.deepEqual(eventPageWords('event', 'Hive Bingo', 'Grand Hive', base), { title: 'Hive Bingo — Grand Hive', description: base });
+  assert.deepEqual(eventPageWords('signup', 'Hive Bingo', 'Grand Hive', base, { signupOpen: true, signupCloses: '1d 3h' }), {
+    title: 'Sign up: Hive Bingo — Grand Hive',
+    description: `Sign-ups open · close in 1d 3h · ${base}`,
+  });
+  assert.equal(eventPageWords('signup', 'Hive Bingo', 'Grand Hive', base, { signupOpen: true }).description, `Sign-ups open · ${base}`);
+  assert.equal(eventPageWords('signup', 'Hive Bingo', 'Grand Hive', base).description, `Sign-ups · ${base}`);
+  assert.equal(eventPageWords('invite', 'Hive Bingo', 'Grand Hive', base).title, "You're invited: Hive Bingo — Grand Hive");
+  assert.equal(eventPageWords('recap', 'Hive Bingo', 'Grand Hive', base, { finished: true }).title, 'Final results: Hive Bingo — Grand Hive');
+  assert.equal(eventPageWords('recap', 'Hive Bingo', 'Grand Hive', base).title, 'Recap: Hive Bingo — Grand Hive');
+  assert.equal(eventPageWords('stats', 'Hive Bingo', 'Grand Hive', base).title, 'Stats: Hive Bingo — Grand Hive');
+  assert.equal(eventPageWords('live', 'Hive Bingo', 'Grand Hive', base).title, 'Live feed: Hive Bingo — Grand Hive');
 });

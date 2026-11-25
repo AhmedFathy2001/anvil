@@ -128,6 +128,41 @@ export function eventLinkDescription(
     .join(' · ');
 }
 
+/**
+ * Which page of an event a link points at. Every one of them previews as the event's own card —
+ * the sign-up, invite, recap and stats links are the ones people actually paste into Discord, and
+ * before this they fell back to the clan card (or, for sign-up, the login page's).
+ */
+export type EventLinkPage = 'event' | 'signup' | 'invite' | 'recap' | 'stats' | 'live';
+
+/** Title and description for each page under /events/<id>; `base` is eventLinkDescription. */
+export function eventPageWords(
+  page: EventLinkPage,
+  eventName: string,
+  hostName: string,
+  base: string,
+  extra: { signupOpen?: boolean; signupCloses?: string | null; finished?: boolean } = {},
+): { title: string; description: string } {
+  switch (page) {
+    case 'signup': {
+      const head = extra.signupOpen
+        ? ['Sign-ups open', extra.signupCloses ? `close in ${extra.signupCloses}` : null].filter(Boolean).join(' · ')
+        : 'Sign-ups';
+      return { title: `Sign up: ${eventName} — ${hostName}`, description: `${head} · ${base}` };
+    }
+    case 'invite':
+      return { title: `You're invited: ${eventName} — ${hostName}`, description: `Join the team · ${base}` };
+    case 'recap':
+      return { title: `${extra.finished ? 'Final results' : 'Recap'}: ${eventName} — ${hostName}`, description: base };
+    case 'stats':
+      return { title: `Stats: ${eventName} — ${hostName}`, description: base };
+    case 'live':
+      return { title: `Live feed: ${eventName} — ${hostName}`, description: base };
+    default:
+      return { title: `${eventName} — ${hostName}`, description: base };
+  }
+}
+
 // ── Skill / Boss of the Week ───────────────────────────────────────────────────────────────────
 
 export const WEEKLY_VERB: Record<WeeklyKind, string> = { skill: 'training', boss: 'bossing', efficiency: 'playing', hunt: 'hunting' };

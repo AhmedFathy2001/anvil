@@ -1,3 +1,6 @@
+import { isLinkPreviewBot } from '@/lib/linkPreviewBot';
+import type { Metadata } from 'next';
+import { eventPageMetadata } from '@/lib/eventPageMetadata';
 import { db } from '@/db';
 import { inviteSignupWindow } from '@/lib/teamInvites';
 import { isEventOver } from '@/lib/eventLock';
@@ -36,6 +39,10 @@ import { friendsHostOfEvent } from '@/lib/friendEvents';
 
 export const dynamic = 'force-dynamic';
 
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
+  return eventPageMetadata((await params).eventId, 'signup');
+}
+
 export default async function EventSignupPage({
   params,
   searchParams,
@@ -51,6 +58,8 @@ export default async function EventSignupPage({
   if (!Number.isFinite(id)) notFound();
 
   const session = await verifyUser();
+  // A chat app unfurling the link: let it read this page's own card instead of the login page's.
+  if (!session && (await isLinkPreviewBot())) return <p className="p-6 text-text-muted">Sign in to sign up for this event.</p>;
   if (!session) {
     // Back to THIS page afterwards, prefix AND invite intact. The prefix because `/login` is the
     // platform's and a bare `/events/<id>/signup` is not a page — the return bounced to the apex and

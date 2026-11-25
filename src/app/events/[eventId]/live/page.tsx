@@ -1,3 +1,4 @@
+import { eventPageMetadata } from '@/lib/eventPageMetadata';
 import type { Metadata } from 'next';
 
 import { clientEvent } from '@/lib/clientRows';
@@ -13,7 +14,9 @@ import LiveClient from './LiveClient';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: 'Feed & chat', robots: { index: false } };
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
+  return eventPageMetadata((await params).eventId, 'live');
+}
 
 /**
  * A board's Feed and chat on the website, for players on a phone or away from the game: the plugin

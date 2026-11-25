@@ -1,3 +1,6 @@
+import { isLinkPreviewBot } from '@/lib/linkPreviewBot';
+import type { Metadata } from 'next';
+import { eventPageMetadata } from '@/lib/eventPageMetadata';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { clans, events, teamInvites, teams } from '@/db/schema';
@@ -20,6 +23,10 @@ export const dynamic = 'force-dynamic';
  * same accounts and sees the same fee as everyone else. Only the destination differs: their entry
  * lands on the inviting team, approved, instead of in the draft pool waiting on a host.
  */
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string; token: string }> }): Promise<Metadata> {
+  return eventPageMetadata((await params).eventId, 'invite');
+}
+
 export default async function JoinPage({
   params,
 }: {
@@ -100,6 +107,8 @@ export default async function JoinPage({
   // Signing in has to happen before the form, and the link is where they came from — so send them
   // back HERE afterwards rather than to the generic sign-up page, or the team gets lost on the way.
   const user = await verifyUser();
+  // A chat app unfurling the invite: let it read this page's own card instead of the login page's.
+  if (!user && (await isLinkPreviewBot())) return <p className="p-6 text-text-muted">Sign in to accept this invite.</p>;
   // Through `href` for the same reason as everything else here: `/login` is the platform's, so
   // after signing in the browser lands on whatever this return path says, and it has to be the
   // address inside the host's clan rather than the one they happened to arrive at.
