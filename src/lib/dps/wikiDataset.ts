@@ -43,8 +43,10 @@ async function fetchAll(bucket: string, fields: string[], label: string, progres
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : v !== '' && v != null && Number.isFinite(Number(v)) ? Number(v) : 0);
 const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
 
-// Variants that are never the one a player fights with.
-const DEAD_VARIANT = /uncharged|inactive|broken|degraded|deadman|last man standing|\blms\b|\(beta\)|partially charged|\bempty\b|#0$|#25$|#50$|#75$|locked|\bplaceholder\b|\bnoted\b/i;
+// Variants that are never the one a player fights with. A Deadman VERSION of a page ("#Deadman") is
+// one, but an item of its own named "… (Deadman)" is not: the Deadman reward copies (Imbued Zamorak
+// cape (Deadman), Voidwaker (Deadman)) are worn on the main game, so they stay.
+const DEAD_VARIANT = /uncharged|inactive|broken|degraded|#[^#]*deadman|last man standing|\blms\b|\(beta\)|partially charged|\bempty\b|#0$|#25$|#50$|#75$|locked|\bplaceholder\b|\bnoted\b/i;
 // When several live variants remain, the one to keep.
 const PREFERRED_VARIANT = /undamaged|#charged|#active|#normal|#new|#full|#100$|#standard/i;
 
@@ -123,8 +125,10 @@ export async function fetchGearDataset(progress?: (msg: string) => void): Promis
     const slot = String(pick.equipment_slot).toLowerCase().replace(/\s+/g, '');
     // Weapons stay even at zero bonus (a speed and styles still matter) — except the "Unarmed" ones,
     // which are novelty items held in the hand (greegrees, trays, crates) and only clutter a picker.
+    // Rings stay at zero too: a ring with no bonuses is a tool, not a costume (Lightbearer, Ring of
+    // wealth, Ring of recoil), and a setup wears it.
     const isWeapon = slot === 'weapon' || slot === '2h';
-    if (!offensive && df <= 0 && b[8] <= 0 && !EFFECT_ITEMS.test(page) && (!isWeapon || pick.combat_style === 'Unarmed')) continue;
+    if (!offensive && df <= 0 && b[8] <= 0 && slot !== 'ring' && !EFFECT_ITEMS.test(page) && (!isWeapon || pick.combat_style === 'Unarmed')) continue;
     seenIds.add(info.id);
     items.push({
       id: info.id,

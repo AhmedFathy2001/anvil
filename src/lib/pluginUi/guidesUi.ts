@@ -271,13 +271,27 @@ export interface GuidePanelData {
   /** "Your gear now vs this setup": owner only, from the plugin's worn-gear push. Null hides it. */
   gearNow?: PanelGearNow | null;
 }
+/** One side's numbers against one target, from the DPS engine's best-style result. */
+export interface GearNowStats {
+  maxHit: number;
+  /** 0–1. */
+  accuracy: number;
+  /** Ticks between attacks. */
+  speed: number;
+  /** Seconds per kill (null: never). */
+  ttk: number | null;
+}
 export interface PanelGearNow {
-  /** One per target the setup is for: its short name, worn DPS, the setup's DPS. */
-  rows: { name: string; you: number; guide: number }[];
-  /** A single-target guide: time per kill, yours and the guide's ("1:12"). */
-  ttk: { you: string; guide: string } | null;
-  /** The guide's item for the slot that raises the worn DPS most, and what is worn there now. */
-  gap: { slot: string; guide: string; worn: string | null } | null;
+  /** Nothing worn now: the closed line says so and there is nothing to open. */
+  empty?: boolean;
+  /** One per target the setup is for: its short name, worn DPS, the setup's DPS, and both sides' numbers. */
+  rows: { name: string; you: number; guide: number; mine?: GearNowStats | null; theirs?: GearNowStats | null }[];
+  /** The guide's other targets: a setup of their own at this level to open, or none. */
+  others?: { name: string; setup: string | null; setupName: string | null }[];
+  /** Slot by slot: the worn item against the guide's, the rest as worn. pct + yours is better, null the same item. */
+  slots?: { slot: string; worn: { id: number; name: string } | null; guide: { id: number; name: string } | null; pct: number | null }[];
+  /** Worn items Anvil has no stats for, by name: never read as an empty slot. */
+  unknown?: string[];
   /** "You" used the character's own combat levels (else the setup's). */
   ownLevels?: boolean;
 }
@@ -405,28 +419,125 @@ function deltaMark(you: number, guide: number): Node {
 /** One line of the comparison: a name at the left, then You | Guide | change in fixed columns. */
 const gearLine = (name: Node, you: Node, guide: Node, change: Node): Node => row(name, undefined, row(you, guide, change, { gap: 4 }), { gap: 4 });
 
+/** The fold the card keeps: one key for every guide, so open or shut stays the reader's choice. */
+export const GEAR_NOW_KEY = 'gear-now';
+const mean = (xs: number[]) => (xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : 0);
+
+/** "+4%" green (the worn item is better), "-12%" in the dry tone (worse), "even" or "same" faint. */
+function slotMark(pct: number | null): Node {
+  const w = NUM_W[2];
+  if (pct == null) return small('same', FAINT, { w, align: 'r' });
+  const r = Math.round(pct);
+  if (!r) return small('even', FAINT, { w, align: 'r' });
+  return small(`${r > 0 ? '+' : '−'}${Math.min(Math.abs(r), 999)}%`, r > 0 ? GREEN : DRY, { w, align: 'r', font: 'bold' });
+}
+
+/** The shut line's "▼ 17% vs guide": the mean over the targets, sized to sit beside the title. */
+function overallMark(you: number, guide: number): Node {
+  const pct = guide > 0 ? Math.round(((you - guide) / guide) * 100) : 0;
+  if (!pct) return small('even with guide', FAINT);
+  const up = pct > 0;
+  const ink = up ? GREEN : DRY;
+  const tip = `${up ? 'Ahead of' : 'Behind'} this setup by ${Math.abs(pct)}% (mean over its targets)`;
+  return row(small(`${Math.min(Math.abs(pct), 999)}%`, ink, { icon: icon({ glyph: up ? 'up' : 'down', w: 7, h: 7, color: ink, alt: up ? '▲' : '▼' }), tip }), small('vs guide', FAINT), undefined, { gap: 3 });
+}
+
+/** Max hit, accuracy, attack speed and time per kill, You | Guide; the worn number green or dry where it differs. */
+function statLines(mine: GearNowStats | null | undefined, theirs: GearNowStats | null | undefined): Node[] {
+  const lines: [string, number | null | undefined, number | null | undefined, (x: number) => string, boolean][] = [
+    ['Max hit', mine?.maxHit, theirs?.maxHit, (x) => String(x), true],
+    ['Accuracy', mine?.accuracy, theirs?.accuracy, (x) => `${Math.round(x * 100)}%`, true],
+    ['Speed', mine?.speed, theirs?.speed, (x) => `${(x * 0.6).toFixed(1)}s`, false],
+    ['Per kill', mine?.ttk, theirs?.ttk, (x) => killTime(x), false],
+  ];
+  return lines.map(([label, y, g, f, up]) => {
+    const ys = y == null ? '—' : f(y);
+    const gs = g == null ? '—' : f(g);
+    const ink: Color = y == null || g == null || ys === gs ? SOFT : (y > g) === up ? GREEN : DRY;
+    return gearLine(small(label, FAINT), small(ys, ink, { w: NUM_W[0], align: 'r' }), small(gs, SOFT, { w: NUM_W[1], align: 'r' }), text('', 'muted', { w: NUM_W[2] }));
+  });
+}
+
+/** "1:12" per kill; an hour or more is past what a 30px column says. */
+const killTime = (t: number) => (t >= 3600 ? '1h+' : `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`);
+
 /**
- * "Your gear now vs this setup": per target, the DPS of what the character wears now (at their own
- * levels when known) beside the setup's, the change, and the one slot from the setup that helps most. ↻ loads the guide again.
+ * "Your gear now vs this setup", folded by default to one line: "› Your gear now · ▼ 17% vs guide", or
+ * "nothing worn". It shows whenever the plugin shares worn gear and stays when the gear is banked.
+ * Open: per target the DPS of what the character wears now (at their own levels when known) beside
+ * the setup's, each target opening to max hit, accuracy, speed and time per kill; the guide's other
+ * targets with their own setup; then slot by slot, the worn item against the guide's. ↻ loads the
+ * guide again. The fold is one key for every guide (GEAR_NOW_KEY): the plugin keeps it for the session.
  */
 function gearNowCard(d: GuidePanelData): Node | null {
   const g = d.gearNow;
-  if (!g?.rows.length) return null;
+  if (!g) return null;
+  const flip: Action = { a: 'flip', key: GEAR_NOW_KEY };
+  const rows = g.empty ? [] : g.rows;
+  const summary: Node = g.empty
+    ? small('nothing worn', FAINT)
+    : rows.length
+      ? overallMark(mean(rows.map((r) => r.you)), mean(rows.map((r) => r.guide)))
+      : small(g.unknown?.length ? 'unknown gear' : 'no match', FAINT);
+  const head = (open: boolean): Node => row(text(open ? '▾' : '›', GOLD, { w: 10 }), text('Your gear now', 'white', { font: open ? 'bold' : 'regular' }), open ? undefined : summary, { gap: 6, on: flip, tip: open ? 'Fold' : 'Your worn gear against this setup' });
+  const shut = section([head(false)]);
+  if (!rows.length) {
+    const why = g.empty ? 'Nothing worn right now. Put your gear on and this fills in a moment later.' : g.unknown?.length ? `Anvil has no stats for ${g.unknown.join(', ')} yet.` : 'Nothing you wear is for this setup’s targets.';
+    return { t: 'toggle', key: GEAR_NOW_KEY, off: shut, lit: section([head(true), small(why, FAINT, { wrap: W_CARD })]) };
+  }
   const again: Action = { a: 'load', v: 'guide', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '' }, d.region) };
   const num = (s: string, i: number, color: Color = 'white') => small(s, color, { w: NUM_W[i], align: 'r' });
+  const single = rows.length === 1;
+  const target = (r: PanelGearNow['rows'][number], i: number): Node => {
+    const line = (open: boolean) =>
+      gearLine(
+        single ? text(r.name, SOFT) : text('', SOFT, { runs: [{ s: open ? '▾ ' : '› ', color: GOLD }, { s: r.name }] }),
+        num(r.you.toFixed(1), 0),
+        num(r.guide.toFixed(1), 1, PROGRESS),
+        deltaMark(r.you, r.guide),
+      );
+    const details = col(statLines(r.mine, r.theirs), { bg: 'raised', inset: 5, gap: 2 });
+    if (single) return col([line(true), details], { gap: 3 });
+    // Each target opens to its numbers; the first is open until the reader shuts it.
+    const key = `${GEAR_NOW_KEY}:${i ? '' : 'first:'}${r.name}`;
+    const open = col([{ ...line(true), on: { a: 'flip', key }, tip: 'Hide the numbers' } as Node, details], { gap: 3 });
+    const closed = { ...line(false), on: { a: 'flip', key }, tip: 'Max hit, accuracy and speed' } as Node;
+    return { t: 'toggle', key, off: i ? closed : open, lit: i ? open : closed };
+  };
   const lines: Node[] = [
     gearLine(text('', 'muted'), num('You', 0, FAINT), num('Guide', 1, FAINT), text('↻', GOLD, { w: NUM_W[2], align: 'r', on: again, tip: 'Load it again with the gear you wear now' })),
-    ...g.rows.map((r) => gearLine(text(r.name, SOFT), num(r.you.toFixed(1), 0), num(r.guide.toFixed(1), 1, PROGRESS), deltaMark(r.you, r.guide))),
+    ...rows.map(target),
+    ...(g.others ?? []).map((o) =>
+      o.setup
+        ? row(text(o.name, FAINT), undefined, small('own setup ›', GOLD, { on: pickSetup(d, o.setup), tip: `${o.name} has a setup of its own here: ${o.setupName}` }), { gap: 4 })
+        : row(text(o.name, FAINT), undefined, small('not in this setup', FAINT), { gap: 4 }),
+    ),
   ];
-  if (g.ttk) lines.push(gearLine(small('Per kill', FAINT), num(g.ttk.you, 0, SOFT), num(g.ttk.guide, 1, SOFT), text('', 'muted', { w: NUM_W[2] })));
-  return section([
-    title('Your gear now vs this setup'),
-    col(lines, { gap: 3 }),
-    g.gap
-      ? text('', 'white', { font: 'small', runs: [{ s: 'Biggest gap: ', color: FAINT }, { s: `${g.gap.slot} (${g.gap.guide} vs ${g.gap.worn ? `your ${g.gap.worn}` : 'an empty slot'})` }], wrap: W_CARD })
-      : null,
-    small(g.ownLevels ? "Your levels; the guide's prayers and boosts." : "Assumes the guide's prayers, boosts and levels.", FAINT, { wrap: W_CARD }),
-  ]);
+  // Slot by slot, the worst first; the same and even ones on one line.
+  const slots = g.slots ?? [];
+  const differ = slots.filter((x) => x.pct != null && Math.round(x.pct)).sort((a, b) => a.pct! - b.pct!);
+  const alike = slots.filter((x) => !differ.includes(x)).map((x) => SLOT_LABEL[x.slot] ?? x.slot);
+  const pic = (it: { id: number; name: string } | null, slot: string): Node =>
+    it ? icon({ item: it.id, w: 26, h: 23 }) : icon({ sprite: SLOT_SPRITE[slot] ?? 170, w: 26, h: 23 });
+  const slotRow = (x: (typeof slots)[number]): Node =>
+    row(
+      small(SLOT_LABEL[x.slot] ?? x.slot, SOFT, { w: 40 }),
+      row(pic(x.worn, x.slot), small('vs', FAINT), pic(x.guide, x.slot), { gap: 3 }),
+      slotMark(x.pct),
+      { gap: 4, tip: `Your ${x.worn?.name ?? 'empty slot'} against the guide's ${x.guide?.name ?? 'empty slot'}, the rest as you wear it` },
+    );
+  return {
+    t: 'toggle',
+    key: GEAR_NOW_KEY,
+    off: shut,
+    lit: section([
+      head(true),
+      col(lines, { gap: 3 }),
+      differ.length || alike.length ? col([small('Slot by slot', SOFT, { font: 'bold', tip: 'Your item against the guide’s in each slot, the rest as you wear it' }), ...differ.map(slotRow), alike.length ? small(`Same or even: ${alike.join(', ')}`, FAINT, { wrap: W_CARD }) : null], { gap: 3 }) : null,
+      g.unknown?.length ? small(`Also worn: ${g.unknown.join(', ')} (unknown stats, not counted)`, FAINT, { wrap: W_CARD }) : null,
+      small(g.ownLevels ? "Your levels; the guide's prayers and boosts." : "Assumes the guide's prayers, boosts and levels.", FAINT, { wrap: W_CARD }),
+    ]),
+  };
 }
 
 const s32 = (id: number | null): Node => (id ? icon({ item: id, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }));
