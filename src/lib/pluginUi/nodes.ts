@@ -12,8 +12,8 @@ import type { TenureGlyph } from '@/lib/supporterTiers';
 /** PHASE 2: the writer-rank quills (guides bylines), sent only past GUIDES_PANEL_MIN_PLUGIN. */
 export type GuideQuillGlyph = 'quill-bronze' | 'quill-silver' | 'quill-gold' | 'quill-star';
 
-/** A row's or column's ground: the card's, the panel's, or a raised row's. */
-export type Ground = 'card' | 'panel' | 'raised';
+/** A row's or column's ground: the card's, the panel's, a raised row's, or a '#rrggbb' hex (plugins past the hex-grounds update). */
+export type Ground = 'card' | 'panel' | 'raised' | `#${string}`;
 
 /** A colour by role, or "#rrggbb". */
 export type Color = 'white' | 'text' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | 'progress' | `#${string}`;

@@ -370,35 +370,45 @@ function copyButton(label: string, d: GuidePanelData, kind: 'banktag' | 'setup' 
   return button(d.phase2 ? label : `${label} (on the site)`, on, d.phase2 ? undefined : 'Copying straight from the panel comes in the next plugin update', look);
 }
 
-/** The setup picker: the open setup with "1 of 3 ▾"; a click lists the others to switch to. */
+/** The open option's tinted ground in the setup list (the mockup's brown-gold). */
+const PICKED_BG = '#3a2a14' as const;
+
+/**
+ * The setup picker, as the mockup's dropdown: one gold-edged line "★ Ranged · DHCB · 1 of 3 ▾"; a click
+ * (a local flip, no round trip) opens a gold-edged list under it, each option its weapon, a bold name
+ * and a faint "Curator pick · 6.2 DPS", the open one on a tinted ground.
+ */
 function setupPicker(d: GuidePanelData): Node | null {
   if (d.setups.length < 2) return null;
   const i = Math.max(0, d.setups.findIndex((s) => s.key === d.current));
   const cur = d.setups[i];
   const key = `guide-setups:${d.id}:${d.tier}:${d.current}`;
-  const line = (s: PanelSetup, lit: boolean): Node =>
-    col([text(s.name, lit ? GOLD : 'white', { font: lit ? 'bold' : 'regular' }), small(s.blocked ? `Not for you: ${s.blocked}` : s.sub || ' ', s.blocked ? CORAL : s.pick ? PROGRESS : FAINT)], { gap: 1 });
+  const flip: Action = { a: 'flip', key };
+  const lead = cur.pick || !cur.weapon ? icon({ glyph: 'star', w: 11, h: 11, color: GOLD }) : icon({ item: cur.weapon, w: 20, h: 18 });
   const head = (open: boolean): Node =>
-    row(s32(cur.weapon), line(cur, false), small(`${i + 1} of ${d.setups.length} ${open ? '▴' : '▾'}`, FAINT), {
+    row(lead, text(cur.name, 'white', { font: 'bold' }), row(small(`${i + 1} of ${d.setups.length}`, FAINT), undefined, icon({ glyph: 'chevron-down', w: 9, h: 9, color: FAINT, alt: '▾' }), { gap: 4 }), {
       bg: 'card',
       edge: GOLD,
-      pad: 5,
-      inset: 6,
+      pad: 6,
+      inset: 8,
       gap: 6,
-      on: { a: 'flip', key },
+      on: flip,
       tip: open ? 'Close the list' : 'Pick another setup',
     });
-  const options = d.setups.map((s) =>
-    row(s32(s.weapon), line(s, s.key === d.current), undefined, {
-      bg: 'card',
-      edge: s.key === d.current ? GOLD : LINE,
-      pad: 4,
-      inset: 5,
-      gap: 6,
-      on: pickSetup(d, s.key),
-    }),
-  );
-  return { t: 'toggle', key, off: head(false), lit: col([head(true), card(options, { inset: 3, gap: 2, edge: GOLD })], { gap: 4 }) };
+  const options = d.setups.map((s) => {
+    const lit = s.key === d.current;
+    const sub = s.blocked ? `Not for you: ${s.blocked}` : s.sub || ' ';
+    return row(s32(s.weapon), col([text(s.name, lit ? GOLD : 'white', { font: 'bold', wrap: W_BESIDE }), small(sub, s.blocked ? CORAL : lit ? GOLD : FAINT, { wrap: W_BESIDE })], { gap: 1 }), undefined, {
+      ...(lit ? { bg: PICKED_BG, edge: GOLD } : {}),
+      pad: 5,
+      inset: 6,
+      gap: 8,
+      // The open one just closes the list (loading it again would change nothing).
+      on: lit ? flip : pickSetup(d, s.key),
+      tip: lit ? 'The setup you have open' : `Open ${s.name}`,
+    });
+  });
+  return { t: 'toggle', key, off: head(false), lit: col([head(true), card(options, { inset: 3, gap: 2, edge: GOLD })], { gap: 2 }) };
 }
 /** The dry tone for a lower number (the luck chips' gold ink). */
 const DRY = '#ffb54d';

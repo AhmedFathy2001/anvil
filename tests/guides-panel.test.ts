@@ -199,8 +199,8 @@ test('guide panel: level chips fit (short labels), the picker lists every setup,
   const ui = guidePanelUi(DATA);
   const t = texts(ui);
   assert.ok(t.includes('Mid') && !t.some((s) => s.startsWith('Intermedi') && s.length < 12));
-  // The picker: "1 of 2 ▾", then each setup loads the guide with its key.
-  assert.ok(t.includes('1 of 2 ▾'));
+  // The picker: "1 of 2" and a chevron, then each setup loads the guide with its key.
+  assert.ok(t.includes('1 of 2'));
   const picks = actions(ui).filter((a) => a.a === 'load' && a.v === 'guide').map((a) => (a.args as Record<string, string>).setup);
   assert.ok(picks.includes('intermediate-dhl'));
   // An empty slot shows the game's slot picture; a missing one its own well colour.
