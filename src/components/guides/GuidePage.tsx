@@ -19,6 +19,7 @@ import { groundMarkersJson, markerCountLabel, MARKERS_IMPORT_HINT } from '@/lib/
 import { formatGp } from '@/lib/itemPrices';
 import { fmtDuration } from '@/lib/dps/summary';
 import { BankTagPreviewToggle, InventoryGrid, ItemSprite, PaperDoll, RunePouchBox, SpellbookRow, WriterBadge, type Names, type QuillTone, type SlotNote } from './osrs';
+import { SLOT_NAME } from '@/lib/slotNames';
 
 // The wire shapes the server page hands over (lib/guideView, serialised).
 export interface SetupWire {
@@ -100,7 +101,6 @@ export interface GuidePageProps {
 
 const chip = (on: boolean) =>
   `h-8 rounded-full border px-3 text-xs transition-colors ${on ? 'border-gold bg-gold font-semibold text-brown-dark' : 'border-card-border bg-card-bg text-foreground hover:border-gold/50'}`;
-const SLOT_NAME: Record<string, string> = { head: 'Head', cape: 'Cape', neck: 'Neck', ammo: 'Ammo', weapon: 'Weapon', body: 'Body', shield: 'Shield', legs: 'Legs', hands: 'Hands', feet: 'Feet', ring: 'Ring', quiver: 'Quiver' };
 const PREF = 'anvil.guides.filters';
 
 async function post(url: string, body: unknown): Promise<{ ok: boolean; error?: string; [k: string]: unknown }> {

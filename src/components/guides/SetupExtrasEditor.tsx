@@ -15,9 +15,9 @@ import { parseRuneliteImport, tagToSetup, type ImportedTag } from '@/lib/runelit
 import type { EquipSlot } from '@/lib/runeliteExport';
 import { parseYouTube } from '@/lib/youtube';
 import { ItemSprite, type Names } from './osrs';
+import { SLOT_NAME } from '@/lib/slotNames';
 
 const SLOTS = ['head', 'cape', 'neck', 'ammo', 'quiver', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring'] as const;
-const SLOT_NAME: Record<string, string> = { head: 'Head', cape: 'Cape', neck: 'Neck', ammo: 'Ammo', weapon: 'Weapon', body: 'Body', shield: 'Shield', legs: 'Legs', hands: 'Hands', feet: 'Feet', ring: 'Ring', quiver: 'Quiver' };
 const SPELLS = ['Crumble Undead', 'Teleport to House', 'Vengeance', 'Ice Barrage', 'Blood Barrage', 'Fire Surge', 'Fire Wave', 'Iban Blast', 'Saradomin Strike', 'Thrall', 'Death Charge', 'Mark of Darkness', 'Resurrect Greater Ghost', 'Superior Ghost', 'Lunar teleport', 'Cure Me', 'Spellbook Swap'];
 const LEVEL_SKILLS = ['attack', 'strength', 'defence', 'ranged', 'magic', 'prayer', 'hitpoints', 'slayer', 'agility'];
 

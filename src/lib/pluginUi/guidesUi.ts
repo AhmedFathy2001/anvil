@@ -27,6 +27,7 @@ import { button, card, col, gap, icon, muted, row, text, type Action, type Color
 import { backHeader } from './playerCardUi';
 import { CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BodySection } from './guideBody';
+import { SLOT_NAME } from '@/lib/slotNames';
 
 /** A row's picture: an item, a boss (hiscores key or name) or a skill. */
 export type GuidePic = { item?: number; boss?: string; skill?: string } | null;
@@ -310,7 +311,6 @@ const SLOT_ROWS: (string | null)[][] = [
   [null, 'legs', null],
   ['hands', 'feet', 'ring'],
 ];
-const SLOT_LABEL: Record<string, string> = { head: 'Head', cape: 'Cape', neck: 'Neck', ammo: 'Ammo', weapon: 'Weapon', body: 'Body', shield: 'Shield', legs: 'Legs', hands: 'Hands', feet: 'Feet', ring: 'Ring', quiver: 'Quiver' };
 /** The game's empty-slot pictures (RuneLite SpriteID.EQUIPMENT_SLOT_*). */
 const SLOT_SPRITE: Record<string, number> = { head: 156, cape: 157, neck: 158, weapon: 159, ring: 160, body: 161, shield: 162, legs: 163, hands: 164, feet: 165, ammo: 166 };
 /** The spellbook's tab picture (SpriteID TAB_MAGIC and TAB_MAGIC_SPELLBOOK_*). */
@@ -516,12 +516,12 @@ function gearNowCard(d: GuidePanelData): Node | null {
   // Slot by slot, the worst first; the same and even ones on one line.
   const slots = g.slots ?? [];
   const differ = slots.filter((x) => x.pct != null && Math.round(x.pct)).sort((a, b) => a.pct! - b.pct!);
-  const alike = slots.filter((x) => !differ.includes(x)).map((x) => SLOT_LABEL[x.slot] ?? x.slot);
+  const alike = slots.filter((x) => !differ.includes(x)).map((x) => SLOT_NAME[x.slot] ?? x.slot);
   const pic = (it: { id: number; name: string } | null, slot: string): Node =>
     it ? icon({ item: it.id, w: 26, h: 23 }) : icon({ sprite: SLOT_SPRITE[slot] ?? 170, w: 26, h: 23 });
   const slotRow = (x: (typeof slots)[number]): Node =>
     row(
-      small(SLOT_LABEL[x.slot] ?? x.slot, SOFT, { w: 40 }),
+      small(SLOT_NAME[x.slot] ?? x.slot, SOFT, { w: 40 }),
       row(pic(x.worn, x.slot), small('vs', FAINT), pic(x.guide, x.slot), { gap: 3 }),
       slotMark(x.pct),
       { gap: 4, tip: `Your ${x.worn?.name ?? 'empty slot'} against the guide's ${x.guide?.name ?? 'empty slot'}, the rest as you wear it` },
@@ -553,7 +553,7 @@ function equipmentGrid(d: GuidePanelData): Node {
         continue;
       }
       if (!s?.id) {
-        cells.push(text('', 'muted', { chip: WELL.own, w: SLOT_PX, align: 'c', icon: { t: 'icon', sprite: SLOT_SPRITE[slot] ?? 170 }, tip: `${SLOT_LABEL[slot]}: empty` }));
+        cells.push(text('', 'muted', { chip: WELL.own, w: SLOT_PX, align: 'c', icon: { t: 'icon', sprite: SLOT_SPRITE[slot] ?? 170 }, tip: `${SLOT_NAME[slot]}: empty` }));
         continue;
       }
       const state = s.missing ? 'missing' : s.fallback ? 'fallback' : 'own';
@@ -565,7 +565,7 @@ function equipmentGrid(d: GuidePanelData): Node {
           align: 'c',
           icon: { t: 'icon', item: s.id, w: 30, h: 27 },
           on: act,
-          tip: `${SLOT_LABEL[slot]}${s.fallback ? ` · ${s.fallback}` : s.missing ? ' · not owned' : ''} · click for alternatives`,
+          tip: `${SLOT_NAME[slot]}${s.fallback ? ` · ${s.fallback}` : s.missing ? ' · not owned' : ''} · click for alternatives`,
         }),
       );
     }
@@ -793,7 +793,7 @@ export function alternativesUi(d: GuidePanelData, a: PanelAlternatives): Node {
   const parts: Node[] = [
     row(
       cur ? text('', 'white', { chip: WELL.own, w: SLOT_PX, align: 'c', icon: { t: 'icon', item: cur.id, w: 30, h: 27 } }) : undefined,
-      col([title('Alternatives'), small(`${SLOT_LABEL[a.slot] ?? a.slot} slot · best first`, FAINT)], { gap: 1 }),
+      col([title('Alternatives'), small(`${SLOT_NAME[a.slot] ?? a.slot} slot · best first`, FAINT)], { gap: 1 }),
       text('', 'muted', { icon: { t: 'icon', glyph: 'close', w: 11, h: 11, color: FAINT }, on: back, tip: 'Close' }),
       { gap: 8 },
     ),
