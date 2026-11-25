@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { CONTAINER_KINDS, type Snapshot } from '@/lib/gearOwnership';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
-import { cleanContainer, deleteSnapshotsForUser, saveSnapshot } from '@/lib/playerItems';
+import { cleanContainer, deleteSnapshotsForUser, saveSnapshot, saveTripState } from '@/lib/playerItems';
+import { cleanTripState } from '@/lib/tripState';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { worldModeIgnored } from '@/lib/worldModeRequest';
 
@@ -13,8 +14,10 @@ import { worldModeIgnored } from '@/lib/worldModeRequest';
 //   { bank?:       { items: [{ id, q? }], readAt: ISO }   — on opening the bank
 //     inventory?:  { items: [...], readAt }               — on change, debounced
 //     equipment?:  { items: [...], readAt }               — on change, debounced
-//     lootingBag?: { items: [...], readAt }               — when the plugin knows it }
-//   Only the containers sent are replaced; each keeps its own readAt.
+//     lootingBag?: { items: [...], readAt }               — when the plugin knows it
+//     state?:      { book, pouch: [[runeId, qty]], pray }  — spellbook, rune pouch, unlocked
+//                                                          prayers, for the pre-trip check (lib/tripState) }
+//   Only the containers sent are replaced; each keeps its own readAt. A body may carry only `state`.
 //
 //   DELETE /api/plugin/items  — the "Share my bank with Anvil for guides" setting was turned off:
 //   every stored container for every character of this person goes, and the plugin sends nothing more.
@@ -49,8 +52,11 @@ export async function POST(request: Request) {
     if (!c) return NextResponse.json({ error: `Bad ${kind}` }, { status: 400 });
     snap[kind] = c;
   }
+  // An unreadable state is dropped, not refused: the items in the same push still count.
+  const state = body.state == null ? null : cleanTripState(body.state);
   const stored = await saveSnapshot(own.accountId, snap);
-  return NextResponse.json({ ok: true, stored });
+  if (state) await saveTripState(own.accountId, state);
+  return NextResponse.json({ ok: true, stored: stored + (state ? 1 : 0) });
 }
 
 export async function DELETE(request: Request) {

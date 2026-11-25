@@ -14,6 +14,7 @@ import {
 } from '@/lib/pluginConfig';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { withTileCounts } from '@/lib/pluginTileCounts';
+import { TRIP_REGION_IDS } from '@/lib/tripContent';
 import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
 import { combatTaskVarps } from '@/lib/combatTasks';
@@ -103,7 +104,7 @@ export async function GET(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) {
     const clanless = await clanlessPluginConfig(request);
-    return clanless ? jsonWithEtag(request, withTileCounts(clanless)) : noClanForPlugin();
+    return clanless ? jsonWithEtag(request, withTripRegions(withTileCounts(clanless))) : noClanForPlugin();
   }
   if (!auth) {
     // Distinguish "bad token" from "valid token but no active event" so the plugin
@@ -252,7 +253,7 @@ export async function GET(request: Request) {
         else body.boards = [];
       }
       await markQuietWorld(request, body);
-      return jsonWithEtag(request, withTileCounts(body));
+      return jsonWithEtag(request, withTripRegions(withTileCounts(body)));
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
@@ -306,7 +307,16 @@ export async function GET(request: Request) {
   }
   await markQuietWorld(request, built.body as unknown as Record<string, unknown>);
   // `tiles` last: the counts of every board folded in above (lib/pluginTileCounts).
-  return jsonWithEtag(request, withTileCounts(built.body));
+  return jsonWithEtag(request, withTripRegions(withTileCounts(built.body)));
+}
+
+/**
+ * `tripRegions` on every config shape (capability 'trip-check', lib/tripContent): the map regions
+ * whose bank closing makes the plugin load the 'trip' view. A person in no clan gets a 404 config, so
+ * /api/version carries the same list for them.
+ */
+function withTripRegions<T extends object>(body: T): T & { tripRegions: number[] } {
+  return Object.assign(body, { tripRegions: TRIP_REGION_IDS });
 }
 
 /**

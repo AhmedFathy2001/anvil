@@ -4541,9 +4541,27 @@ export const playerItemSnapshots = pgTable('player_item_snapshots', {
   // 'bank' | 'inventory' | 'equipment' | 'lootingBag'
   container: text('container').notNull(),
   items: jsonb('items').$type<{ id: number; q?: number }[]>().notNull(),
+  /**
+   * Only on the container 'state' row (items []): the spellbook, rune pouch and unlocked prayers the
+   * plugin read (lib/tripState), for the pre-trip check. Same owner-only rule and deletion as the items.
+   */
+  state: jsonb('state').$type<Record<string, unknown>>(),
   readAt: text('read_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (t) => [primaryKey({ columns: [t.accountId, t.container] })]);
+
+/**
+ * A player's own setup for one trip (lib/tripSetups): "Save what you're wearing + inventory as my ToA
+ * setup". The pre-trip check uses it before any guide's. OWNER-ONLY, like the item snapshots.
+ * `content` is a trip key (lib/tripContent) or "m:<monster>" for one picked by hand.
+ */
+export const tripSetups = pgTable('trip_setups', {
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  setup: jsonb('setup').$type<Record<string, unknown>>().notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [primaryKey({ columns: [t.accountId, t.content] })]);
 
 /**
  * Per-team Discord resources in servers OTHER than the host's bound one (lib/eventDiscord). The

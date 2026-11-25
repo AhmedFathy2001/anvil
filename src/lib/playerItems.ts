@@ -5,12 +5,16 @@
 // through snapshotForViewer, which checks the account belongs to the viewer's person — clan staff,
 // platform staff and everyone else get nothing. The plugin sends (POST /api/plugin/items); the site
 // never pulls. Turning sharing off sends a DELETE and the rows go.
+//
+// The plugin's `state` (spellbook, rune pouch, unlocked prayers: lib/tripState) is one more row,
+// container 'state' with no items, so it is read, owned and deleted exactly as the items are.
 
 import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, guideItemSkips, guideViewerPrefs, playerItemSnapshots, users } from '@/db/schema';
 import { CONTAINER_KINDS, type Container, type ContainerKind, type Snapshot } from '@/lib/gearOwnership';
+import { storedTripState, type TripState } from '@/lib/tripState';
 
 const MAX_ITEMS: Record<ContainerKind, number> = { bank: 1500, inventory: 28, equipment: 14, lootingBag: 28 };
 const MAX_ID = 100_000;
@@ -47,6 +51,31 @@ export async function saveSnapshot(accountId: number, snap: Snapshot): Promise<n
     n++;
   }
   return n;
+}
+
+/** The container key the plugin's `state` is stored under (never one of CONTAINER_KINDS). */
+export const STATE_ROW = 'state';
+
+/** Store the plugin's spellbook / pouch / prayers reading (owner-only, as the items). */
+export async function saveTripState(accountId: number, state: TripState): Promise<void> {
+  const at = new Date().toISOString();
+  const value = state as unknown as Record<string, unknown>;
+  await db
+    .insert(playerItemSnapshots)
+    .values({ accountId, container: STATE_ROW, items: [], state: value, readAt: state.readAt, updatedAt: at })
+    .onConflictDoUpdate({ target: [playerItemSnapshots.accountId, playerItemSnapshots.container], set: { state: value, readAt: state.readAt, updatedAt: at } });
+}
+
+/** The stored state, for its owner only (anyone else, staff included, gets null). */
+export async function tripStateForViewer(userId: number, accountId: number): Promise<TripState | null> {
+  if (!(await ownsAccount(userId, accountId))) return null;
+  // clan-scope: global -- an account's own reading, read for its own person.
+  const [row] = await db
+    .select({ state: playerItemSnapshots.state })
+    .from(playerItemSnapshots)
+    .where(and(eq(playerItemSnapshots.accountId, accountId), eq(playerItemSnapshots.container, STATE_ROW)))
+    .limit(1);
+  return row?.state ? storedTripState(row.state) : null;
 }
 
 /** Sharing turned off: every character this login's person holds loses its stored items at once. */

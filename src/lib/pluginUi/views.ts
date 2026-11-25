@@ -70,6 +70,7 @@ import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { boardChatOn } from '@/lib/eventChat';
 import { guideAct, guideNextView, guidePanelView, guidesSearchView, guideYouCard } from './guidesView';
+import { tripAct, tripView } from './tripView';
 import { hasGuidesPanel, hasFeedTab, hasLogSearch, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -1064,6 +1065,9 @@ async function viewFor(request: Request, v: string, a: Args): Promise<View | nul
       return guidePanelView(request, a);
     case 'guide-next':
       return guideNextView(request, a);
+    // The pre-trip check (pluginUi/tripView): loaded when the bank closes in a trip region.
+    case 'trip':
+      return tripView(request, a);
     default:
       return null;
   }
@@ -1092,6 +1096,10 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
   if (act.startsWith('guide')) {
     const g = await guideAct(request, act, args, fields);
     if (g) return g;
+  }
+  if (act.startsWith('trip-')) {
+    const t = await tripAct(request, act, args);
+    if (t) return t;
   }
   if (act === 'notice-hide') {
     // Hide a "From Anvil" card on this login, then the home list again (lib/notices).

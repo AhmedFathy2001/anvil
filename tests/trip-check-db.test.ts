@@ -1,0 +1,69 @@
+// The pre-trip check's storage against a real database: the plugin's `state` row beside the item
+// snapshots (owner-only, gone with sharing off and with the person), and own trip setups.
+//
+// Run: TESTS_OK=1 npx tsx --test tests/trip-check-db.test.ts
+
+import { after, before, test } from 'node:test';
+import assert from 'node:assert/strict';
+import type { Pool } from 'pg';
+
+import { dropDatabase, loadDb, resetDatabase, useTestDatabase } from './helpers/testDb.ts';
+
+const DB = useTestDatabase('trip-check');
+let pool: Pool;
+
+before(async () => {
+  await resetDatabase(DB);
+  pool = (await loadDb()).pool;
+});
+after(async () => {
+  await pool.end();
+  await dropDatabase(DB);
+});
+
+async function user(name: string): Promise<{ userId: number; playerId: number; accountId: number }> {
+  const p = await pool.query(`INSERT INTO players (display_name) VALUES ($1) RETURNING id`, [name]);
+  const playerId = p.rows[0].id as number;
+  const u = await pool.query(`INSERT INTO users (discord_id, display_name, player_id) VALUES ($1, $2, $3) RETURNING id`, [`d${name}${Math.floor(Math.random() * 1e9)}`, name, playerId]);
+  const a = await pool.query(`INSERT INTO accounts (rsn, rsn_normalized, player_id, is_primary) VALUES ($1, $2, $3, 1) RETURNING id`, [name, name.toLowerCase(), playerId]);
+  return { userId: u.rows[0].id, playerId, accountId: a.rows[0].id };
+}
+
+test('state: stored on its own row, read only by the owner, kept apart from the containers, gone with sharing off', async () => {
+  const items = await import('../src/lib/playerItems.ts');
+  const { cleanTripState } = await import('../src/lib/tripState.ts');
+  const me = await user('TripMe');
+  const other = await user('TripOther');
+  await items.saveSnapshot(me.accountId, { inventory: { items: [{ id: 12791 }], readAt: new Date().toISOString() } });
+  await items.saveTripState(me.accountId, cleanTripState({ book: 1, pouch: [[560, 300]], pray: ['rigour'] })!);
+  const s = await items.tripStateForViewer(me.userId, me.accountId);
+  assert.equal(s?.book, 1);
+  assert.deepEqual(s?.pouch, [{ id: 560, q: 300 }]);
+  assert.deepEqual(s?.pray, ['rigour']);
+  assert.equal(await items.tripStateForViewer(other.userId, me.accountId), null, 'nobody else reads it');
+  // The containers read as before: the state row is not a container.
+  const snap = await items.snapshotForViewer(me.userId, me.accountId);
+  assert.deepEqual(Object.keys(snap ?? {}), ['inventory']);
+  // A state-only push updates it in place.
+  await items.saveTripState(me.accountId, cleanTripState({ book: 0 })!);
+  assert.equal((await items.tripStateForViewer(me.userId, me.accountId))?.book, 0);
+  assert.equal((await items.tripStateForViewer(me.userId, me.accountId))?.pouch, null);
+  await items.deleteSnapshotsForUser(me.userId);
+  assert.equal(await items.tripStateForViewer(me.userId, me.accountId), null, 'sharing off takes the state too');
+});
+
+test('own trip setups: saved, replaced, owner-only, forgotten', async () => {
+  const store = await import('../src/lib/tripSetups.ts');
+  const me = await user('SetupMe');
+  const other = await user('SetupOther');
+  const setup = { tier: 'advanced' as const, name: 'My ToA setup', gear: { weapon: 26219 }, style: 0, stats: { attack: 99, strength: 99, ranged: 99, magic: 99 }, inventory: [{ id: 13652 }] };
+  assert.equal(await store.saveOwnTripSetup(other.userId, me.accountId, 'toa', setup), false, "can't save on somebody else's character");
+  assert.equal(await store.saveOwnTripSetup(me.userId, me.accountId, 'toa', setup), true);
+  assert.equal((await store.ownTripSetup(me.userId, me.accountId, 'toa'))?.gear.weapon, 26219);
+  assert.equal(await store.ownTripSetup(other.userId, me.accountId, 'toa'), null);
+  await store.saveOwnTripSetup(me.userId, me.accountId, 'toa', { ...setup, gear: { weapon: 4151 } });
+  assert.equal((await store.ownTripSetup(me.userId, me.accountId, 'toa'))?.gear.weapon, 4151);
+  assert.equal(await store.ownTripSetup(me.userId, me.accountId, 'tob'), null);
+  await store.forgetOwnTripSetup(me.userId, me.accountId, 'toa');
+  assert.equal(await store.ownTripSetup(me.userId, me.accountId, 'toa'), null);
+});

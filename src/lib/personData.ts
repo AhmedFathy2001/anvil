@@ -129,7 +129,8 @@ export const PERSON_DATA: PersonDataEntry[] = [
   e('account_media', 'owner_player_id', 'player', 'delete', 'sql', 'the same pictures, found by who uploaded them (no foreign key)'),
   e('account_ownership_claims', 'account_id', 'account', 'delete', 'sql', 'disputes over who owns the character'),
   // ── Guides ──────────────────────────────────────────────────────────────────────────────────────
-  e('player_item_snapshots', 'account_id', 'account', 'delete', 'sql', 'bank, inventory, worn gear and looting bag their plugin shared for guides'),
+  e('player_item_snapshots', 'account_id', 'account', 'delete', 'sql', 'bank, inventory, worn gear and looting bag their plugin shared for guides, and its spellbook, rune pouch and unlocked prayers for the pre-trip check'),
+  e('trip_setups', 'account_id', 'account', 'delete', 'sql', 'their own saved setups for the pre-trip check'),
   e('guide_item_skips', 'account_id', 'account', 'delete', 'sql', 'items they marked as skipped or unaffordable in guides'),
   e('guide_viewer_prefs', 'account_id', 'account', 'delete', 'sql', 'their guide budget cap and view choices'),
   e('guide_setup_votes', 'account_id', 'account', 'detach', 'sql', 'the character a "used it" vote was made on (the vote itself goes with the login)'),
