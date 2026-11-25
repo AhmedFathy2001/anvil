@@ -24,7 +24,7 @@ export interface StageEvent {
 }
 
 /** One wording for a start that is waiting on teams — the hero, the lists, cards, link previews and the stage line all say this. */
-export const START_WAITING_WORDS = 'Start is waiting on teams';
+export const START_WAITING_WORDS = 'Starts once teams are ready';
 
 /**
  * The start time came but the event has not started: the lifecycle tick is holding it for teams.

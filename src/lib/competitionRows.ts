@@ -336,7 +336,7 @@ export function spanText(ms: number): string {
 }
 
 export interface RowWhen {
-  /** 'Ends in 5d 18h', 'Starts in 4d', 'No end date', 'Start is waiting on teams'. */
+  /** 'Ends in 5d 18h', 'Starts in 4d', 'No end date', 'Starts once teams are ready'. */
   text: string;
   /** The moment the text counts to, for the exact local time beside it. Null when there is none. */
   at: string | null;

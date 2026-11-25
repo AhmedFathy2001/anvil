@@ -11,16 +11,13 @@ import { parseBoardAccess } from '@/lib/cohostBoardAccess';
 import type { Metadata } from 'next';
 
 import { db } from '@/db';
-import { clanPrefix, currentClan, requireClan, resolveClanById } from '@/lib/clanContext';
-import { canSeeEvent } from '@/lib/eventAccess';
-import { getClanDisplayName } from '@/lib/pluginConfig';
-import { canonicalPathFor, socialMetadata } from '@/lib/seo';
-import { eventLinkDescription } from '@/lib/linkText';
+import { requireClan, resolveClanById } from '@/lib/clanContext';
+import { eventPageMetadata } from '@/lib/eventPageMetadata';
 import { JsonLd, breadcrumbLd, eventLd } from '@/lib/jsonLd';
 import { clanTrail } from '@/lib/seoPages';
 import { clanHref } from '@/lib/clanPath';
 import { clanPathOf } from '@/lib/clanScopedPaths';
-import { eventInClan, requireEventForParticipantPage } from '@/lib/eventScope';
+import { requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import { eventIconUrl } from '@/lib/eventImage';
 import { accounts, events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants, eventCohosts } from '@/db/schema';
@@ -75,7 +72,7 @@ import { loadRulesFacts } from '@/lib/eventRulebook';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
-import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
+import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
 import { atLeast } from '@/lib/clanRoles';
@@ -111,29 +108,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ eventId: string }>;
 }): Promise<Metadata> {
-  const clan = await currentClan();
-  const id = Number((await params).eventId);
-  if (!clan || !Number.isInteger(id)) return {};
-
-  const event = await eventInClan(clan.id, id);
-  // No event, or one this visitor may not read: say nothing and let the layout's clan-level
-  // metadata stand. Naming it here would describe a page that is about to 404.
-  const session = await verifyUser();
-  if (!event || !(await canSeeEvent({ eventId: id, playerId: session?.playerId ?? null }))) return {};
-
-  // A link card is as public as it gets: while the standings are hidden it names no leader.
-  const curtained = standingsHidden(event);
-  const [clanName, prefix, standings] = await Promise.all([
-    getClanDisplayName(clan.id, clan.name),
-    clanPrefix(),
-    curtained ? Promise.resolve([]) : getTeamStandings(id, event.scoringMode),
-  ]);
-  return socialMetadata({
-    title: `${event.name} — ${clanName || clan.name}`,
-    description: eventLinkDescription(event, standings, Date.now(), { standingsHidden: curtained }),
-    canonical: canonicalPathFor({ prefix, pathname: `/events/${id}`, clanSlug: clan.slug, clanKind: clan.kind }),
-    image: `/api/og/event/${id}`,
-  });
+  return eventPageMetadata((await params).eventId);
 }
 
 export default async function EventScoreboardPage({
