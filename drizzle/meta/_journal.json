@@ -1597,6 +1597,13 @@
       "when": 1795579402104,
       "tag": "0290_last_played_signals",
       "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1795600000000,
+      "tag": "0291_trip_check",
+      "breakpoints": true
     }
   ]
 }

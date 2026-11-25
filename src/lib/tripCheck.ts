@@ -1,0 +1,558 @@
+// The pre-trip check: what the character carries (worn + inventory) and its spellbook, rune pouch and
+// prayers, against the setup for the trip it is about to start. PURE — the gear data, the item
+// equivalences and the names come in, so the plugin view (pluginUi/tripView) and the tests share it.
+//
+// THE SETUP is, in order: the player's own saved one for the content (lib/tripSetups), the guide's
+// (its best tier that fits them), else Anvil's calc from their bank (source 'calc'). Checks:
+//
+//   gear       each slot's item (the player's own version of the setup: lib/gearOwnership) worn or
+//              packed, when leaving it costs DPS; each switch in the setup's inventory packed. The
+//              calc instead builds the best loadout per target from the bank and from what is
+//              carried: "No stab weapon: Kephri (Fang in bank)".
+//   spec       the setup's spec weapon packed (or, for bossing that wants one, any owned one)
+//   book       the spellbook the setup's spells need
+//   pouch      the runes those spells take: rune pouch, loose runes, an elemental staff or tome
+//   supplies   the setup's supplies by kind (doses and food types alike): "Brews 4 · setup has 6"
+//   prayer     Rigour / Augury the setup prays, unlocked (Piety is never read: unknown, not locked)
+//
+// Only what can be told is checked. Something it can't tell (no state from an older plugin, a rune
+// pouch left in the bank) is named in `unknown`, never failed. No combat cues of any kind: this runs
+// at the bank, before the trip, and says nothing about the fight itself.
+
+import type { DpsResult, GearItem, Monster } from './dps/engine';
+import { bestStyle } from './dps/engine';
+import { SLOTS, stylesFor, type Slot } from './dps/tables';
+import { setupLoadout, type GearIndex } from './dps/summary';
+import { ownStats, withSlot } from './gearNow';
+import { personalSetup, resolveSetup, type Equivalents, type Prefs, type Snapshot } from './gearOwnership';
+import type { GearSetup, InvItem } from './guideTiers';
+import type { TripContent } from './tripContent';
+import type { TripState } from './tripState';
+
+export type TripSource = 'own' | 'guide' | 'calc';
+export type TripGroup = 'gear' | 'spec' | 'book' | 'pouch' | 'supplies' | 'prayer';
+
+export interface TripRow {
+  group: TripGroup;
+  ok: boolean;
+  /** One short line (the overlay is 200px wide): "No stab weapon: Kephri (Fang in bank)". */
+  line: string;
+  /** A second, longer line for the panel. */
+  detail?: string;
+  /** The item it is about, for the panel's picture. */
+  item?: number;
+}
+
+export interface TripCheck {
+  rows: TripRow[];
+  /** "Switches 5 slots · 19 free for supplies". */
+  info: string[];
+  /** What couldn't be checked, and why. */
+  unknown: string[];
+}
+
+export interface TripInput {
+  content: TripContent;
+  /** The own or guide setup; null for the calc. */
+  setup: GearSetup | null;
+  source: TripSource;
+  monsters: Monster[];
+  worn: readonly InvItem[];
+  inventory: readonly InvItem[];
+  bank: readonly InvItem[];
+  lootingBag?: readonly InvItem[];
+  state: TripState | null;
+  levels: Record<string, number> | null;
+  idx: GearIndex;
+  /** X → every id that counts as having X (its forms and upgrades): lib/itemFamilies 'needs'. */
+  needs: Equivalents;
+  /** A held id → the ids it counts as: lib/itemFamilies 'holds'. */
+  holds: Equivalents;
+  nameOf: (id: number) => string;
+  isRunePouch: (id: number) => boolean;
+  prefs?: Prefs;
+}
+
+// ── Item kinds ───────────────────────────────────────────────────────────────────────────────
+
+/** Weapons carried for their special attack, not to fight with. */
+const SPEC_RE = /^(dragon claws|burning claws|dragon warhammer|elder maul|(bandos|armadyl|saradomin|zamorak|ancient) godsword|crystal halberd|voidwaker|dragon dagger|abyssal dagger|zaryte crossbow|dawnbringer|eldritch nightmare staff|volatile nightmare staff|granite maul|tonalztics of ralos|dragon crossbow)\b/i;
+export const isSpecWeapon = (name: string | null | undefined): boolean => !!name && SPEC_RE.test(name.trim());
+
+export const RUNE = { air: 556, water: 555, earth: 557, fire: 554, mind: 558, body: 559, death: 560, nature: 561, chaos: 562, law: 563, cosmic: 564, blood: 565, soul: 566, astral: 9075, wrath: 21880 } as const;
+type Rune = keyof typeof RUNE;
+/** Combination runes (and Sunfire) count as each rune they stand for. */
+const COMBO: Record<number, Rune[]> = { 4694: ['water', 'fire'], 4695: ['air', 'water'], 4696: ['air', 'earth'], 4697: ['air', 'fire'], 4698: ['water', 'earth'], 4699: ['earth', 'fire'], 28929: ['fire'] };
+const RUNE_NAME: Record<Rune, string> = Object.fromEntries(Object.keys(RUNE).map((k) => [k, `${k[0].toUpperCase()}${k.slice(1)}`])) as Record<Rune, string>;
+
+/** What each spell a setup casts takes (the OSRS Wiki's rune costs). Spells not here aren't rune-checked. */
+export const SPELL_RUNES: Record<string, Partial<Record<Rune, number>>> = {
+  'ice barrage': { death: 4, blood: 2, water: 6 },
+  'ice blitz': { death: 2, blood: 2, water: 3 },
+  'blood barrage': { death: 4, blood: 4, soul: 1 },
+  'shadow barrage': { air: 4, soul: 3, blood: 2, death: 4 },
+  vengeance: { astral: 4, earth: 10, death: 2 },
+  'crumble undead': { earth: 2, air: 2, chaos: 1 },
+  'fire surge': { fire: 10, air: 7, wrath: 1 },
+  'fire wave': { fire: 7, air: 5, blood: 1 },
+  charge: { fire: 3, blood: 3, air: 3 },
+  'death charge': { death: 1, blood: 1, soul: 1 },
+  'resurrect greater ghost': { fire: 10, blood: 5, cosmic: 1 },
+  'resurrect greater skeleton': { fire: 10, blood: 5, cosmic: 1 },
+  'resurrect greater zombie': { fire: 10, blood: 5, cosmic: 1 },
+  'mark of darkness': { cosmic: 1, soul: 1 },
+  'demonic offering': { soul: 1, wrath: 1 },
+  'sinister offering': { blood: 1, wrath: 1 },
+};
+
+/** The elemental runes a worn staff, wand or tome gives without end. */
+export function staffRunes(name: string): Rune[] {
+  const n = name.toLowerCase();
+  if (!/staff|wand|tome of/.test(n)) return [];
+  if (/kodai wand/.test(n)) return ['water'];
+  if (/twinflame staff/.test(n)) return ['fire', 'water'];
+  const out = new Set<Rune>();
+  const combos: Record<string, Rune[]> = { smoke: ['air', 'fire'], steam: ['water', 'fire'], mud: ['water', 'earth'], lava: ['earth', 'fire'], dust: ['air', 'earth'], mist: ['air', 'water'] };
+  for (const [w, rs] of Object.entries(combos)) if (new RegExp(`\\b${w}\\b`).test(n)) rs.forEach((r) => out.add(r));
+  for (const r of ['air', 'water', 'earth', 'fire'] as Rune[]) if (new RegExp(`\\b${r}\\b`).test(n)) out.add(r);
+  return [...out];
+}
+
+/** Supplies by kind: any dose of a potion, any of the common foods. */
+const SUPPLY_KIND: [RegExp, string][] = [
+  [/^saradomin brew\b/i, 'Brews'],
+  [/^(super restore|sanfew serum)\b/i, 'Restores'],
+  [/^prayer potion\b/i, 'Prayer pots'],
+  [/^(divine )?(ranging|bastion) potion\b/i, 'Ranging pots'],
+  [/^(divine )?super combat potion\b/i, 'Combat pots'],
+  [/^(divine )?(magic|battlemage) potion\b|^imbued heart|^saturated heart/i, 'Magic boost'],
+  [/antifire/i, 'Antifires'],
+  [/^(anti-venom|antidote\+\+)/i, 'Anti-venoms'],
+  [/^(shark|manta ray|anglerfish|dark crab|monkfish|cooked karambwan|sea turtle|tuna potato|lobster|swordfish|cooked moonlight antelope|cooked sunlight antelope)$/i, 'Food'],
+];
+/** "Saradomin brew(4)" → "Brews"; anything else by its name less the dose. */
+export function supplyKind(name: string): string {
+  for (const [re, k] of SUPPLY_KIND) if (re.test(name)) return k;
+  return name.replace(/\s*\(\d\)\s*$/, '').trim();
+}
+
+/** What players call a few long names; anything else keeps its own. */
+const NICKNAMES: Record<string, string> = { "osmumten's fang": 'Fang', "tumeken's shadow": 'Shadow', 'dragon hunter crossbow': 'DHCB', 'dragon hunter lance': 'DHL', 'toxic blowpipe': 'Blowpipe', 'scythe of vitur': 'Scythe' };
+/** "Osmumten's fang" → "Fang", "Ruby dragon bolts (e)" → "Ruby dragon bolts": a name for a 200px line. */
+export function shortName(name: string): string {
+  const plain = name.replace(/\s*\([^()]*\)\s*$/, '').trim() || name;
+  return NICKNAMES[plain.toLowerCase()] ?? plain[0].toUpperCase() + plain.slice(1);
+}
+const TARGET_NICK: Record<string, string> = { 'the maiden of sugadinti': 'Maiden', 'pestilent bloat': 'Bloat', 'nylocas vasilias': 'Nylo boss', 'verzik vitur': 'Verzik', "tumeken's warden": 'Warden', "elidinis' warden": 'Warden', 'vasa nistirio': 'Vasa', 'great olm': 'Olm' };
+/** "Ahrim the Blighted" → "Ahrim", "Great Olm (Head)" → "Olm", "The Maiden of Sugadinti" → "Maiden". */
+export const shortTarget = (name: string): string => {
+  const n = name.replace(/\s*\(.*\)\s*$/, '').trim();
+  return TARGET_NICK[n.toLowerCase()] ?? (n.split(' the ')[0].trim() || name);
+};
+/** "Kephri, Akkha" — past two, "Kephri, Akkha +2": the overlay's line is 200px. */
+const targetList = (ts: string[]) => (ts.length <= 2 ? ts.join(', ') : `${ts.slice(0, 2).join(', ')} +${ts.length - 2}`);
+
+export const SLOT_LABEL: Record<string, string> = { head: 'Head', cape: 'Cape', neck: 'Neck', ammo: 'Ammo', weapon: 'Weapon', body: 'Body', shield: 'Shield', legs: 'Legs', hands: 'Hands', feet: 'Feet', ring: 'Ring', quiver: 'Quiver' };
+
+// ── Holding ──────────────────────────────────────────────────────────────────────────────────
+
+const qty = (it: InvItem) => Math.max(1, Math.floor(it.q ?? 1));
+const mean = (xs: number[]) => (xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : 0);
+
+interface Held {
+  /** Raw ids → count. */
+  carried: Map<number, number>;
+  owned: Map<number, number>;
+  carries: (id: number) => boolean;
+  owns: (id: number) => boolean;
+}
+
+function held(inp: TripInput): Held {
+  const count = (lists: (readonly InvItem[] | undefined)[]) => {
+    const m = new Map<number, number>();
+    for (const l of lists) for (const it of l ?? []) if (it && it.id > 0) m.set(it.id, (m.get(it.id) ?? 0) + qty(it));
+    return m;
+  };
+  const carried = count([inp.worn, inp.inventory]);
+  const owned = count([inp.worn, inp.inventory, inp.bank, inp.lootingBag]);
+  // Holding X counts as X's forms and what it was upgraded from; X's forms and upgrades count as X.
+  const wide = (m: Map<number, number>) => {
+    const s = new Set<number>();
+    for (const id of m.keys()) for (const x of [id, ...inp.holds(id)]) s.add(x);
+    return s;
+  };
+  const cw = wide(carried);
+  const ow = wide(owned);
+  return {
+    carried,
+    owned,
+    carries: (id) => cw.has(id) || inp.needs(id).some((x) => carried.has(x)),
+    owns: (id) => ow.has(id) || inp.needs(id).some((x) => owned.has(x)),
+  };
+}
+
+/** The id the gear data knows `id` by: itself, or a form of it it holds (a charged form, a kit). */
+const knownAs = (id: number, inp: TripInput): number | null => (inp.idx.item(id) ? id : inp.holds(id).find((x) => inp.idx.item(x)) ?? null);
+
+/** The gear data's slot for an item ('2h' is worn in the weapon slot). */
+const slotOf = (it: GearItem | null): Slot | null => {
+  if (!it) return null;
+  const s = it.s === '2h' ? 'weapon' : it.s;
+  return (SLOTS as readonly string[]).includes(s) ? (s as Slot) : null;
+};
+
+// ── The best loadout from a pool of items (the calc) ─────────────────────────────────────────
+
+export interface Best {
+  gear: Record<string, number>;
+  result: DpsResult;
+  weapon: number;
+}
+
+interface CalcCtx {
+  idx: GearIndex;
+  stats: GearSetup['stats'];
+  prayer: string[];
+  spell: string | null;
+}
+
+const kindOfType = (t: string): 'melee' | 'ranged' | 'magic' => (t === 'ranged' ? 'ranged' : t === 'magic' ? 'magic' : 'melee');
+const AMMOLESS = /crystal bow|bow of faerdhinen|craw's bow|webweaver|blowpipe/i;
+
+/** Is `ammo` what `weapon` fires (or, for a weapon that fires nothing, a blessing that sits there)? */
+function ammoFits(weapon: GearItem, ammo: GearItem): boolean {
+  const a = ammo.n.toLowerCase();
+  const projectile = /arrow|bolt|javelin|dart|brutal|\bshot\b|chinchompa/.test(a);
+  if (weapon.c === 'Bow' && !AMMOLESS.test(weapon.n)) return /arrow|brutal/.test(a);
+  if (weapon.c === 'Crossbow') return /ballista/i.test(weapon.n) ? /javelin/.test(a) : /bolt/.test(a);
+  return !projectile;
+}
+
+/** Each slot's few likeliest items for one kind of attack, by the bonuses that kind reads. */
+function shortlist(pool: GearItem[], kind: 'melee' | 'ranged' | 'magic'): Map<Slot, GearItem[]> {
+  const score = (b: number[]) => (kind === 'melee' ? Math.max(b[0], b[1], b[2]) + 1.5 * b[5] : kind === 'ranged' ? b[4] + 1.5 * b[6] : b[3] + 3 * b[7]);
+  const by = new Map<Slot, GearItem[]>();
+  for (const it of pool) {
+    const s = slotOf(it);
+    if (!s || s === 'weapon') continue;
+    by.set(s, [...(by.get(s) ?? []), it]);
+  }
+  for (const [s, list] of by) by.set(s, list.sort((a, b) => score(b.b) - score(a.b)).slice(0, 6));
+  return by;
+}
+
+const tryGear = (gear: Record<string, number>, m: Monster, ctx: CalcCtx, dart: number | null): DpsResult | null =>
+  bestStyle({ gear, style: 0, spell: ctx.spell, dart, stats: ctx.stats, prayer: ctx.prayer, boost: null, onTask: false }, m, ctx.idx.item, ctx.idx.rules)?.result ?? null;
+
+/**
+ * The best loadout `ids` can make against one monster: the likeliest weapons of each kind, then each
+ * slot filled greedily (twice round) by the DPS engine. Set effects outside one slot (Void, Inquisitor)
+ * are only found when a single swap shows them. Null: nothing in the pool can attack.
+ */
+export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): Best | null {
+  const pool = [...new Set(ids)].map((id) => ctx.idx.item(id)).filter((x): x is GearItem => !!x && !x.hid);
+  const weapons = pool.filter((x) => slotOf(x) === 'weapon');
+  const ammo = pool.filter((x) => x.s === 'ammo');
+  const darts = pool.filter((x) => /dart$/i.test(x.n) && x.c === 'Thrown').sort((a, b) => b.b[6] - a.b[6]);
+  const dartFor = (w: GearItem) => (/blowpipe/i.test(w.n) ? darts[0]?.id ?? null : null);
+  const bestAmmo = (w: GearItem): number | null => {
+    const fits = ammo.filter((a) => ammoFits(w, a));
+    let best: { id: number; dps: number } | null = null;
+    for (const a of fits.sort((x, y) => y.b[6] - x.b[6]).slice(0, 4)) {
+      const r = tryGear({ weapon: w.id, ammo: a.id }, m, ctx, dartFor(w));
+      if (r && (!best || r.dps > best.dps)) best = { id: a.id, dps: r.dps };
+    }
+    return best?.id ?? null;
+  };
+  // A staff with no spell to autocast and no built-in one can only bash: still a melee option.
+  const quick = weapons
+    .map((w) => {
+      const gear: Record<string, number> = { weapon: w.id };
+      const a = stylesFor(w.c).some((s) => s.type === 'ranged') ? bestAmmo(w) : null;
+      if (a) gear.ammo = a;
+      const r = tryGear(gear, m, ctx, dartFor(w));
+      return r ? { w, gear, r } : null;
+    })
+    .filter((x): x is { w: GearItem; gear: Record<string, number>; r: DpsResult } => !!x && x.r.dps > 0);
+  const top: typeof quick = [];
+  for (const kind of ['melee', 'ranged', 'magic'] as const) top.push(...quick.filter((q) => q.r.kind === kind).sort((a, b) => b.r.dps - a.r.dps).slice(0, 2));
+  const lists = { melee: shortlist(pool, 'melee'), ranged: shortlist(pool, 'ranged'), magic: shortlist(pool, 'magic') };
+  let best: Best | null = null;
+  for (const q of top) {
+    const gear = { ...q.gear };
+    const dart = dartFor(q.w);
+    let cur = q.r;
+    const kind = kindOfType(cur.style.type);
+    for (let pass = 0; pass < 2; pass++) {
+      let changed = false;
+      for (const slot of SLOTS) {
+        if (slot === 'weapon' || (slot === 'shield' && q.w.h2)) continue;
+        const cands = (lists[kind].get(slot) ?? []).filter((c) => slot !== 'ammo' || ammoFits(q.w, c));
+        for (const c of cands) {
+          if (gear[slot] === c.id) continue;
+          const r = tryGear({ ...gear, [slot]: c.id }, m, ctx, dart);
+          if (r && r.dps > cur.dps + 1e-9) {
+            gear[slot] = c.id;
+            cur = r;
+            changed = true;
+          }
+        }
+      }
+      if (!changed) break;
+    }
+    if (!best || cur.dps > best.result.dps) best = { gear, result: cur, weapon: q.w.id };
+  }
+  return best;
+}
+
+/** The spell a staff would autocast on this spellbook at this Magic level, for the calc. */
+export function calcSpell(book: number | null, magic: number, weakness?: string | null): string | null {
+  if (book === 1) return magic >= 94 ? 'Ice Barrage' : magic >= 82 ? 'Ice Blitz' : magic >= 70 ? 'Ice Burst' : magic >= 58 ? 'Ice Rush' : null;
+  if (book === 2 || book === 3) return null;
+  const surge: Record<string, number> = { air: 81, water: 85, earth: 90, fire: 95 };
+  const wave: Record<string, number> = { air: 62, water: 65, earth: 70, fire: 75 };
+  const order = [...(weakness && surge[weakness] ? [weakness] : []), 'fire', 'earth', 'water', 'air'];
+  for (const e of order) if (magic >= surge[e]) return `${e[0].toUpperCase()}${e.slice(1)} Surge`;
+  for (const e of order) if (magic >= wave[e]) return `${e[0].toUpperCase()}${e.slice(1)} Wave`;
+  return null;
+}
+
+/** The prayers the calc assumes: the best of each style the character has, Piety by level alone. */
+export function calcPrayers(levels: Record<string, number> | null, state: TripState | null): string[] {
+  const pray = levels?.prayer ?? 99;
+  const has = (k: string) => (state?.pray ? state.pray.includes(k) : pray >= 74);
+  return [
+    pray >= 70 && (levels?.defence ?? 99) >= 70 ? 'piety' : pray >= 31 ? 'ultimate_strength' : 'superhuman',
+    ...(pray >= 31 ? ['incredible_reflexes'] : []),
+    has('rigour') && pray >= 74 ? 'rigour' : pray >= 44 ? 'eagle_eye' : 'hawk_eye',
+    has('augury') && pray >= 77 ? 'augury' : pray >= 45 ? 'mystic_might' : 'mystic_lore',
+  ];
+}
+
+// ── The check ────────────────────────────────────────────────────────────────────────────────
+
+/** Below this share of the bank's best, a target's carried loadout is a problem. */
+const CALC_FLOOR = 0.85;
+/** A missing slot that costs less than this share of DPS isn't worth a line. */
+const SLOT_FLOOR = 0.01;
+
+export function checkTrip(inp: TripInput): TripCheck {
+  const rows: TripRow[] = [];
+  const unknown: string[] = [];
+  const h = held(inp);
+  const name = (id: number) => inp.nameOf(id);
+  const wornMap: Record<string, number> = {};
+  for (const it of inp.worn) {
+    const k = knownAs(it.id, inp);
+    const s = k != null ? slotOf(inp.idx.item(k)) : null;
+    if (k != null && s && wornMap[s] == null) wornMap[s] = k;
+  }
+  const levels = inp.levels;
+  const state = inp.state;
+  const pouchIn = inp.inventory.some((it) => inp.isRunePouch(it.id));
+
+  // ── Gear ──
+  const specIn = (ids: number[]) => ids.filter((id) => isSpecWeapon(inp.idx.item(id)?.n ?? name(id)));
+  let setupSpecs: number[] = [];
+  if (inp.setup) {
+    const s = inp.setup;
+    const snap: Snapshot = { equipment: { items: [...inp.worn], readAt: '' }, inventory: { items: [...inp.inventory], readAt: '' }, bank: { items: [...inp.bank], readAt: '' }, ...(inp.lootingBag ? { lootingBag: { items: [...inp.lootingBag], readAt: '' } } : {}) };
+    const resolved = resolveSetup(s, snap, inp.needs, inp.prefs ?? {});
+    const mine: GearSetup = { ...personalSetup(s, resolved), stats: ownStats(s.stats, levels).stats };
+    const dpsOf = (x: GearSetup) => mean(inp.monsters.map((m) => bestStyle(setupLoadout(x), m, inp.idx.item, inp.idx.rules)?.result.dps ?? 0));
+    const base = inp.monsters.length ? dpsOf(mine) : 0;
+    for (const pick of resolved.slots) {
+      if (pick.slot === 'quiver' || pick.kind === 'missing' || pick.use == null) continue;
+      const use = pick.use;
+      const label = SLOT_LABEL[pick.slot] ?? pick.slot;
+      if (h.carries(use)) {
+        rows.push({ group: 'gear', ok: true, line: `${label}: ${shortName(name(use))}`, item: use });
+        continue;
+      }
+      // Not worn or packed: what leaving it costs, with whatever is carried for that slot instead.
+      const alt = wornMap[pick.slot] ?? inp.inventory.map((it) => knownAs(it.id, inp)).find((k) => k != null && slotOf(inp.idx.item(k)) === pick.slot) ?? null;
+      let loss = 1;
+      if (base > 0) {
+        const swapped = alt != null ? withSlot(mine, pick.slot, alt, inp.idx) : (() => { const g = { ...mine.gear }; delete g[pick.slot]; return { ...mine, gear: g }; })();
+        loss = (base - dpsOf(swapped)) / base;
+      }
+      if (base > 0 && loss < SLOT_FLOOR) {
+        rows.push({ group: 'gear', ok: true, line: `${label}: ${alt != null ? shortName(name(alt)) : 'empty'} will do`, detail: `No DPS lost without ${name(use)}`, item: alt ?? use });
+        continue;
+      }
+      rows.push({
+        group: 'gear',
+        ok: false,
+        line: `No ${shortName(name(use))} (in bank)`,
+        detail: `${label}${base > 0 ? ` · ${Math.round(loss * 100)}% less DPS without it` : ''}`,
+        item: use,
+      });
+    }
+    // The switches the setup packs: anything wearable in its inventory.
+    const packed = [...new Set((s.inventory ?? []).filter((x): x is InvItem => !!x && !!inp.idx.item(x.id)).map((x) => x.id))];
+    setupSpecs = specIn(packed);
+    for (const id of packed.filter((x) => !setupSpecs.includes(x))) {
+      if (!h.owns(id)) continue;
+      const inv = inp.idx.item(id);
+      if (inv?.s === 'ammo' && Object.values(s.gear).includes(id)) continue;
+      rows.push(h.carries(id) ? { group: 'gear', ok: true, line: `Switch: ${shortName(name(id))}`, item: id } : { group: 'gear', ok: false, line: `Switch not packed: ${shortName(name(id))}`, detail: 'In your bank', item: id });
+    }
+  } else {
+    // The calc: per target, the best the bank makes against the best of what is carried.
+    const lv = (k: string, d = 80) => (typeof levels?.[k] === 'number' ? levels[k] : d);
+    const stats = { attack: lv('attack'), strength: lv('strength'), ranged: lv('ranged'), magic: lv('magic'), hitpoints: lv('hitpoints', 99) };
+    const prayer = calcPrayers(levels, state);
+    const ids = (m: Map<number, number>) => [...m.keys()].map((id) => knownAs(id, inp)).filter((x): x is number => x != null);
+    const ownedIds = ids(h.owned);
+    const carriedIds = ids(h.carried);
+    const short = new Map<string, { targets: string[]; row: TripRow }>();
+    for (const m of inp.monsters) {
+      const ctx: CalcCtx = { idx: inp.idx, stats, prayer, spell: calcSpell(state?.book ?? 0, stats.magic, m.ew) };
+      const o = bestLoadout(m, ownedIds, ctx);
+      if (!o) continue;
+      const c = bestLoadout(m, carriedIds, ctx);
+      const target = shortTarget(m.n);
+      if (c && c.result.dps >= CALC_FLOOR * o.result.dps) {
+        rows.push({ group: 'gear', ok: true, line: `${target}: ${shortName(name(c.weapon))}`, detail: `${Math.round((c.result.dps / o.result.dps) * 100)}% of your bank's best`, item: c.weapon });
+        continue;
+      }
+      const type = o.result.style.type;
+      const w = shortName(name(o.weapon));
+      const packedWeapon = h.carries(o.weapon);
+      const key = packedWeapon ? `gear:${target}` : `w:${o.weapon}:${type}`;
+      const pct = c ? Math.round((1 - c.result.dps / o.result.dps) * 100) : 100;
+      const row: TripRow = packedWeapon
+        ? { group: 'gear', ok: false, line: `${target}: gear in bank (-${pct}%)`, detail: `Your bank's best ${type} setup hits ${o.result.dps.toFixed(1)} DPS`, item: o.weapon }
+        : { group: 'gear', ok: false, line: `No ${type} weapon: ${target} (${w} in bank)`, detail: `${pct}% less DPS with what you carry`, item: o.weapon };
+      const prev = short.get(key);
+      if (prev) {
+        if (!prev.targets.includes(target)) prev.targets.push(target);
+        prev.row.line = `No ${type} weapon: ${targetList(prev.targets)} (${w} in bank)`;
+        prev.row.detail = `For ${prev.targets.join(', ')}`;
+      } else {
+        short.set(key, { targets: [target], row });
+        rows.push(row);
+      }
+    }
+  }
+
+  // ── Spec weapon ──
+  const ownedSpecs = [...h.owned.keys()].filter((id) => isSpecWeapon(inp.idx.item(knownAs(id, inp) ?? id)?.n ?? name(id)));
+  if (setupSpecs.length) {
+    for (const id of setupSpecs) {
+      if (!h.owns(id)) continue;
+      rows.push(h.carries(id) ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(id))}`, item: id } : { group: 'spec', ok: false, line: `No spec weapon (${shortName(name(id))} in bank)`, item: id });
+    }
+  } else if (inp.content.spec && ownedSpecs.length) {
+    const packed = ownedSpecs.find((id) => h.carried.has(id));
+    rows.push(packed ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(packed))}`, item: packed } : { group: 'spec', ok: false, line: `No spec weapon (${shortName(name(ownedSpecs[0]))} in bank)`, item: ownedSpecs[0] });
+  }
+
+  // ── Spellbook and runes ──
+  const s = inp.setup;
+  const spells = [...new Set([...(s?.spells ?? []), ...(s?.spell ? [s.spell] : [])].map((x) => x.trim()).filter(Boolean))];
+  const BOOK = ['Standard', 'Ancient', 'Lunar', 'Arceuus'];
+  if (s && spells.length && s.spellbook != null) {
+    if (state?.book == null) unknown.push('spellbook');
+    else rows.push(state.book === s.spellbook ? { group: 'book', ok: true, line: `${BOOK[state.book]} spellbook` } : { group: 'book', ok: false, line: `On ${BOOK[state.book]} · setup needs ${BOOK[s.spellbook] ?? 'another'}`, detail: `For ${spells.join(', ')}` });
+  }
+  if (s && spells.length) {
+    const need = new Map<Rune, number>();
+    let unpriced = false;
+    for (const sp of spells) {
+      const cost = SPELL_RUNES[sp.toLowerCase()];
+      // An autocast staff spell the table doesn't price: the setup's own pouch says what it takes.
+      if (!cost) {
+        unpriced = true;
+        continue;
+      }
+      for (const [r, n] of Object.entries(cost) as [Rune, number][]) need.set(r, Math.max(need.get(r) ?? 0, n));
+    }
+    if (unpriced && !need.size) for (const p of s.runePouch ?? []) for (const [r, id] of Object.entries(RUNE) as [Rune, number][]) if (id === p.id) need.set(r, 1);
+    if (need.size) {
+      const free = new Set<Rune>();
+      for (const id of Object.values(wornMap)) for (const r of staffRunes(name(id))) free.add(r);
+      const have = new Map<Rune, number>();
+      const add = (id: number, q: number) => {
+        for (const [r, rid] of Object.entries(RUNE) as [Rune, number][]) if (rid === id) have.set(r, (have.get(r) ?? 0) + q);
+        for (const r of COMBO[id] ?? []) have.set(r, (have.get(r) ?? 0) + q);
+      };
+      for (const it of inp.inventory) add(it.id, qty(it));
+      const pouchKnown = pouchIn && state?.pouch != null;
+      if (pouchKnown) for (const p of state!.pouch!) add(p.id, p.q);
+      const short = [...need.keys()].filter((r) => !free.has(r) && (have.get(r) ?? 0) < need.get(r)!);
+      if (pouchIn && state?.pouch == null) unknown.push('rune pouch');
+      else if (!pouchIn && (s.runePouch?.length ?? 0) > 0 && short.length) rows.push({ group: 'pouch', ok: false, line: 'Rune pouch not packed', detail: `${spells.join(', ')} need ${short.map((r) => RUNE_NAME[r]).join(', ')} runes` });
+      else if (short.length) rows.push({ group: 'pouch', ok: false, line: `${pouchIn ? 'Rune pouch' : 'Runes'}: no ${short.slice(0, 2).map((r) => RUNE_NAME[r]).join(' or ')} runes${short.length > 2 ? ' +' : ''}`, detail: `For ${spells.join(', ')}` });
+      else rows.push({ group: 'pouch', ok: true, line: `Runes for ${spells.length === 1 ? spells[0] : `${spells.length} spells`}` });
+    }
+  }
+
+  // ── Supplies ──
+  if (s?.inventory?.length) {
+    const kindOf = (id: number) => supplyKind(name(id));
+    const isSupply = (id: number) => !inp.idx.item(knownAs(id, inp) ?? id) && !inp.isRunePouch(id) && !COMBO[id] && !Object.values(RUNE).includes(id as never);
+    const want = new Map<string, { n: number; id: number }>();
+    for (const it of s.inventory) if (it && isSupply(it.id)) {
+      const k = kindOf(it.id);
+      const w = want.get(k);
+      want.set(k, { n: (w?.n ?? 0) + qty(it), id: w?.id ?? it.id });
+    }
+    const got = new Map<string, number>();
+    for (const it of inp.inventory) if (isSupply(it.id)) got.set(kindOf(it.id), (got.get(kindOf(it.id)) ?? 0) + qty(it));
+    for (const [k, w] of want) {
+      const g = got.get(k) ?? 0;
+      rows.push(g >= w.n ? { group: 'supplies', ok: true, line: `${k} ${g}`, item: w.id } : { group: 'supplies', ok: false, line: `${k} ${g} · setup has ${w.n}`, item: w.id });
+    }
+  }
+
+  // ── Prayers ──
+  const prays = (s ? [s.prayer ?? []].flat() : []).map((p) => String(p).toLowerCase());
+  for (const p of ['rigour', 'augury'] as const) {
+    if (!prays.includes(p)) continue;
+    const label = p === 'rigour' ? 'Rigour' : 'Augury';
+    if (!state?.pray) unknown.push(label);
+    else rows.push(state.pray.includes(p) ? { group: 'prayer', ok: true, line: `${label} unlocked` } : { group: 'prayer', ok: false, line: `${label} locked · setup prays it`, detail: `Read ${p === 'rigour' ? 'a Dexterous' : 'an Arcane'} prayer scroll to unlock it` });
+  }
+
+  // ── The inventory's room ──
+  const info: string[] = [];
+  if (inp.inventory.length || s?.inventory?.length) {
+    const sw = inp.inventory.filter((it) => inp.idx.item(knownAs(it.id, inp) ?? it.id)).length;
+    const pouch = pouchIn ? 1 : 0;
+    info.push(`Switches ${sw} slot${sw === 1 ? '' : 's'} · ${Math.max(0, 28 - sw - pouch)} free for supplies`);
+  }
+  return { rows, info, unknown };
+}
+
+/** The overlay's answer: "ToA · 2 problems" with the first lines, or "✓ Ready for ToA". */
+export function tripWarn(short: string, check: TripCheck, max = 4): { ok: boolean; title: string; lines: string[] } {
+  const bad = check.rows.filter((r) => !r.ok);
+  if (!bad.length) return { ok: true, title: `✓ Ready for ${short}`, lines: [] };
+  const lines = bad.slice(0, max).map((r) => r.line);
+  if (bad.length > max) lines[max - 1] = `+${bad.length - max + 1} more in the panel`;
+  return { ok: false, title: `${short} · ${bad.length} problem${bad.length === 1 ? '' : 's'}`, lines };
+}
+
+/** The setup a player saves: what they wear and pack now, with their spellbook and pouch. */
+export function setupFromHeld(nameLabel: string, worn: readonly InvItem[], inventory: readonly InvItem[], state: TripState | null, idx: GearIndex, holds: Equivalents, levels: Record<string, number> | null, isRunePouch: (id: number) => boolean): GearSetup {
+  const gear: Record<string, number> = {};
+  for (const it of worn) {
+    const k = idx.item(it.id) ? it.id : holds(it.id).find((x) => idx.item(x));
+    const s = k != null ? slotOf(idx.item(k)) : null;
+    if (k != null && s && gear[s] == null) gear[s] = k;
+  }
+  const inv: (InvItem | null)[] = inventory.slice(0, 28).map((it) => (it ? (it.q && it.q > 1 ? { id: it.id, q: it.q } : { id: it.id }) : null));
+  const pouchIn = inventory.some((it) => isRunePouch(it.id));
+  const lv = (k: string) => (typeof levels?.[k] === 'number' ? levels[k] : 80);
+  return {
+    tier: 'advanced',
+    name: nameLabel,
+    gear,
+    style: 0,
+    stats: { attack: lv('attack'), strength: lv('strength'), ranged: lv('ranged'), magic: lv('magic') },
+    inventory: inv,
+    ...(pouchIn && state?.pouch?.length ? { runePouch: state.pouch.map((p) => ({ id: p.id, q: p.q })) } : {}),
+    ...(state?.book != null ? { spellbook: state.book } : {}),
+  };
+}

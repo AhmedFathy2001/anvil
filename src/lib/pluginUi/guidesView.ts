@@ -41,7 +41,7 @@ import { GUIDE_REGIONS, guideGoneUi, guidePanelUi, guidesSearchUi, nextUpUi, typ
 type Args = Record<string, string>;
 
 /** The token owner as a guide reader: the played character when it is theirs, else their main. */
-async function pluginViewer(request: Request): Promise<GuideViewer> {
+export async function pluginViewer(request: Request): Promise<GuideViewer> {
   const login = await verifyPluginTokenUser(request).catch(() => null);
   if (!login) return EMPTY_VIEWER;
   const row = await db.query.users.findFirst({ where: eq(users.id, login.userId), columns: { playerId: true } });
@@ -53,7 +53,7 @@ async function pluginViewer(request: Request): Promise<GuideViewer> {
 }
 
 /** The clan the plugin is pointed at (its copies first), or null for the library. */
-async function pluginClanId(request: Request, args: Args): Promise<number | null> {
+export async function pluginClanId(request: Request, args: Args): Promise<number | null> {
   if (!args.clan) return null;
   return (await resolvePluginClan(request).catch(() => null))?.id ?? null;
 }

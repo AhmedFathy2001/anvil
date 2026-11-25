@@ -225,6 +225,10 @@ export const PLUGIN_CAPABILITIES = [
   // `tab: 'lookup'` actions, and POST/DELETE /api/plugin/items (what the player holds, owner-only).
   // The plugin offers Guides and pushes items only against a site that lists this.
   'guides-panel',
+  // The pre-trip check (lib/tripCheck, pluginUi/tripView): /api/plugin/config (and /api/version) carry
+  // `tripRegions`, POST /api/plugin/items takes `state` {book, pouch, pray}, and view 'trip' answers
+  // {ui, warn} for the plugin's overlay when the bank closes in one of those regions.
+  'trip-check',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

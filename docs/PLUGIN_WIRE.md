@@ -696,6 +696,23 @@ or past `GUIDES_PANEL_MIN_PLUGIN` (lib/pluginUi/load).
 - A boss kill in the stat push, worn (the pushed `equipment`) in one of that boss's guide setups, is an
   automatic "used it" for a plugin-verified character (lib/guideAutoUsed), once a day per setup.
 
+### `trip-check`
+
+The pre-trip check (lib/tripCheck, lib/pluginUi/tripView). Needs `guides-panel` too: the items push
+only goes out where that is listed.
+
+- `tripRegions: number[]` on every `/api/plugin/config` shape, and on `/api/version` for a person in
+  no clan (lib/tripContent). Compared against `WorldPoint.fromLocalInstance(...).getRegionID()`.
+- `POST /api/plugin/items` also takes `state: {book: 0|1|2|3, pouch: [[runeId, qty]], pray: [...]}`,
+  alone or beside the containers. `pray` lists only what the plugin read as unlocked (`rigour`,
+  `augury`); Piety is never sent and is treated as unknown. `pouch` is trusted only while a rune pouch
+  is in the pushed inventory. Stored and deleted with the items, owner-only.
+- View `trip` with args `{region, why: 'bank-close'|'manual', content?}` answers `{ui, warn}`:
+  `warn` is `{ok, title, lines[]}` for the overlay (`"ToA · 2 problems"` / `"✓ Ready for ToA"`), or
+  null when no trip matches, sharing is off or the items are over 30 minutes old. `content` is a trip
+  key or `m:<monster>` from the view's own picker. Actions `trip-save` and `trip-forget` (args
+  `{region, content}`) keep or drop the player's own setup for a trip.
+
 ## Checklist: shipping a new plugin-facing feature
 
 On the site:

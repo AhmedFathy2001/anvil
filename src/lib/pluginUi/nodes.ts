@@ -335,6 +335,11 @@ export interface FeedRow {
 /** A view: the node tree plus whether the plugin may hold it a while (a lookup) or not (your own). */
 export interface View {
   ui: Node;
+  /**
+   * View 'trip' only (capability 'trip-check', pluginUi/tripView): the pre-trip check's short answer
+   * for the plugin's overlay, or null when no trip matches. Other views leave it out.
+   */
+  warn?: { ok: boolean; title: string; lines: string[] } | null;
 }
 
 // ---- Builders: the shapes every view uses, so they read the same everywhere -------------------
