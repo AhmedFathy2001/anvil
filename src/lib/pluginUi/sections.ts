@@ -6,15 +6,17 @@ import { type Action, type Color, type Node, card, col, icon, muted, row, text }
 // thing each, and only on chips and small text:
 //   green done · gold you / your action · coral urgent · blue info, upcoming, live · purple rare.
 
-export const GREEN: Color = '#5fd35f';
+export const GREEN: Color = '#6fdc6f';
 export const GOLD: Color = '#ff981f';
 export const CORAL: Color = '#ff7a6b';
 export const BLUE: Color = '#6fb6ff';
 export const PURPLE: Color = '#c79bff';
 export const LATER: Color = '#4a4a4a';
-export const FAINT: Color = '#a0a0a0';
-export const SOFT: Color = '#c8c8c8';
-export const PROGRESS: Color = '#ffd27a';
+export const FAINT: Color = '#9a9a9a';
+export const SOFT: Color = '#e0e0e0';
+export const PROGRESS: Color = '#ffd23f';
+/** A card's 1px outline and a divider inside one: what keeps dark cards apart on the dark panel. */
+export const LINE: Color = '#3a3a3a';
 /** Wrap width (pt) of text straight in a card. */
 export const CARD_W = 185;
 /** "View all" opens in place up to this many entrants; more page through the Teams view. */
@@ -36,7 +38,7 @@ export const clip = (s: string, max: number) => (s.length <= max ? s : `${s.slic
 export const title = (s: string, color: Color = 'white'): Node => text(s, color, { font: 'bold' });
 /** The big line of a top card ("14 of 25 tiles"). */
 export const big = (s: string, color: Color = 'white'): Node => text(s, color, { font: 'bold' });
-export const section = (c: (Node | null | false | undefined)[], extra: Partial<Extract<Node, { t: 'col' }>> = {}): Node => card(c, { inset: 10, gap: 6, ...extra });
+export const section = (c: (Node | null | false | undefined)[], extra: Partial<Extract<Node, { t: 'col' }>> = {}): Node => card(c, { inset: 10, gap: 6, rad: 4, edge: LINE, ...extra });
 export const chip = (s: string, kind: keyof typeof CHIP, extra: Partial<Extract<Node, { t: 'text' }>> = {}): Node => text(s, CHIP[kind][1], { chip: CHIP[kind][0], font: 'small', ...extra });
 export const small = (s: string, color: Color, extra: Partial<Extract<Node, { t: 'text' }>> = {}): Node => text(s, color, { font: 'small', ...extra });
 export const link = (s: string, on: Action, tip?: string): Node => text(s, GOLD, { font: 'small', on, ...(tip ? { tip } : {}) });
@@ -160,12 +162,12 @@ export function segSwitch(key: string, items: { label: string; on: boolean; act:
   return { t: 'tabs', key, tabs: items.map((i) => ({ label: i.label, on: i.act, ...(i.on ? { sel: true } : {}) })) };
 }
 
-/** A filter chip in a grid: grey outline, the lit one raised with a gold edge. */
+/** A filter chip in a grid: dark with a grey outline, the lit one in gold with a gold edge. */
 export function boxChip(label: string, on: boolean, act: Action, tip?: string): Node {
   // A row, so the label's centre stretches the full cell and centres in it.
-  return row(undefined, text(label, on ? 'white' : FAINT, { font: 'small', align: 'c' }), undefined, {
-    bg: on ? 'raised' : 'panel',
-    edge: on ? GOLD : LATER,
+  return row(undefined, text(label, on ? GOLD : FAINT, { font: 'small', align: 'c' }), undefined, {
+    bg: 'card',
+    edge: on ? GOLD : LINE,
     pad: 3,
     on: act,
     ...(tip ? { tip } : {}),

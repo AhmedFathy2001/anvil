@@ -412,7 +412,7 @@ test('rank moves: a green ▲ or coral ▼ by a rank that changed today, nothing
   const ui = eventUi(base(liveCfg(), { standings: [team(1, 1, 2), team(2, 2, -1, true), team(3, 3, null)] }), 'board')!;
   const marks = walk(ui).filter((x) => x.t === 'text' && (x.icon as { glyph?: string } | undefined)?.glyph && ['up', 'down'].includes((x.icon as { glyph: string }).glyph));
   // Standings rows (T1 ▲2, T2 ▼1) and your top card's place (▼1); T3 unchanged shows nothing.
-  assert.deepEqual(marks.map((m) => [m.s, (m.icon as { glyph: string }).glyph, m.color]), [['1', 'down', '#ff7a6b'], ['2', 'up', '#5fd35f'], ['1', 'down', '#ff7a6b']]);
+  assert.deepEqual(marks.map((m) => [m.s, (m.icon as { glyph: string }).glyph, m.color]), [['1', 'down', '#ff7a6b'], ['2', 'up', '#6fdc6f'], ['1', 'down', '#ff7a6b']]);
   const none = eventUi(base(liveCfg(), { standings: [team(1, 1, null), team(2, 2, null, true)] }), 'board')!;
   assert.ok(!walk(none).some((x) => (x.icon as { glyph?: string } | undefined)?.glyph === 'up' || (x.icon as { glyph?: string } | undefined)?.glyph === 'down'), 'no baseline: no marks');
 });

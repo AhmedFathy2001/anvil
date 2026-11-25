@@ -648,7 +648,7 @@ test('display case: every pin kind shows its value, items keep a full-size icon'
   assert.ok(walk(ui).some((n) => n.t === 'icon' && n.item === 20997 && n.w === 36 && n.h === 32));
   const lucky = playerCardUi({ ...shown, displayCase: [{ ...shown.displayCase![2], luck: { text: 'Spooned · 54 KC (1/1,200)', tone: 'green' } }] }, { sectionKey: 'you', cas: false });
   assert.ok(texts(lucky).includes('Spooned · 54 KC (1/1,200)') && !texts(lucky).includes('312 KC'), 'the luck line outranks a bare KC');
-  assert.ok(walk(lucky).some((n) => n.t === 'text' && n.s?.startsWith('Spooned') && n.color === '#5fd35f'), 'spooned is green');
+  assert.ok(walk(lucky).some((n) => n.t === 'text' && n.s?.startsWith('Spooned') && n.color === '#6fdc6f'), 'spooned is green');
   assert.ok(!t.includes('Obtained') && !t.some((x) => x.startsWith('Obtained')), 'never the word Obtained');
   // Nothing known: the name in the normal small font, wrapped to the pin's width, with a tooltip.
   const nameNode = walk(ui).find((n) => n.t === 'text' && n.s === 'Armadyl godsword');

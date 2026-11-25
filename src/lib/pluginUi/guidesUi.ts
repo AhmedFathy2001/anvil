@@ -25,7 +25,7 @@
 
 import { button, card, col, gap, icon, muted, row, text, type Action, type Color, type GuideQuillGlyph, type Node } from './nodes';
 import { backHeader } from './playerCardUi';
-import { CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, boxChip, chip, section, small, title } from './sections';
+import { CARD_W, CORAL, FAINT, GOLD, GREEN, LINE, PROGRESS, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BodySection } from './guideBody';
 import { SLOT_NAME } from '@/lib/slotNames';
 
@@ -125,7 +125,7 @@ function guideRow(r: GuideRowData, region?: string, open: Record<string, string>
     picWell(r.pic),
     col([text(r.title, 'white', { wrap: 125 }), small(r.meta, FAINT), r.by ? small(r.by, '#8c8c8c') : null], { gap: 1 }),
     icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }),
-    { bg: 'raised', pad: 5, inset: 6, gap: 7, on: openGuide(r.id, region, open), k: `${r.title} ${r.category} ${r.meta} ${r.by}`, tip: `Open ${r.title}` },
+    { bg: 'card', edge: LINE, pad: 5, inset: 6, gap: 7, on: openGuide(r.id, region, open), k: `${r.title} ${r.category} ${r.meta} ${r.by}`, tip: `Open ${r.title}` },
   );
 }
 
@@ -343,7 +343,7 @@ function guideHead(d: GuidePanelData, back: Action = guideBack(d)): Node {
   const tierLabel = d.tiers.find((t) => t.key === d.tier)?.label;
   const line = [d.kind, tierLabel].filter(Boolean).join(' · ') || 'Guide';
   return col([
-    backHeader(d.title, line, false, back, `/guides/${d.slug}`, W_CARD),
+    backHeader(d.title, line, false, back, `/guides/${d.slug}`, W_CARD, GOLD),
     d.byline
       ? row(undefined, small(d.byline, FAINT, d.rankGlyph ? { icon: { t: 'icon', glyph: d.rankGlyph as GuideQuillGlyph, w: 12, h: 12 } } : {}), undefined, { inset: 16 })
       : null,
@@ -389,8 +389,8 @@ function setupPicker(d: GuidePanelData): Node | null {
     });
   const options = d.setups.map((s) =>
     row(s32(s.weapon), line(s, s.key === d.current), undefined, {
-      bg: s.key === d.current ? 'raised' : 'card',
-      ...(s.key === d.current ? { edge: GOLD } : {}),
+      bg: 'card',
+      edge: s.key === d.current ? GOLD : LINE,
       pad: 4,
       inset: 5,
       gap: 6,
@@ -479,7 +479,7 @@ function gearNowCard(d: GuidePanelData): Node | null {
     : rows.length
       ? overallMark(mean(rows.map((r) => r.you)), mean(rows.map((r) => r.guide)))
       : small(g.unknown?.length ? 'unknown gear' : 'no match', FAINT);
-  const head = (open: boolean): Node => row(text(open ? '▾' : '›', GOLD, { w: 10 }), text('Your gear now', 'white', { font: open ? 'bold' : 'regular' }), open ? undefined : summary, { gap: 6, on: flip, tip: open ? 'Fold' : 'Your worn gear against this setup' });
+  const head = (open: boolean): Node => row(foldChevron(open), text('Your gear now', 'white', { font: open ? 'bold' : 'regular' }), open ? undefined : summary, { gap: 6, on: flip, tip: open ? 'Fold' : 'Your worn gear against this setup' });
   const shut = section([head(false)]);
   if (!rows.length) {
     const why = g.empty ? 'Nothing worn right now. Put your gear on and this fills in a moment later.' : g.unknown?.length ? `Anvil has no stats for ${g.unknown.join(', ')} yet.` : 'Nothing you wear is for this setup’s targets.';
@@ -651,7 +651,8 @@ function setupTab(d: GuidePanelData): Node {
         row(text('COMMUNITY PICKS', FAINT, { font: 'bold' }), undefined, undefined, { pad: 2 }),
         ...d.community.map((c) =>
           row(s32(c.weapon), col([text(c.name, 'white'), small(`${c.used} used`, PROGRESS)], { gap: 1 }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), {
-            bg: 'raised',
+            bg: 'card',
+            edge: LINE,
             pad: 5,
             inset: 6,
             gap: 6,
@@ -665,20 +666,36 @@ function setupTab(d: GuidePanelData): Node {
   return col(parts, { gap: 8 });
 }
 
+/** The accordion's chevron: a gold one pointing down when open (a plugin without the glyph draws ▾), grey right when shut. */
+const foldChevron = (open: boolean): Node =>
+  open
+    ? text('', GOLD, { icon: icon({ glyph: 'chevron-down', w: 10, h: 10, color: GOLD, alt: '▾' }) })
+    : text('', FAINT, { icon: icon({ glyph: 'chevron-right', w: 10, h: 10, color: FAINT }) });
+
 /**
- * A titled card that folds: "▾ Title ....... 3/4" (open) or "› Title" (shut), the house accordion.
- * Open by default; the plugin remembers a fold per guide, level and title.
+ * The house accordion: an outlined card whose header row is "⌄ Title ....... 3/4" (the meta at the
+ * right), a hairline under it, then the body. Shut, it is the header row alone. Open by default; the
+ * plugin remembers a fold per guide, level and title.
  */
 function foldCard(key: string, name: string, right: Node | undefined, body: (Node | null | false | undefined)[]): Node {
   const head = (open: boolean): Node =>
-    row(text(open ? '▾' : '›', GOLD, { w: 10 }), title(name), right, { gap: 6, on: { a: 'flip', key }, tip: open ? 'Fold' : 'Open' });
-  return { t: 'toggle', key, off: section([head(true), ...body], { gap: 8 }), lit: section([head(false)]) };
+    row(foldChevron(open), title(name), right, { gap: 6, pad: 6, inset: 8, on: { a: 'flip', key }, tip: open ? 'Fold' : 'Open' });
+  const shell = (c: Node[]): Node => section(c, { inset: 0, gap: 0 });
+  return {
+    t: 'toggle',
+    key,
+    off: shell([head(true), RULE, col(body, { inset: 8, gap: 6 })]),
+    lit: shell([head(false)]),
+  };
 }
+/** A 1px divider across a card (the line under an accordion's header). */
+const RULE: Node = { t: 'bar', pct: 100, color: LINE, h: 1, bg: 'card' };
 
-/** A numbered step in its own box, the number over the words (they wrap under it, never beside). */
+/** A numbered step: the gold number, the words wrapping beside it (an ordered list, as the mockup has it). */
 const stepBox = (n: number, s: string): Node =>
-  col([small(`Step ${n}`, GOLD, { font: 'bold' }), text(s, 'white', { wrap: W_STEP })], { bg: 'panel', inset: 6, gap: 2 });
-const bullet = (s: string): Node => text(`•  ${s}`, 'white', { wrap: W_CARD });
+  // The number in a column so it sits level with the first line, not the middle of a wrapped step.
+  row(col([text(`${n}.`, GOLD, { font: 'bold', w: 14 })]), text(s, SOFT, { wrap: W_STEP - 2 }), undefined, { gap: 4 });
+const bullet = (s: string): Node => text(`•  ${s}`, SOFT, { wrap: W_CARD - 4 });
 
 /** One written section: its requirement line, then its words, lists, steps and links. */
 function bodyCard(d: GuidePanelData, s: BodySection, i: number): Node {
@@ -711,11 +728,17 @@ function beforeYouGo(d: GuidePanelData): Node | null {
         ? icon({ skill: c.pic.skill })
         : icon({ sprite: QUEST_SPRITE, w: 20, h: 20, or: icon({ glyph: 'star', w: 12, h: 12, color: GOLD }) });
     const mark = c.ok === true ? icon({ glyph: 'check', w: 12, h: 12, color: GREEN }) : c.ok === false ? icon({ glyph: 'close', w: 11, h: 11, color: CORAL }) : undefined;
-    return row(text('', 'muted', { w: 26, align: 'c', icon: pic as Extract<Node, { t: 'icon' }> }), text(c.text, c.ok === false ? 'white' : SOFT, { wrap: 105 }), mark, { gap: 6 });
+    // The tick or cross first (as the mockup lists them), then the thing's picture and its words.
+    return row(
+      row(text('', 'muted', { w: 12, align: 'c', ...(mark ? { icon: mark as Extract<Node, { t: 'icon' }> } : {}) }), text('', 'muted', { w: 26, align: 'c', icon: pic as Extract<Node, { t: 'icon' }> }), undefined, { gap: 4 }),
+      text(c.text, c.ok === false ? 'white' : SOFT, { wrap: 120 }),
+      undefined,
+      { gap: 6 },
+    );
   });
   return foldCard(`guide-sec:${d.id}:${d.tier}:before`, 'Before you go', known ? small(`${done}/${d.checklist.length}`, PROGRESS) : undefined, [
     ...rows,
-    small(known ? 'From your quests, bank and stats' : 'Sign in with the plugin to tick these off', FAINT, { wrap: W_CARD }),
+    small(known ? 'From your quests, bank and stats' : 'Sign in with the plugin to tick these off', FAINT, { wrap: W_CARD - 4 }),
   ]);
 }
 
@@ -809,7 +832,7 @@ export function alternativesUi(d: GuidePanelData, a: PanelAlternatives): Node {
           r.owned ? small('owned ✓', GREEN, { font: 'bold' }) : null,
         ], { gap: 1 }),
         r.inUse ? chip('In use', 'gold') : undefined,
-        { bg: r.inUse ? 'raised' : 'card', ...(r.inUse ? { edge: GOLD } : {}), pad: 5, inset: 6, gap: 6, ...menu },
+        { bg: 'card', edge: r.inUse ? GOLD : LINE, pad: 5, inset: 6, gap: 6, ...menu },
       ),
     );
   }
@@ -894,7 +917,7 @@ const toGuides: Action = { a: 'tab', tab: 'lookup', args: { mode: 'guides' } };
 
 /** A recent guide in the You tab's card: picture, name, its level line. */
 const recentRow = (r: GuideRowData): Node =>
-  row(picWell(r.pic, 28), col([text(r.title, 'white', { wrap: 125 }), r.meta ? small(r.meta, FAINT) : null], { gap: 1 }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), { bg: 'raised', pad: 4, inset: 6, gap: 6, on: openGuide(r.id), tip: `Open ${r.title}` });
+  row(picWell(r.pic, 28), col([text(r.title, 'white', { wrap: 125 }), r.meta ? small(r.meta, FAINT) : null], { gap: 1 }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), { bg: 'card', edge: LINE, pad: 4, inset: 6, gap: 6, on: openGuide(r.id), tip: `Open ${r.title}` });
 
 /**
  * The You tab's guides card, a section like Goals: the route followed ("Next up") when there is one,
@@ -917,11 +940,11 @@ export function nextUpUi(d: NextUpData): Node | null {
     d.next.forEach((n, i) =>
       parts.push(
         row(n.icon ? icon({ item: n.icon, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }), col([text(n.title, 'white', { font: 'bold', wrap: 105 }), n.line ? small(n.line, FAINT, { wrap: 105 }) : null, ...(n.reqs.length ? [small(n.reqs.map((r) => r.text).join(' · '), n.reqs.every((r) => r.met !== false) ? GREEN : PROGRESS, { wrap: 105 })] : [])], { gap: 2 }), undefined, {
-          bg: 'raised',
+          bg: 'card',
           pad: 5,
           inset: 6,
           gap: 6,
-          ...(i === 0 ? { edge: GOLD } : {}),
+          edge: i === 0 ? GOLD : LINE,
         }),
       ),
     );

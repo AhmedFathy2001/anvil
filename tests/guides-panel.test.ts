@@ -166,7 +166,7 @@ test('guide panel: a guide with no setups shows its sections, steps, notes and a
   for (const head of ['About this guide', 'How a raid runs', 'Your first raids', 'Etiquette']) assert.ok(t.includes(head), `section ${head}`);
   assert.ok(!t.includes('Speed runs'), 'the other level stays out');
   assert.ok(t.includes('Base 75+ combat, 70+ Prayer.'), 'the -# requirement line');
-  assert.ok(t.some((s) => s === 'Step 1') && t.some((s) => s.startsWith('Start: the leader')), 'numbered steps in boxes');
+  assert.ok(t.some((s) => s === '1.') && t.some((s) => s.startsWith('Start: the leader')), 'numbered steps');
   assert.ok(t.some((s) => s.startsWith('•  Join learner raids')), 'bullets, marks stripped');
   assert.ok(t.includes('Watch the video on the site'));
   assert.ok(t.some((s) => s.includes('Bring a spare antifire')), 'tips');

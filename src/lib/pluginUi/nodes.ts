@@ -147,7 +147,8 @@ export type Node =
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
       /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
+      /** 'chevron-down': an open accordion's chevron; a plugin without it draws the `alt` (▾). */
+      glyph?: 'check' | 'chevron-right' | 'chevron-down' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
       color?: Color;
       w?: number;
       h?: number;

@@ -63,7 +63,7 @@ test('one row: the item picture, "Name · Item", and a dim line of rate, kill co
     c: {
       t: 'col',
       c: [
-        { t: 'row', l: { t: 'text', s: 'Lcl Member', color: 'white', who: 'Lcl Member', tip: 'Lcl Member' }, c: { t: 'text', s: '· Pet snakeling ×2', color: '#c8c8c8', tip: 'Pet snakeling' }, gap: 3 },
+        { t: 'row', l: { t: 'text', s: 'Lcl Member', color: 'white', who: 'Lcl Member', tip: 'Lcl Member' }, c: { t: 'text', s: '· Pet snakeling ×2', color: '#e0e0e0', tip: 'Pet snakeling' }, gap: 3 },
         { t: 'row', l: { t: 'text', s: '1 in 4,000 · 1,204 kc ·', color: 'muted', font: 'small' }, c: { t: 'text', s: '', color: 'muted', at: '2026-11-17T10:00:00.000Z', font: 'small' }, gap: 3 },
       ],
     },
