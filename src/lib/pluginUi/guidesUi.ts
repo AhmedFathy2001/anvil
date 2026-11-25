@@ -318,7 +318,9 @@ const SPELLBOOK_SPRITE = [780, 1583, 1584, 1711];
 const QUEST_SPRITE = 776;
 
 /** The equipment screen's wells: owned, an owned fallback, not owned. */
-const WELL = { own: '#262626', fallback: '#3a2a14', missing: '#3d1f1c' } as const;
+/** The game's stone interface brown behind equipment, inventory and pouch (older plugins draw no fill). */
+const STONE = '#3e3529';
+const WELL = { own: '#2b241b', fallback: '#3a2a14', missing: '#3d1f1c' } as const;
 const SLOT_PX = 34;
 const SLOT_GAP = 6;
 /** The frame's inset; the gear and inventory frames are centred inside the setup card. */
@@ -580,7 +582,7 @@ function equipmentGrid(d: GuidePanelData): Node {
         }),
       );
     }
-  const frame = col([{ t: 'grid', cols: 3, gap: SLOT_GAP, vgap: SLOT_GAP, c: cells }], { bg: 'raised', edge: '#6b5c45', inset: FRAME_IN });
+  const frame = col([{ t: 'grid', cols: 3, gap: SLOT_GAP, vgap: SLOT_GAP, c: cells }], { bg: STONE, edge: '#14100b', inset: FRAME_IN });
   return centred(frame, 3 * SLOT_PX + 2 * SLOT_GAP + 2 * FRAME_IN + 2);
 }
 
@@ -590,7 +592,7 @@ function inventoryGrid(d: GuidePanelData): Node {
   const cells = Array.from({ length: Math.max(4, Math.ceil((last + 1) / 4) * 4) }, (_, i) => d.inventory[i]).map((it) =>
     it ? icon({ item: it.id, qty: it.q && it.q > 1 ? it.q : undefined, w: 32, h: 28 }) : text('', 'muted', { w: 32 }),
   );
-  const frame = col([{ t: 'grid', cols: 4, gap: 3, vgap: 2, c: cells }], { bg: 'raised', edge: '#6b5c45', inset: FRAME_IN });
+  const frame = col([{ t: 'grid', cols: 4, gap: 3, vgap: 2, c: cells }], { bg: STONE, edge: '#14100b', inset: FRAME_IN });
   return centred(frame, 4 * 32 + 3 * 3 + 2 * FRAME_IN + 2);
 }
 
@@ -628,7 +630,7 @@ function setupTab(d: GuidePanelData): Node {
     card1.push(
       col([
         small(d.pouch.length > 3 ? 'Divine rune pouch' : 'Rune pouch', FAINT),
-        row(col([{ t: 'grid', cols: d.pouch.length, gap: 3, c: d.pouch.map((r) => icon({ item: r.id, qty: r.q, w: 30, h: 27 })) }], { bg: 'raised', edge: '#6b5c45', inset: 4 }), undefined, undefined),
+        row(col([{ t: 'grid', cols: d.pouch.length, gap: 3, c: d.pouch.map((r) => icon({ item: r.id, qty: r.q, w: 30, h: 27 })) }], { bg: STONE, edge: '#14100b', inset: 4 }), undefined, undefined),
       ], { gap: 3 }),
     );
   }
