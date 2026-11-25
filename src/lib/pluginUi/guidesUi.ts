@@ -366,7 +366,8 @@ function copyButton(label: string, d: GuidePanelData, kind: 'banktag' | 'setup' 
   const on: Action = d.phase2
     ? { a: 'copy', path: `/api/plugin/guide-export?guide=${d.id}&setup=${encodeURIComponent(d.current ?? '')}&kind=${kind}&mine=1` }
     : { a: 'site', path: `/guides/${d.slug}` };
-  return button(d.phase2 ? label : `${label} (on the site)`, on, d.phase2 ? undefined : 'Copying straight from the panel comes in the next plugin update');
+  const look = kind === 'banktag' ? 'primary' : kind === 'setup' ? 'outline' : 'plain';
+  return button(d.phase2 ? label : `${label} (on the site)`, on, d.phase2 ? undefined : 'Copying straight from the panel comes in the next plugin update', look);
 }
 
 /** The setup picker: the open setup with "1 of 3 ▾"; a click lists the others to switch to. */

@@ -233,7 +233,7 @@ export type Node =
       step?: number;
       label?: string;
     })
-  | (Common & { t: 'button'; label: string; /** Shown but can't be pressed. */ off?: boolean })
+  | (Common & { t: 'button'; label: string; /** Shown but can't be pressed. */ off?: boolean; /** Look: orange fill, orange outline, or grey outline (older plugins ignore it). */ kind?: 'primary' | 'outline' | 'plain' })
   | (Common & { t: 'gap'; h: number })
   | (Common & {
       t: 'countdown';
@@ -379,7 +379,7 @@ export function eventName(all: readonly { id: number; name: string }[], it: { id
 }
 /** A full-width message card: loading, nothing found, couldn't reach. */
 export const message = (s: string, extra: Node[] = []): View => ({ ui: card([muted(s, { wrap: true }), ...extra]) });
-export const button = (label: string, on: Action, tip?: string): Node => ({ t: 'button', label, on, ...(tip ? { tip } : {}) });
+export const button = (label: string, on: Action, tip?: string, kind?: 'primary' | 'outline' | 'plain'): Node => ({ t: 'button', label, on, ...(tip ? { tip } : {}), ...(kind ? { kind } : {}) });
 
 /** Part of a whole as 0..100, rounded down so a goal never reads as reached before it is. */
 export function percent(part: number, whole: number): number {
