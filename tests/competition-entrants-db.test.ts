@@ -134,14 +134,16 @@ test('all members are entered on accept; a player opts out and back in', async (
   await enrollAllPlayers(c.id);
   assert.deepEqual(await rsnsOf(c.id), ['Gil', 'Gus', 'Gwen', 'Hana', 'Hugo']);
 
-  assert.deepEqual(await T.entryStatus(c.id, { playerId: player.Gus }), { entered: true, optedOut: false });
+  assert.deepEqual(await T.entryStatus(c.id, { playerId: player.Gus }).then(({ entered, optedOut }) => ({ entered, optedOut })), { entered: true, optedOut: false });
   assert.ok((await T.setOptOut(c.id, { playerId: player.Gus }, true)).ok);
   await enrollAllPlayers(c.id); // the sweep must not put them back
   const counting = (await getEffectiveParticipants(c.id)).map((p) => p.rsn).sort();
   assert.deepEqual(counting, ['Gil', 'Gwen', 'Hana', 'Hugo'], 'opted out: off the board');
   const view = (await T.buildGroupStandings(c))!;
   assert.equal(view.groups.find((g) => g.key === clan.guest)!.members, 2);
-  assert.deepEqual(await T.entryStatus(c.id, { playerId: player.Gus }), { entered: true, optedOut: true });
+  assert.deepEqual(await T.entryStatus(c.id, { playerId: player.Gus }).then(({ entered, optedOut }) => ({ entered, optedOut })), { entered: true, optedOut: true });
+  // One character at a time: each seat says where it stands.
+  assert.deepEqual((await T.entryStatus(c.id, { playerId: player.Gus })).seats.map((s) => [s.rsn, s.optedOut]), [['Gus', true]]);
 
   assert.ok((await T.setOptOut(c.id, { playerId: player.Gus }, false)).ok);
   assert.equal((await getEffectiveParticipants(c.id)).length, 5);

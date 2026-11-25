@@ -86,6 +86,16 @@ export async function GET(request: Request) {
   // Where each character this clan reported to Anvil stands (waiting / done / reverted …) — this
   // clan's own reports only (lib/characterReports clanReports).
   const reports = await latestClanReportByAccount(clan.id, [...new Set(rows.map((r) => r.accountId))]);
+  // Play the plugin didn't see (lib/pluginDropoff): when the hiscores last moved, and when they moved
+  // past what the plugin pushed. Read beside the roster view rather than added to it.
+  const accountIds = [...new Set(rows.map((r) => r.accountId))];
+  // clan-scope: this clan -- the accounts behind this clan's own roster rows, read just above.
+  const activity = accountIds.length
+    ? await db.select({ id: accounts.id, statsChangedAt: accounts.statsChangedAt, unseenPlayAt: accounts.unseenPlayAt }).from(accounts).where(inArray(accounts.id, accountIds))
+    : [];
+  const activityOf = new Map(activity.map((a) => [a.id, a]));
+  // A guest seat whose person also holds a member seat here, still in: somebody's alt.
+  const memberPeople = new Set(rows.filter((r) => r.kind === 'member' && !r.leftAt && r.playerId != null).map((r) => r.playerId));
 
   return NextResponse.json(
     rows.map((r) => {
@@ -103,6 +113,9 @@ export async function GET(request: Request) {
         anvilReport: reports.get(r.accountId) ?? null,
         // How the character came in (lib/characterState pathChip): only for one somebody has claimed.
         path: r.claimedAt ? pathOf(r) : null,
+        statsChangedAt: activityOf.get(r.accountId)?.statsChangedAt ?? null,
+        unseenPlayAt: activityOf.get(r.accountId)?.unseenPlayAt ?? null,
+        memberAlt: r.kind === 'guest' && r.playerId != null && memberPeople.has(r.playerId),
       };
     }),
   );

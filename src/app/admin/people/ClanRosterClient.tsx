@@ -76,7 +76,35 @@ interface ClanMember {
   anvilReport?: ClanReportView | null;
   /** How the character came in: plugin, XP check, awaiting a staff vouch, or vouched (PathChip). */
   path?: JoinPath | null;
+  /** When the hiscores sweep last saw their stats move — play the plugin may not have seen. */
+  statsChangedAt?: string | null;
+  /** When the sweep last saw gains the plugin had not pushed: mobile, another client, plugin off. */
+  unseenPlayAt?: string | null;
+  /** A guest whose owner also has a member account here: somebody's alt. */
+  memberAlt?: boolean;
 }
+
+/** The later of two timestamps (either may be missing), as ms. */
+const latestMs = (...at: (string | null | undefined)[]) => Math.max(...at.map((a) => (a ? Date.parse(a) : NaN)).filter(Number.isFinite), -Infinity);
+
+/** How they've been playing lately (14 days): with the plugin, without it, or both. Null = no evidence. */
+type PluginUse = 'plugin' | 'both' | 'without' | 'stopped' | null;
+const RECENT_MS = 14 * 86_400_000;
+function pluginUse(m: Pick<ClanMember, 'liveStatsAt' | 'statsChangedAt' | 'unseenPlayAt'>, now: number): PluginUse {
+  const push = m.liveStatsAt ? Date.parse(m.liveStatsAt) : NaN;
+  const away = latestMs(m.unseenPlayAt, m.liveStatsAt ? null : m.statsChangedAt);
+  const pushedLately = Number.isFinite(push) && now - push < RECENT_MS;
+  const awayLately = Number.isFinite(away) && now - away < RECENT_MS;
+  if (pushedLately) return awayLately ? 'both' : 'plugin';
+  if (awayLately) return Number.isFinite(push) ? 'stopped' : 'without';
+  return null;
+}
+const PLUGIN_USE_LABEL: Record<Exclude<PluginUse, null>, string> = {
+  plugin: 'Plays with the plugin',
+  both: 'Plugin + elsewhere (mobile?)',
+  without: 'Plays, never had the plugin',
+  stopped: 'Stopped using the plugin',
+};
 
 // Staff roles that can be pre-assigned to a roster member (applied when they verify). Mirrors the
 // Users page staff roles so both "Set role" surfaces offer the same tiers. 'none' clears it.
@@ -98,9 +126,10 @@ const QUIET_DAYS = 7;
  * Null means no plugin data at all, which is a different thing from being inactive and must not be
  * counted as either.
  */
-function daysSincePlayed(m: { liveStatsAt: string | null }, now: number): number | null {
-  if (!m.liveStatsAt) return null;
-  const ms = Date.parse(m.liveStatsAt);
+function daysSincePlayed(m: { liveStatsAt: string | null; statsChangedAt?: string | null }, now: number): number | null {
+  // The plugin's push, or the hiscores moving between two sweeps — whichever is later. The second
+  // catches mobile play and a plugin that's off; it is only as fresh as the sweep that saw it.
+  const ms = latestMs(m.liveStatsAt, m.statsChangedAt);
   return Number.isFinite(ms) ? Math.floor((now - ms) / 86_400_000) : null;
 }
 
@@ -282,10 +311,11 @@ function LastPlayed({
   m,
   now,
 }: {
-  m: { liveStatsAt: string | null; lastSeenInClan: string | null };
+  m: { liveStatsAt: string | null; lastSeenInClan: string | null; statsChangedAt?: string | null };
   now: number;
 }) {
   const days = daysSincePlayed(m, now);
+  const fromHiscores = latestMs(m.statsChangedAt) > latestMs(m.liveStatsAt);
   if (days === null) {
     return (
       <span
@@ -296,7 +326,7 @@ function LastPlayed({
             : 'No plugin data.'
         }
       >
-        no plugin data
+        no data yet
       </span>
     );
   }
@@ -308,11 +338,28 @@ function LastPlayed({
   return (
     <span
       className="inline-flex items-center gap-2 text-text-muted tabular-nums"
-      title={m.liveStatsAt ? `Last played ${new Date(m.liveStatsAt).toLocaleString()}` : undefined}
+      title={[
+        m.liveStatsAt ? `Plugin: ${new Date(m.liveStatsAt).toLocaleString()}` : 'Plugin: never',
+        m.statsChangedAt ? `Hiscores moved: ${new Date(m.statsChangedAt).toLocaleString()}` : null,
+      ].filter(Boolean).join('\n')}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${tone}`} />
       {label}
+      {fromHiscores && <span className="text-[10px] text-text-muted/60">hiscores</span>}
     </span>
+  );
+}
+
+/** A column head that sorts the table: click for ascending (last played: newest first), again to flip, a third time to reset. */
+function SortHead<K extends string>({ label, k, sort, onSort }: { label: string; k: K; sort: { key: string; dir: 1 | -1 } | null; onSort: (k: K) => void }) {
+  const on = sort?.key === k;
+  return (
+    <th className="px-4 py-3 font-medium" aria-sort={on ? (sort!.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" onClick={() => onSort(k)} className={`inline-flex items-center gap-1 hover:text-foreground ${on ? 'text-gold' : ''}`}>
+        {label}
+        <span aria-hidden className="text-[10px]">{on ? (sort!.dir === 1 ? '▲' : '▼') : '↕'}</span>
+      </button>
+    </th>
   );
 }
 
@@ -351,6 +398,13 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
   // Secondary filters, applied on top of the status chips: in-game rank + site role.
   const [rankFilter, setRankFilter] = useState<string>('any');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('any');
+  // Inside Guests: who has an Anvil account, and who is a member's alt (kept when the rest go).
+  const [guestSub, setGuestSub] = useState<'all' | 'account' | 'noaccount' | 'alt' | 'notalt'>('all');
+  const [useFilter, setUseFilter] = useState<'any' | Exclude<PluginUse, null> | 'none'>('any');
+  // Click a column head to sort by it; again to flip. Null = the roster's own order (newest first).
+  const [sort, setSort] = useState<{ key: 'rsn' | 'rank' | 'status' | 'source' | 'played'; dir: 1 | -1 } | null>(null);
+  const sortBy = (key: NonNullable<typeof sort>['key']) =>
+    setSort((s) => (s?.key === key ? (s.dir === 1 ? { key, dir: -1 } : null) : { key, dir: key === 'played' ? -1 : 1 }));
 
   // Bulk selection — ids only, so a refetch keeps whatever is still on screen selected.
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -402,7 +456,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return members.filter((m) => {
+    const list = members.filter((m) => {
       if (filter === 'active' && (m.leftAt || m.isGuest)) return false;
       // Everyone the plugin reported but no mod has confirmed yet — the queue this page exists
       // to clear, previously only reachable from another route entirely.
@@ -429,9 +483,32 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         if (rankFilter === 'none' ? !!rank : rank.toLowerCase() !== rankFilter.toLowerCase()) return false;
       }
       if (!matchesRole(m, roleFilter)) return false;
+      if (filter === 'guests' && guestSub !== 'all') {
+        if (guestSub === 'account' && !m.userId) return false;
+        if (guestSub === 'noaccount' && m.userId) return false;
+        if (guestSub === 'alt' && !m.memberAlt) return false;
+        if (guestSub === 'notalt' && m.memberAlt) return false;
+      }
+      if (useFilter !== 'any') {
+        const use = pluginUse(m, nowMs);
+        if (useFilter === 'none' ? use !== null : use !== useFilter) return false;
+      }
       return true;
     });
-  }, [members, search, filter, rankFilter, roleFilter, nowMs]);
+    if (!sort) return list;
+    const statusOf = (m: ClanMember) => (m.leftAt ? 3 : m.provisional ? 1 : m.isGuest ? 2 : 0);
+    const val = (m: ClanMember): string | number =>
+      sort.key === 'rsn' ? m.rsn.toLowerCase()
+      : sort.key === 'rank' ? (m.rank || '\uffff').toLowerCase()
+      : sort.key === 'status' ? statusOf(m)
+      : sort.key === 'source' ? (SOURCE_LABEL[m.source] ?? m.source)
+      : latestMs(m.liveStatsAt, m.statsChangedAt);
+    return [...list].sort((a, b) => {
+      const x = val(a);
+      const y = val(b);
+      return (x < y ? -1 : x > y ? 1 : 0) * sort.dir || a.rsn.localeCompare(b.rsn);
+    });
+  }, [members, search, filter, rankFilter, roleFilter, nowMs, guestSub, useFilter, sort]);
 
   // Rows are drawn in chunks (173 rows was ten thousand elements, the table and the phone cards both).
   // Search and filters above still run over every member; "Show more" draws the next chunk.
@@ -950,6 +1027,31 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
       )}
       {/* Who is on the roster — the shape of it, before the 249 rows of it. */}
       <Composition counts={counts} onPick={setFilter} />
+      {/* Inside Guests: the ones with an Anvil account, and members' alts (the guests a clan keeps). */}
+      {filter === 'guests' && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {([
+            ['all', 'All guests'],
+            ['account', 'Has an Anvil account'],
+            ['noaccount', 'No account'],
+            ['alt', 'A member\u2019s alt'],
+            ['notalt', 'Not an alt'],
+          ] as const).map(([k, label]) => {
+            const n = members.filter((m) => m.isGuest && !m.leftAt && (k === 'all' || (k === 'account' ? !!m.userId : k === 'noaccount' ? !m.userId : k === 'alt' ? !!m.memberAlt : !m.memberAlt))).length;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setGuestSub(k)}
+                aria-pressed={guestSub === k}
+                className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${guestSub === k ? 'border-gold/50 bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:text-foreground'}`}
+              >
+                {label} <span className="opacity-70">({n})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Clan settings — folded away by default; see the header disclosure. */}
 
@@ -995,11 +1097,22 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
               ...ROLE_FILTERS.map((r) => ({ value: r.value, label: r.label })),
             ]}
           />
-          {(rankFilter !== 'any' || roleFilter !== 'any') && (
+          <Select
+            value={useFilter}
+            onChange={(v) => setUseFilter(v as typeof useFilter)}
+            ariaLabel="Filter by how they play"
+            options={[
+              { value: 'any', label: 'Any plugin use' },
+              ...(Object.keys(PLUGIN_USE_LABEL) as Exclude<PluginUse, null>[]).map((k) => ({ value: k, label: PLUGIN_USE_LABEL[k] })),
+              { value: 'none', label: 'No play seen in 14 days' },
+            ]}
+          />
+          {(rankFilter !== 'any' || roleFilter !== 'any' || useFilter !== 'any') && (
             <button
               onClick={() => {
                 setRankFilter('any');
                 setRoleFilter('any');
+                setUseFilter('any');
               }}
               className="px-2 py-1.5 text-xs text-text-muted hover:text-foreground underline decoration-dotted self-start sm:self-auto"
             >
@@ -1176,11 +1289,11 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                     />
                   </th>
                 )}
-                <th className="px-4 py-3 font-medium">RSN</th>
-                <th className="px-4 py-3 font-medium">Rank</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Source</th>
-                <th className="px-4 py-3 font-medium">Last played</th>
+                <SortHead label="RSN" k="rsn" sort={sort} onSort={sortBy} />
+                <SortHead label="Rank" k="rank" sort={sort} onSort={sortBy} />
+                <SortHead label="Status" k="status" sort={sort} onSort={sortBy} />
+                <SortHead label="Source" k="source" sort={sort} onSort={sortBy} />
+                <SortHead label="Last played" k="played" sort={sort} onSort={sortBy} />
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
