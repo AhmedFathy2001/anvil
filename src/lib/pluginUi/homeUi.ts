@@ -21,6 +21,7 @@ import { ordinal } from '@/lib/raceSummary';
 import { type WeeklyGroupsPayload, groupStandingsNodes, yourGroupCard } from './teamStandingsUi';
 import { type PanelHighlights, highlightNodes } from './highlightsUi';
 import { BLUE, CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, big, cells, chip, clip, clock, compactStandings, goldCard, link, more, openRow, pageHead, section, small, standingsCard, stop, thin, title, withMove } from './sections';
+import { bingoSignupCard, weeklyEntryRow, type BingoSignupState, type WeeklyEntryState } from './signupPanelUi';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
 // AnvilSidebarDataSource/ConnectionView): the clan's events as cards, and one event's page — the
@@ -151,6 +152,10 @@ export interface HomeData {
   chatOn?: boolean;
   /** Site path prefix for this clan (`/c/<slug>`), for weekly and event links. */
   clanPath: string;
+  /** The open scheduled board's sign-up (lib/pluginUi/signupPanel); only gathered for its page. */
+  signup?: BingoSignupState | null;
+  /** The open weekly's entry for this character, to opt out or back in; only gathered for its page. */
+  weeklyEntry?: WeeklyEntryState | null;
   now: number;
   /** The clan's events (a mass, a hangout) in the next fortnight, soonest first (lib/clanEvents). */
   clanEvents?: ClanEventView[];
@@ -722,10 +727,15 @@ function clanEventCta(d: HomeData, ce: ClanEventView, open: string, compact: boo
   const done = (label: string, undo: boolean, tip: string): Node => row(chip(label, 'green'), undo ? small('undo', FAINT, { on: post(false), tip }) : undefined, undefined, { gap: 6 });
   const s = ce.signup;
   if (!s) return ce.mine ? done('Going ✓', true, 'Take your name off the list') : tap('I’m going', 'Put your name on the list — your clan sees it here, on the site and in Discord');
-  if (s.myStatus === 'pending' || s.myStatus === 'approved') return done('Registered ✓', s.open && !s.hasForm, 'Withdraw your sign-up');
+  // The host's questions are answered here too (lib/pluginUi/signupPanel clanEventForm).
+  const form: Action = { a: 'load', v: 'clan-event-signup', args: { id: String(ce.id), clan: d.cfg.activeClan?.slug ?? '' } };
+  if (s.myStatus === 'pending' || s.myStatus === 'approved') {
+    const held = done('Registered ✓', s.open, 'Withdraw your sign-up');
+    return s.hasForm && s.open && !compact ? col([held, small('Edit answers', GOLD, { on: form, tip: 'Change what you told the host' })], { gap: 4 }) : held;
+  }
   if (s.myStatus === 'rejected') return small('The host turned this sign-up down', CORAL);
   if (!s.open) return small(s.reason ?? 'Sign-ups are closed', FAINT);
-  if (s.hasForm) return compact ? small('Register on Anvil', GOLD) : d.clanPath ? siteLink('Register on Anvil', 'The host has a few questions — answer them on the site', `${d.clanPath}/clan-events/${ce.id}`) : null;
+  if (s.hasForm) return compact ? text('Register', 'white', { chip: '#5a5a5a', font: 'small', on: form, tip: 'The host has a few questions' }) : button('Register', form, 'The host has a few questions — answer them here');
   return tap('Register', 'Put your name down — the host sees it here, on the site and in Discord');
 }
 
@@ -1242,6 +1252,8 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
         withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move),
         row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(` · ${headcount}`) : undefined, undefined, { gap: 0 }),
       ];
+  // In or out: before it starts as well as while it runs (lib/pluginUi/signupPanel).
+  if (d.weeklyEntry) top.push(weeklyEntryRow(d.weeklyEntry, w.id, upcoming));
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
   parts.push(section(top));
   const targets = huntTargetsCard(w);
@@ -1308,10 +1320,12 @@ function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {
       : s.yourEntry === 'pending'
         ? row(chip('Signed up', 'gold'), muted('waiting for the host to approve'), undefined, { gap: 6 })
         : muted(live ? 'You’re not enrolled in this one.' : 'Sign up on the site to take part.', { wrap: CARD_W });
+  // Sign up right here (lib/pluginUi/signupPanel) while the host takes names; else the line as it was.
+  const signup = d.signup ? bingoSignupCard(d.signup, s.id, back, name, d.cfg.activeClan?.slug ?? '') : null;
   const top: Node[] = [
     live ? (s.endDate ? clock(s.endDate, 'Running · ends in ', 'Ended', d.now, { font: 'bold' }) : big('Running', BLUE)) : clock(s.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }),
     ...(sizeLabel(s) || s.scoringMode === 'points' ? [muted([sizeLabel(s), s.scoringMode === 'points' ? 'points' : null].filter(Boolean).join(' · '))] : []),
-    entry,
+    ...(signup && (d.signup!.status || d.signup!.open) ? [] : [entry]),
     ...gateLine(s),
   ];
   const before: Node[] = [
@@ -1325,6 +1339,7 @@ function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {
   return [
     pageHead(home(), 'All events', scheduledKind(s), name),
     section(top),
+    ...(signup ? [signup] : []),
     section(before),
     siteLink('View event', 'Open this event on the Anvil site', `${d.clanPath}/events/${s.id}`),
   ];

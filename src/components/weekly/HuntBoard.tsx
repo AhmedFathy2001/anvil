@@ -224,10 +224,15 @@ export function HuntStandingsTable({ view }: { view: HuntView }) {
         </div>
       )}
 
-      {/* Your own row, pinned above the list: only when it would otherwise be below the first few, or it is the same row twice. */}
-      {view.me && started && view.rows.findIndex((r) => r.rsn === view.me?.rsn) >= 5 && (
-        <div className="mb-3">
-          <Row row={view.me} view={view} pinned />
+      {/* Your own rows — every character of yours on this hunt — pinned above the list: only the ones
+          that would otherwise be below the first few, so none is the same row twice. */}
+      {started && view.mine.some((m) => view.rows.findIndex((r) => r.rsn === m.rsn) >= 5) && (
+        <div className="mb-3 space-y-2">
+          {view.mine
+            .filter((m) => view.rows.findIndex((r) => r.rsn === m.rsn) >= 5)
+            .map((m) => (
+              <Row key={m.rsn} row={m} view={view} pinned />
+            ))}
         </div>
       )}
 

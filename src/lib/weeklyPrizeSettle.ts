@@ -1,4 +1,5 @@
 import { parsePrizeCurrency } from '@/lib/competitionGame';
+import { guestsIn } from '@/lib/weeklyGuests';
 import { weeklyFeePotGp } from '@/lib/weeklySignups';
 import { and, eq, isNull } from 'drizzle-orm';
 
@@ -85,7 +86,7 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   // Guests rank on the board when the clan allows it, but the coffer is the clan's money — paying a
   // visitor out of it is a decision a host makes deliberately, not one a default should make.
   // An event player's seat is never the clan's: no coffer prize for it.
-  const eligible = rows.filter((r) => r.seatKind !== 'event' && (comp.includeGuests === 1 || r.seatKind !== 'guest'));
+  const eligible = rows.filter((r) => r.seatKind !== 'event' && (guestsIn(comp.includeGuests) || r.seatKind !== 'guest'));
   const byRsn = new Map(eligible.map((r) => [r.rsn, r]));
   // competitionBoard: an item hunt places by its drops (lib/itemHuntDb), everything else by the gain.
   // AN ITEM HUNT PAYS ONLY ON DROPS STAFF HAVE CONFIRMED, and the question is asked of the rows

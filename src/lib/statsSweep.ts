@@ -606,6 +606,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
               statsMissStreak: missStreak,
               statsNextDueAt: nextDueAt(missStreak, new Date(), racing),
               statsPolledAt: new Date().toISOString(),
+              // They played: the hiscores moved since the last look (a first sighting proves nothing).
+              ...(scoresChanged && previous !== null ? { statsChangedAt: new Date().toISOString() } : {}),
               ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
             });
       // The snapshot, only when it would differ. Its own table (schema accountStatSnapshots) so an
@@ -623,7 +625,10 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           const prevEff = previous ? overlaySnapshot(previous, entry.liveMap) : null;
           const curEff = overlaySnapshot(snapshot, entry.liveMap);
           await recordDailyStats({ accountId, snapshot: curEff, previous: prevEff });
-          const found = detectMilestones(prevEff, curEff, computeDeltas(prevEff, curEff));
+          const unseen = computeDeltas(prevEff, curEff);
+          // Gains past what the plugin already pushed: played away from it (mobile, another client).
+          if (prevEff && Object.keys(unseen).length > 0) await updateAccount(accountId, { unseenPlayAt: new Date(ts).toISOString() });
+          const found = detectMilestones(prevEff, curEff, unseen);
           // Announced only when crossed since a recent previous poll (lib/milestoneGate). entry.polledAt
           // was read before this tick wrote statsPolledAt, so it is when `previous` was observed.
           if (found.length > 0) {

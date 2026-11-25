@@ -437,6 +437,13 @@ export const accounts = pgTable('accounts', {
   // reconciled every ~6h instead of every tick (lib/pollLadder sweepDue), and polled once as soon as
   // its pushes stop — logout, mobile play, a client that died mid-race.
   statsPolledAt: text('stats_polled_at'),
+  // When the sweep last saw this account's hiscores MOVE (any XP or kill count), ISO. "Last played"
+  // for someone the plugin never hears from — mobile, another client, the plugin off. 0290.
+  statsChangedAt: text('stats_changed_at'),
+  // When the sweep last saw gains the plugin had NOT already pushed (lib/liveHistory overlay): play
+  // away from the plugin. Beside liveStatsAt it tells "stopped using the plugin" from "plays on
+  // mobile too" (lib/pluginDropoff). 0290.
+  unseenPlayAt: text('unseen_play_at'),
   // The compact activity map derived from the last snapshot — a few hundred bytes, read by the member
   // directory. The snapshot ITSELF is not here: see accountStatSnapshots.
   statsActivities: text('stats_activities'),

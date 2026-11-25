@@ -96,6 +96,17 @@ export default function SignupFieldsCard({ eventId }: { eventId: number }) {
         ))}
       </ul>
 
+      {/* Not a question: who can see the list. Its own line so it doesn't read as one more field. */}
+      <div className="mt-4 border-t border-card-border pt-3">
+        <Checkbox
+          checked={fields.publicList}
+          onChange={(on) => toggle('publicList', on)}
+          disabled={busy}
+          label="Show who's signed up"
+          description="Everyone sees the names on the event page and in the RuneLite panel, so people can join their friends. Answers stay private."
+        />
+      </div>
+
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </div>
   );

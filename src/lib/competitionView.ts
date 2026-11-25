@@ -122,6 +122,8 @@ export interface CompetitionView {
   previous: { title: string; total: number; deltaPct: number } | null;
   /** The viewer's own row, if they're in it. */
   me: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null } | null;
+  /** Every one of the viewer's characters on the board, best placed first (`me` is the first). */
+  mine: { rank: number; entry: CompetitionEntry; behind: { rsn: string; amount: number } | null }[];
   milestones: CompetitionMilestone[];
   /**
    * Pets, uniques and deaths this competition's own content produced while it ran (lib/moments).
@@ -346,6 +348,9 @@ export async function buildCompetitionView(
   const me = place
     ? { rank: place.rank, entry: entries[place.rank - 1], behind: place.behind }
     : null;
+  const mine = entries.flatMap((e, i) =>
+    myRsns.has(e.rsn) ? [{ rank: i + 1, entry: e, behind: i > 0 ? { rsn: entries[i - 1].rsn, amount: entries[i - 1].gained - e.gained } : null }] : [],
+  );
 
   const milestones = await loadMilestones(accountIds, rsnByAccount, competition, days, type, metric);
   const highlights = await loadHighlights(competition.id);
@@ -372,6 +377,7 @@ export async function buildCompetitionView(
     projected,
     previous,
     me,
+    mine,
     milestones,
     highlights,
     bestDrops,

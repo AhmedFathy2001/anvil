@@ -14,12 +14,84 @@ export default function OptOutToggle({
   competitionId,
   initialOptedOut,
   compact = false,
+  seats = [],
 }: {
   competitionId: number;
   initialOptedOut: boolean;
   /** One line, for the events list. */
   compact?: boolean;
+  /** Each of your characters entered (lib/competitionTeamsDb entryStatus). Two or more: one switch each. */
+  seats?: { seatId: number; rsn: string; optedOut: boolean }[];
 }) {
+  if (!compact && seats.length > 1) return <PerCharacter competitionId={competitionId} initial={seats} />;
+  return <Whole competitionId={competitionId} initialOptedOut={initialOptedOut} compact={compact} />;
+}
+
+/** Several characters entered: each one in or out on its own, so an alt can sit this one out. */
+function PerCharacter({ competitionId, initial }: { competitionId: number; initial: { seatId: number; rsn: string; optedOut: boolean }[] }) {
+  const router = useRouter();
+  const [seats, setSeats] = useState(initial);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function flip(seatId: number, optOut: boolean) {
+    setBusy(seatId);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/weekly/${competitionId}/opt-out`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optOut, seatId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'That didn’t work');
+      if (Array.isArray(data.seats)) setSeats(data.seats);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const inCount = seats.filter((s) => !s.optedOut).length;
+  return (
+    <div className="mb-5 rounded-xl border border-accent-green/25 bg-gradient-to-r from-accent-green/10 to-card-bg px-4 py-3">
+      <div className="mb-2 flex items-center gap-3">
+        <span className="h-5 w-1 rounded-full bg-gold" />
+        <span className="text-sm">
+          <b>{inCount === 0 ? "You've opted out" : `${inCount} of ${seats.length} of your characters are in`}</b>
+          <span className="text-text-muted"> — each one counts on its own.</span>
+        </span>
+      </div>
+      <ul className="divide-y divide-card-border/60">
+        {seats.map((s) => (
+          <li key={s.seatId} className="flex items-center justify-between gap-3 py-1.5">
+            <span className="min-w-0 truncate text-sm">
+              {s.rsn}
+              <span className={`ml-2 text-xs ${s.optedOut ? 'text-text-muted' : 'text-accent-green-light'}`}>{s.optedOut ? 'opted out' : 'in'}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => flip(s.seatId, !s.optedOut)}
+              disabled={busy != null}
+              className={
+                s.optedOut
+                  ? 'rounded-lg bg-gold px-2.5 py-1 text-xs font-semibold text-brown-dark hover:bg-gold/90 disabled:opacity-50 max-sm:min-h-11'
+                  : 'rounded-lg border border-card-border px-2.5 py-1 text-xs text-text-muted hover:border-red-400/50 hover:text-red-300 disabled:opacity-50 max-sm:min-h-11'
+              }
+            >
+              {s.optedOut ? 'Opt back in' : 'Opt out'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
+    </div>
+  );
+}
+
+function Whole({ competitionId, initialOptedOut, compact }: { competitionId: number; initialOptedOut: boolean; compact: boolean }) {
   const router = useRouter();
   const [optedOut, setOptedOut] = useState(initialOptedOut);
   const [busy, setBusy] = useState(false);

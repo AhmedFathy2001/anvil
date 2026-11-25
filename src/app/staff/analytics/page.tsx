@@ -7,6 +7,7 @@ import { conversionRate, sourceLabel } from '@/lib/analyticsSource';
 import { analyticsOverview, clanSources, type DailyPoint } from '@/lib/analyticsRead';
 import { foundViaLabel } from '@/lib/noticeRules';
 import { pluginUsersNow } from '@/lib/pluginUsersRead';
+import { DROPOFF_WINDOW_DAYS, pluginDropoff } from '@/lib/pluginDropoff';
 import MessageOwnerButton from '../_components/MessageOwnerButton';
 import { lastOwnerMessages } from '@/lib/staffMessage';
 import { parseWindow, worstStep, WINDOWS, type FunnelRow } from '@/lib/analyticsFunnels';
@@ -43,6 +44,8 @@ export default async function StaffAnalyticsPage({
   const days = parseWindow(sp.days);
   const tab: AnalyticsTab = ANALYTICS_TABS.some((t) => t.key === sp.tab) ? (sp.tab as AnalyticsTab) : 'adoption';
   const [a, o, plugin, sourceRows] = await Promise.all([analyticsOverview(days), ownerOverview(days), pluginUsersNow(), clanSources().catch(() => [])]);
+  // Only the Plugin tab reads it (lib/pluginDropoff): a scan of every account with recent play.
+  const dropoff = tab === 'plugin' ? await pluginDropoff().catch(() => null) : null;
   const grid = featureGrid(a.features, a.clanActivity.filter((c) => c.status === 'active'));
   const activeNow = new Set(a.clanActivity.filter((c) => c.pluginUsers7d > 0).map((c) => c.id));
   const lastSent = tab === 'journeys' ? await lastOwnerMessages(o.clanJourney.map((c) => c.id)) : {};
@@ -467,6 +470,60 @@ export default async function StaffAnalyticsPage({
           </Card>
         </div>
       </Section>
+
+      {dropoff && (
+        <Section title={`Who plays without the plugin — last ${DROPOFF_WINDOW_DAYS} days`}>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+            <Card>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Plugin only', sub: 'every gain came through the plugin', v: dropoff.pluginOnly },
+                  { label: 'Plugin + elsewhere', sub: 'also gains it never saw — mobile, most likely', v: dropoff.pluginAndElsewhere },
+                  { label: 'Stopped using it', sub: `still playing, no push in ${DROPOFF_WINDOW_DAYS}d`, v: dropoff.stopped },
+                  { label: 'Never had it', sub: 'playing, never a push', v: dropoff.neverPlugin },
+                ].map((x) => (
+                  <div key={x.label}>
+                    <div className="text-2xl font-semibold tabular-nums text-gold">{x.v.toLocaleString()}</div>
+                    <div className="mt-1 text-sm">{x.label}</div>
+                    <div className="text-xs text-text-muted">{x.sub}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-text-muted">
+                From the hiscores sweep: gains past what the plugin pushed count as play away from it. Only as fresh as the sweep that
+                saw them, and a mobile-only player looks the same as one without the plugin.
+              </p>
+            </Card>
+            <Card>
+              <h3 className="text-sm font-semibold">Stopped using the plugin, most recent first</h3>
+              {dropoff.recentStoppers.length === 0 ? (
+                <Empty />
+              ) : (
+                <table className="mt-2 w-full text-sm">
+                  <thead className="text-left text-xs text-text-muted">
+                    <tr>
+                      <th className="py-1.5 font-medium">Character</th>
+                      <th className="py-1.5 pl-3 font-medium">Clan</th>
+                      <th className="py-1.5 pl-3 text-right font-medium">Last push</th>
+                      <th className="py-1.5 pl-3 text-right font-medium">Last played</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dropoff.recentStoppers.map((s) => (
+                      <tr key={s.rsn} className="border-t border-card-border">
+                        <td className="py-1.5 pr-2 font-mono text-xs text-gray-200">{s.rsn}</td>
+                        <td className="py-1.5 pl-3 text-xs text-text-muted">{s.clans || '—'}</td>
+                        <td className="py-1.5 pl-3 text-right tabular-nums">{s.lastPush.slice(0, 10)}</td>
+                        <td className="py-1.5 pl-3 text-right tabular-nums">{s.lastPlay.slice(0, 10)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Card>
+          </div>
+        </Section>
+      )}
 
       <Section title="Plugin features">
         <Card>

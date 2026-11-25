@@ -3,10 +3,11 @@
 // Same shape as lib/eventStageCounts does for a board: one cached set of queries per request, so
 // the rail, the lifecycle strip and the page body all agree and none of them re-queries.
 
+import { isMemberAltSql } from '@/lib/weeklyGuests';
 import { cache } from 'react';
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { WeeklyCounts } from '@/lib/weeklyStage';
 
 /**
@@ -49,6 +50,8 @@ export interface WeeklyStanding {
    * with the plugin, and two nulls are two unknowns rather than one person.
    */
   playerId: number | null;
+  /** A guest seat whose person also has a member seat in that clan: somebody's alt (lib/weeklyGuests). */
+  memberAlt: boolean;
 }
 
 export const getWeeklyStandings = cache(async (competitionId: number): Promise<WeeklyStanding[]> => {
@@ -68,6 +71,7 @@ export const getWeeklyStandings = cache(async (competitionId: number): Promise<W
       leftAt: clanRoster.leftAt,
       kind: clanRoster.kind,
       playerId: clanRoster.playerId,
+      memberAlt: sql<boolean>`coalesce(${isMemberAltSql()}, false)`,
     })
     .from(weeklyParticipants)
     .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
@@ -91,6 +95,7 @@ export const getWeeklyStandings = cache(async (competitionId: number): Promise<W
       lastUpdated: r.lastUpdated,
       kind: r.kind,
       playerId: r.playerId,
+      memberAlt: !!r.memberAlt,
     }))
     .sort((a, b) => b.gained - a.gained || a.rsn.localeCompare(b.rsn));
 });

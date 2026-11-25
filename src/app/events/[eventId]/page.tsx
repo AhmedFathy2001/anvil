@@ -36,6 +36,7 @@ import { parseStamp } from '@/lib/dbTime';
 import { tileKindKey } from '@/lib/tileKinds';
 import { isManualTile } from '@/lib/clogManual';
 import { signupWindowState, signupEditState } from '@/lib/signup';
+import { signedUpNames } from '@/lib/signupPublicList';
 import { countPaidEntries, computePrizePool } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
 import { placementAmounts } from '@/lib/payouts';
@@ -459,6 +460,8 @@ export default async function EventScoreboardPage({
   // tile content must never reach the client. Staff keep the full board. The aggregate counts
   // (hidden count, next reveal time) are safe to share and feed the board's countdown banner.
   const rules = parseEventRules(event.rules);
+  // Shown until the board ends; after that the standings say who played.
+  const publicNames = rules.signupFields.publicList && !isEventEnded(event) ? await signedUpNames(event.id) : null;
   // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
   // (lib/moments isEventFeedWorthy) — never any part of the scoring.
   // Back-to-back repeats (someone's run of deaths) collapse to one line with a count (lib/feedRuns)
@@ -897,6 +900,16 @@ export default async function EventScoreboardPage({
         feeText={feeLabel(event)}
         signupClosesAt={event.signupDeadline ?? event.startDate}
       />
+      )}
+      {/* The host shows who's in (Sign-up settings → Show who's signed up): names only, so friends find each other. */}
+      {publicNames && publicNames.length > 0 && (
+        <div className="mb-6 rounded-xl border border-card-border bg-card-bg p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="h-5 w-1 bg-gold" />
+            <h2 className="text-sm font-semibold text-white">Signed up · {publicNames.length}</h2>
+          </div>
+          <p className="text-sm leading-relaxed text-text-muted">{publicNames.join(', ')}</p>
+        </div>
       )}
       {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
           rather than two stacked gold banners shouting the same "event ended" note twice. */}

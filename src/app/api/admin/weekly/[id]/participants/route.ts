@@ -1,4 +1,5 @@
 import { competitionStat } from '@/lib/weeklyMetric';
+import { GUEST_MODE_VALUE, guestMode } from '@/lib/weeklyGuests';
 import { metricKeys } from '@/lib/constants';
 import { NextResponse } from 'next/server';
 import { competitionForRequest } from '@/lib/eventScope';
@@ -51,7 +52,7 @@ export async function GET(
   // created. Missing row → treat as included, matching the column default.
   const compRow = await competitionForRequest(request, compId);
   if (!compRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const trackGuests = compRow.includeGuests !== 0;
+  const guests = guestMode(compRow.includeGuests);
   const baseClause = and(
     eq(clanRoster.clanId, compRow.clanId),
     isNull(clanRoster.leftAt),
@@ -62,18 +63,19 @@ export async function GET(
   // Pull the FULL active roster (guests included) so exclusions are named, not invisible —
   // "124 of 125" is usually one member sitting outside the enrollment filter.
   const fullRoster = await db
-    .select({ rsn: clanRoster.rsn, kind: clanRoster.kind, status: clanRoster.status })
+    .select({ rsn: clanRoster.rsn, kind: clanRoster.kind, status: clanRoster.status, playerId: clanRoster.playerId })
     .from(clanRoster)
     // baseClause carries eq(clanRoster.clanId, compRow.clanId) — see above.
     .where(baseClause);
-  const roster = trackGuests ? fullRoster : fullRoster.filter((m) => m.kind === 'member');
+  // 'alts': a guest counts only when the same person has a member seat here (lib/weeklyGuests).
+  const memberPeople = new Set(fullRoster.filter((m) => m.kind === 'member' && m.playerId != null).map((m) => m.playerId));
+  const roster = fullRoster.filter((m) => m.kind === 'member' || guests === 'all' || (guests === 'alts' && m.playerId != null && memberPeople.has(m.playerId)));
   const enrolledNorm = new Set(participants.map((r) => r.rsnNormalized));
   const notEnrolled = roster.filter((m) => !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
   // Active members excluded from auto-enrollment by this comp's guest setting (named so the admin
   // can add them manually or clear their guest flag).
-  const guestsExcluded = trackGuests
-    ? []
-    : fullRoster.filter((m) => m.kind === 'guest' && !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
+  const inRoster = new Set(roster.map((m) => m.rsn));
+  const guestsExcluded = fullRoster.filter((m) => m.kind === 'guest' && !inRoster.has(m.rsn) && !enrolledNorm.has(normalizeRsn(m.rsn))).map((m) => m.rsn);
   // Every guest on the roster who is not in, whatever the comp's blanket setting says. `guestsExcluded`
   // above answers "who did the switch keep out"; this answers "who could I add", which is the
   // question when the switch is ON and somebody joined after the fanout ran.
@@ -301,6 +303,10 @@ export async function DELETE(
   // deleted and the cron's enrollment pass put every guest straight back on the next tick.
   if (body.dropGuests === true) {
     await db.update(weeklyCompetitions).set({ includeGuests: 0 }).where(eq(weeklyCompetitions.id, compId));
+  }
+  // "Drop guests who aren't alts" keeps members' alts racing: the sweep then only enters those.
+  if (body.dropGuests === 'non-alts') {
+    await db.update(weeklyCompetitions).set({ includeGuests: GUEST_MODE_VALUE.alts }).where(eq(weeklyCompetitions.id, compId));
   }
 
   return NextResponse.json({ removed: removed.length });
