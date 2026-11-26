@@ -32,8 +32,9 @@ export async function GET(request: Request, ctx: { params: Promise<{ v: string }
     Vary: 'Accept-Encoding',
   };
   if (request.headers.get('if-none-match') === headers.ETag) return new NextResponse(null, { status: 304, headers });
-  if (/\bgzip\b/.test(request.headers.get('accept-encoding') ?? '')) {
-    return new NextResponse(new Uint8Array(full.gz), { headers: { ...headers, 'Content-Encoding': 'gzip' } });
-  }
+  // Plain JSON only. Serving the pre-gzipped bytes with Content-Encoding: gzip got compressed a
+  // second time on the way out (the proxy in front of the app), and a client without
+  // Accept-Encoding got gzip bytes with no header at all: either way the plugin read garbage, so a
+  // fresh list (a new install, a new site) never loaded. The proxy compresses this itself.
   return new NextResponse(full.json ?? gunzipSync(full.gz).toString(), { headers });
 }
