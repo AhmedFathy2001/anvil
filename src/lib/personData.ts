@@ -301,7 +301,7 @@ export const PERSON_DATA: PersonDataEntry[] = [
     ['event_editors', 'granted_by_user_id'], ['event_invites', 'invited_by_user_id'], ['event_presets', 'created_by_user_id'], ['event_start_proofs', 'reviewed_by'],
     ['event_webhooks', 'created_by_user_id'], ['gear_datasets', 'created_by_user_id'], ['gear_overrides', 'updated_by_user_id'],
     ['guide_bulk_runs', 'created_by_user_id'], ['guide_contributions', 'reviewed_by_user_id'], ['guide_writer_awards', 'granted_by_user_id'],['guide_posts', 'posted_by_user_id'], ['guide_proposals', 'reviewed_by_user_id'],
-    ['guide_revisions', 'edited_by_user_id'], ['guides', 'created_by_user_id'], ['guides', 'updated_by_user_id'], ['h2h_challenges', 'challenger_user_id'],
+    ['guide_revisions', 'edited_by_user_id'], ['guide_pieces', 'created_by_user_id'], ['guide_pieces', 'updated_by_user_id'], ['guide_piece_overrides', 'created_by_user_id'], ['guide_piece_overrides', 'updated_by_user_id'], ['guide_piece_revisions', 'edited_by_user_id'], ['guides', 'created_by_user_id'], ['guides', 'updated_by_user_id'], ['h2h_challenges', 'challenger_user_id'],
     ['lab_scenarios', 'updated_by'], ['library_boards', 'published_by_user_id'], ['library_proposals', 'reviewed_by_user_id'],
     ['hunt_drops', 'requested_by_user_id'], ['hunt_drops', 'decided_by_user_id'],
     ['weekly_participants', 'entered_by_user_id'], ['weekly_participants', 'fee_collected_by_user_id'], ['weekly_participants', 'fee_confirmed_by_user_id'],
