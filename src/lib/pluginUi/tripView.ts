@@ -166,7 +166,8 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const readAt = [snap.equipment?.readAt, snap.inventory?.readAt].filter((x): x is string => !!x).sort().pop() ?? '';
   const age = Date.now() - Date.parse(readAt);
   if (!Number.isFinite(age) || age > STALE_MS) return { data: { ...withContent, status: 'stale', age: Number.isFinite(age) ? ago(age) : undefined }, warn: null, armed };
-  if (content && freshPush(request) && age > BEHIND_MS) return { data: { ...withContent, status: 'behind', checkedAt: readAt.slice(11, 16) }, warn: null, armed };
+  // After a save or forget (`note`) no push came first: the items are what the action used.
+  if (content && !note && freshPush(request) && age > BEHIND_MS) return { data: { ...withContent, status: 'behind', checkedAt: readAt.slice(11, 16) }, warn: null, armed };
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
   const [state, own, nm] = await Promise.all([tripStateForViewer(viewer.userId, viewer.accountId), ownTripSetup(viewer.userId, viewer.accountId, content.key), itemNames()]);
