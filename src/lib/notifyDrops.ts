@@ -1,4 +1,5 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
+import { onAlwaysNotify } from '@/lib/alwaysNotify';
 import { parseStamp } from '@/lib/dbTime';
 import type { GuaranteedDrops } from '@/lib/dropFacts';
 import { bossKeyForSource } from '@/lib/itemHunt';
@@ -191,7 +192,7 @@ export interface JudgeContext {
   mode: { dropMinValue: number | null; dropRarityFloor: number | null; dropBoth?: boolean } | null | undefined;
   guaranteed: GuaranteedDrops | null | undefined;
   nameOf: (id: number) => string | undefined;
-  /** The clan's always-post list, lower case. Absent: every always-post item is the clan's. */
+  /** The clan's always-post list, lower case, matched partially (lib/alwaysNotify). Absent: every always-post item is the clan's. */
   clanAlways?: Set<string>;
 }
 
@@ -425,7 +426,8 @@ function clanTakes(c: DropCandidate, ctx: JudgeContext): boolean {
   if (c.notable === 'loot' && ctx.clanAlways) {
     // An item on the person's own list and not the clan's posts to their own webhooks only.
     const it = c.items[0];
-    return !!it && ctx.clanAlways.has(it.name.trim().toLowerCase());
+    // Partial, as the plugin matched it: "Dizana's quiver" covers the "(uncharged)" the chest awards.
+    return !!it && onAlwaysNotify(it.name, ctx.clanAlways);
   }
   if (c.notable || c.key) return true;
   return !!judgeDrop(c, ctx, dropGates({ dropMin: null, rarity: null, dropMode: null, dropBig: null }, ctx.clan));
