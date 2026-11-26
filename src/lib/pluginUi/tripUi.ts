@@ -5,20 +5,26 @@
 //   Pre-trip check                                ↻
 //   Trip: ToA · picked from the ToA lobby · change
 //   (away from a trip region: "Checking for: Doom (last trip) · change   clear", lib/tripTarget)
-//   ┌ 2 problems ─────────────────────────────────┐
-//   │ Checked against the guide's Advanced setup   │
-//   │ ▣ No stab weapon: Kephri (Fang in bank)    ✕ │
-//   │ ▣ Rune pouch: no Death runes               ✕ │
-//   │ ✓ 9 checks met ›                             │
-//   │ Switches 5 slots · 19 free for supplies      │
+//   ┌ 5 problems · 4 in your bank · 2 not owned ──┐
+//   │ Checked against your own saved setup · 18:42 │
+//   │      [equipment screen, wells coloured]      │   green packed, amber in bank, red not owned
+//   │      Legs: your options (a slot clicked)     │   owned items best first, DPS delta
+//   │      [28-slot inventory]   Rune pouch […]    │
+//   │ ✕ On Standard · setup needs Arceuus          │   what no slot shows
+//   │ [Show missing in bank]  Show my setup        │
+//   │ List ›                                       │   the same check as words, folded
 //   └──────────────────────────────────────────────┘
 //   [ Check again ]  [ Save what I'm wearing as my ToA setup ]
 //
-// Only the failing rows are open; the rest fold to "✓ N checks met". No combat cues, ever.
+// A slot's click lists the player's own options for it; a pick re-checks with it (`swap`), "Reset"
+// drops the picks and saving keeps them. Without a layout (no setup laid out) the rows are listed as
+// before: failing open, the rest folded to "✓ N checks met". No combat cues, ever.
 
 import { button, col, icon, row, text, type Action, type Node } from './nodes';
 import { CARD_W, CORAL, FAINT, GOLD, GREEN, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BankLayout, TripCheck, TripRow, TripSource } from '@/lib/tripCheck';
+import type { Have, LayoutItem, TripLayout } from '@/lib/tripLayout';
+import { SLOT_NAME } from '@/lib/slotNames';
 
 export interface TripPanelData {
   /** The region the plugin sent ('' when none). */
@@ -50,14 +56,31 @@ export interface TripPanelData {
   fromTarget?: boolean;
   /** The plugin can filter its bank (X-Anvil-Bank-Filter): missing rows and "Show missing in bank" do. */
   bankFilter?: boolean;
+  /** The setup laid out as the game does (lib/tripLayout): drawn instead of a row per item. */
+  layout?: TripLayout | null;
+  /** Item names for the layout's tips. */
+  names?: Record<number, string>;
+  /** The player's picks over the setup, "head:26382,weapon:26219" ('' none): kept on every load. */
+  swap?: string;
+  /** A slot's owned alternatives, best first (the slot clicked). */
+  alts?: { slot: string; rows: { id: number; name: string; here: boolean; current: boolean; delta: string; ammo?: number; ammoName?: string }[]; more: number } | null;
 }
 
 const W = CARD_W;
 const PICK_KEY = 'trip-pick';
 const OK_KEY = 'trip-ok';
+const LIST_KEY = 'trip-list';
 
 const regionArgs = (d: TripPanelData, extra: Record<string, string> = {}): Record<string, string> => ({ ...(d.region ? { region: d.region } : {}), ...extra });
-const again = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', ...(d.content && !d.fromRegion && !d.fromTarget ? { content: d.content.key } : {}) }) });
+/** The card again: the same trip and the player's picks, with `extra` (a slot opened, a pick taken). */
+const view = (d: TripPanelData, extra: Record<string, string> = {}, swap = d.swap ?? ''): Action => ({
+  a: 'load',
+  v: 'trip',
+  args: regionArgs(d, { why: 'manual', ...(d.content && !d.fromRegion && !d.fromTarget ? { content: d.content.key } : {}), ...(swap ? { swap } : {}), ...extra }),
+});
+const again = (d: TripPanelData): Action => view(d);
+/** The picks with `slot` set to `id`. */
+const withPick = (swap: string | undefined, slot: string, id: number): string => [...(swap ?? '').split(',').filter((p) => p && !p.startsWith(`${slot}:`)), `${slot}:${id}`].join(',');
 /** Make it the next-trip target: checked at whichever bank the player gears up at. */
 const aim = (d: TripPanelData, key: string): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: key }) });
 const clearAim = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: 'clear' }) });
@@ -174,6 +197,119 @@ function checkCard(d: TripPanelData, c: TripCheck): Node {
   );
 }
 
+// ── The setup as the game lays it out ─────────────────────────────────────────────────────────
+
+/** The equipment screen's rows (as guidesUi's): quiver above ammo. */
+const SLOT_ROWS: (string | null)[][] = [
+  [null, 'head', 'quiver'],
+  ['cape', 'neck', 'ammo'],
+  ['weapon', 'body', 'shield'],
+  [null, 'legs', null],
+  ['hands', 'feet', 'ring'],
+];
+/** The game's empty-slot pictures (RuneLite SpriteID.EQUIPMENT_SLOT_*). */
+const SLOT_SPRITE: Record<string, number> = { head: 156, cape: 157, neck: 158, weapon: 159, ring: 160, body: 161, shield: 162, legs: 163, hands: 164, feet: 165, ammo: 166 };
+const STONE = '#3e3529';
+const EMPTY = '#2b241b';
+/** A slot's ground: green worn or packed, amber in the bank (take it), red not owned. */
+const GROUND: Record<Have, `#${string}`> = { here: '#24401f', bank: '#5a3d0e', none: '#561f1a' };
+const HAVE_WORDS: Record<Have, string> = { here: 'you have it', bank: 'in your bank: take it', none: 'not owned' };
+const SLOT_PX = 34;
+const INV_PX = 32;
+
+const nameIn = (d: TripPanelData, id: number) => d.names?.[id] ?? `Item ${id}`;
+
+function well(d: TripPanelData, it: LayoutItem, px: number, where: string, on?: Action): Node {
+  return text('', 'white', {
+    ...(on ? { on } : {}),
+    chip: GROUND[it.have],
+    w: px,
+    align: 'c',
+    icon: { t: 'icon', item: it.id, ...(it.q ? { qty: it.q } : {}), w: px - 4, h: px - 7, ...(it.have === 'none' ? { dim: true } : {}) },
+    tip: `${where}${nameIn(d, it.id)} · ${HAVE_WORDS[it.have]}${on ? ' · click for your other options' : ''}`,
+  });
+}
+
+/** `node` of `width` px centred in the card. */
+const centred = (node: Node, width: number): Node => row(text('', 'muted', { w: Math.max(0, Math.floor((W - width) / 2)) }), row(node, undefined, undefined, { gap: 0 }), undefined, { gap: 0 });
+
+function wornGrid(d: TripPanelData, l: TripLayout): Node {
+  const cells: Node[] = [];
+  for (const r of SLOT_ROWS)
+    for (const slot of r) {
+      const it = slot === 'quiver' ? l.quiver : slot ? l.worn[slot] : undefined;
+      if (!slot || (slot === 'quiver' && !it)) cells.push(text('', 'muted', { w: SLOT_PX }));
+      else if (!it) cells.push(text('', 'muted', { chip: EMPTY, w: SLOT_PX, align: 'c', icon: { t: 'icon', sprite: SLOT_SPRITE[slot] ?? 170 }, tip: `${SLOT_NAME[slot] ?? slot}: empty · click for your options`, ...(slot === 'quiver' ? {} : { on: view(d, { alt: slot }) }) }));
+      else cells.push(well(d, it, SLOT_PX, `${SLOT_NAME[slot] ?? slot}: `, slot === 'quiver' ? undefined : view(d, d.alts?.slot === slot ? {} : { alt: slot })));
+    }
+  return centred(col([{ t: 'grid', cols: 3, gap: 6, vgap: 6, c: cells }], { bg: STONE, edge: '#14100b', inset: 6 }), 3 * SLOT_PX + 12 + 14);
+}
+
+function invGrid(d: TripPanelData, l: TripLayout): Node {
+  const cells = l.inventory.map((it) => (it ? well(d, it, INV_PX, '') : text('', 'muted', { w: INV_PX })));
+  return centred(col([{ t: 'grid', cols: 4, gap: 3, vgap: 3, c: cells }], { bg: STONE, edge: '#14100b', inset: 6 }), 4 * INV_PX + 9 + 14);
+}
+
+/** "Rune pouch" with its runes. */
+function pouchStrip(d: TripPanelData, l: TripLayout): Node | null {
+  if (!l.pouch.length) return null;
+  return row(small(l.pouch.length > 3 ? 'Divine rune pouch' : 'Rune pouch', FAINT, { w: 62, wrap: 62 }), col([{ t: 'grid', cols: l.pouch.length, gap: 3, c: l.pouch.map((p) => well(d, p, 30, 'Rune pouch: ')) }], { bg: STONE, edge: '#14100b', inset: 4 }), undefined, { gap: 6 });
+}
+
+/** A clicked slot's options: what the player owns for it, best first, with what each does to DPS. */
+function altsList(d: TripPanelData): Node | null {
+  const a = d.alts;
+  if (!a) return null;
+  const label = SLOT_NAME[a.slot] ?? a.slot;
+  const rows = a.rows.map((x) =>
+    row(
+      icon({ item: x.id, w: 26, h: 23 }),
+      col([text(x.name, x.current ? GREEN : 'white', { font: 'small', wrap: 112 }), small(x.current ? 'In this setup' : [x.delta, x.here ? 'packed' : 'in your bank'].filter(Boolean).join(' · '), x.current ? FAINT : SOFT), x.ammo ? small(`with ${x.ammoName ?? 'its ammo'}`, FAINT, { wrap: 112 }) : null], { gap: 1 }),
+      undefined,
+      { gap: 6, bg: 'raised', pad: 2, inset: 4, ...(x.current ? {} : { on: view(d, {}, x.ammo ? withPick(withPick(d.swap, a.slot, x.id), 'ammo', x.ammo) : withPick(d.swap, a.slot, x.id)), tip: `Use ${x.name} for ${label}` }) },
+    ),
+  );
+  return col(
+    [
+      row(small(`${label}: your options`, SOFT, { font: 'bold' }), undefined, small('close', GOLD, { on: view(d), tip: 'Close the list' }), { gap: 6 }),
+      ...(rows.length ? rows : [small(`Nothing you own goes in ${label}.`, FAINT, { wrap: W })]),
+      a.more ? small(`+${a.more} more you own`, FAINT) : null,
+    ].filter((x): x is Node => !!x),
+    { gap: 4 },
+  );
+}
+
+const legend = (l: TripLayout): Node =>
+  row(chip('Have', 'green'), row(l.inBank ? chip('In bank', 'gold') : undefined, l.notOwned ? chip('Not owned', 'coral') : undefined, undefined, { gap: 4 }), undefined, { gap: 4 });
+
+/** The check drawn as the setup: worn, inventory, pouch; what isn't an item (spellbook, runes, prayers) as short lines. */
+function layoutCard(d: TripPanelData, c: TripCheck, l: TripLayout): Node {
+  const bad = c.rows.filter((r) => !r.ok);
+  const short = d.content?.short ?? 'the trip';
+  const words = [`${bad.length} problem${bad.length === 1 ? '' : 's'}`, l.inBank ? `${l.inBank} in your bank` : '', l.notOwned ? `${l.notOwned} not owned` : ''].filter(Boolean).join(' · ');
+  const top = bad.length ? text(words, CORAL, { font: 'bold', wrap: W }) : text(`✓ Ready for ${short}`, GREEN, { font: 'bold', wrap: W });
+  const source = small(`${d.sourceLine}${d.checkedAt ? ` · ${d.checkedAt}` : ''}`, FAINT, { wrap: W });
+  // What no slot shows: the spellbook, the runes, the prayers, a supply short by kind.
+  const other = bad.filter((r) => r.group === 'book' || r.group === 'pouch' || r.group === 'prayer' || (r.group === 'supplies' && r.item == null));
+  const otherLines = other.map((r) => row(icon({ glyph: 'close', w: 9, h: 9, color: CORAL }), small(r.line, SOFT, { wrap: W - 16, ...(r.detail ? { tip: r.detail } : {}) }), undefined, { gap: 5 }));
+  const missing = c.layouts?.missing;
+  const setup = c.layouts?.setup;
+  const showAll = d.bankFilter && bad.length && c.bank?.length ? button('Show missing in bank', bankAction(missing?.ids.length ? missing.ids : c.bank, missing), 'Your open bank shows only what this check says to take, laid out as the setup') : null;
+  const showSetup = d.bankFilter && setup?.ids.length ? row(undefined, small('Show my setup in bank', GOLD, { align: 'c' }), undefined, { pad: 2, on: bankAction(setup.ids, setup), tip: 'Your open bank shows the whole setup, laid out: worn, switches, supplies' }) : null;
+  // The same check as words, folded: for reading it out, or a slot hard to make out.
+  const list: Node = {
+    t: 'toggle',
+    key: LIST_KEY,
+    off: small('List  ›', GOLD, { on: { a: 'flip', key: LIST_KEY }, tip: 'The check as a list' }),
+    lit: col([small('List  ▾', GOLD, { on: { a: 'flip', key: LIST_KEY }, tip: 'Fold' }), ...c.rows.map((r) => row(icon({ glyph: r.ok ? 'check' : 'close', w: 9, h: 9, color: r.ok ? GREEN : CORAL }), small(r.line, r.ok ? SOFT : 'white', { wrap: W - 16, ...(r.detail ? { tip: r.detail } : {}) }), undefined, { gap: 5 }))], { gap: 3 }),
+  };
+  const unknown = c.unknown.length ? small(`Not checked: ${c.unknown.join(', ')}.`, FAINT, { wrap: W }) : null;
+  return section(
+    [top, source, wornGrid(d, l), altsList(d), d.swap ? row(undefined, small('Reset to the setup', GOLD, { align: 'c' }), undefined, { pad: 2, on: view(d, {}, ''), tip: 'Drop your picks' }) : null, !d.alts && !d.swap ? small('Click a slot for your other options.', FAINT) : null, l.inventory.some(Boolean) ? invGrid(d, l) : null, pouchStrip(d, l), legend(l), ...otherLines, showAll, showSetup, ...c.info.map((s) => small(s, FAINT, { wrap: W })), unknown, list],
+    { gap: 7, edge: bad.length ? CORAL : GREEN },
+  );
+}
+
 function why(d: TripPanelData): Node {
   switch (d.status) {
     case 'signed-out':
@@ -194,7 +330,7 @@ function why(d: TripPanelData): Node {
 export function tripPanelUi(d: TripPanelData): Node {
   const parts: Node[] = [head(d), tripLine(d)];
   if (d.note) parts.push(chip(d.note, 'green', { wrap: W }));
-  if (d.status === 'ready' && d.check) parts.push(checkCard(d, d.check));
+  if (d.status === 'ready' && d.check) parts.push(d.layout ? layoutCard(d, d.check, d.layout) : checkCard(d, d.check));
   else parts.push(why(d));
   if (d.status === 'ready' || d.status === 'none' || d.status === 'no-targets') {
     if (d.status === 'ready') parts.push(button('Check again', again(d), 'With what you wear and carry now'));
@@ -204,8 +340,8 @@ export function tripPanelUi(d: TripPanelData): Node {
     if (d.canSave && d.content) {
       parts.push(
         col([
-          button(`${d.hasOwn ? 'Replace my' : 'Save as my'} setup`, { a: 'post', act: 'trip-save', args: regionArgs(d, { content: d.content.key }) }, 'Your worn gear and inventory become the setup this check uses for this trip. Only you see it.'),
-          small(`What you wear and carry now becomes your ${d.content.name} setup. Only you see it.`, FAINT, { wrap: W + 10, align: 'c' }),
+          button(`${d.hasOwn ? 'Replace my' : 'Save as my'} setup`, { a: 'post', act: 'trip-save', args: regionArgs(d, { content: d.content.key, ...(d.swap ? { swap: d.swap } : {}) }) }, d.swap ? 'This setup, with your picks, becomes the one this check uses for this trip. Only you see it.' : 'Your worn gear and inventory become the setup this check uses for this trip. Only you see it.'),
+          small(d.swap ? `This setup with your picks becomes your ${d.content.name} setup. Only you see it.` : `What you wear and carry now becomes your ${d.content.name} setup. Only you see it.`, FAINT, { wrap: W + 10, align: 'c' }),
         ], { gap: 3 }),
       );
     }
