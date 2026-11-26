@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ammoFits, raidScaled, bankLayout, bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, meleeReaches, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, usableHeld, type TripInput } from '../src/lib/tripCheck.ts';
+import { ammoFits, raidScaled, bankLayout, heldOne, bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, meleeReaches, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, usableHeld, type TripInput } from '../src/lib/tripCheck.ts';
 import { contentForRegion, contentFromKey, MOKHAIOTL_WAYSTONE, SPADE, TRIP_CONTENT, TRIP_REGION_IDS, TRIP_REGIONS, tripContent } from '../src/lib/tripContent.ts';
 import { cleanTripState, storedTripState } from '../src/lib/tripState.ts';
 import { equivalentsFor } from '../src/lib/itemFamilies.ts';
@@ -449,6 +449,24 @@ test('bank layout: worn pieces as a paper doll, switches beside, each supply kin
   assert.equal(l.layout[4], 15, 'switches to the right');
   assert.deepEqual([l.layout[12], l.layout[13], l.layout[14]], [24, 22, 21], 'supplies their own row, 4 → 1');
   assert.deepEqual(l.ids.sort((a, b) => a - b), [11, 12, 13, 14, 15, 21, 22, 24]);
+});
+
+test('bank layout: one bank slot per piece, never every form owned (Infernal max cape, imbued god capes)', () => {
+  const N: Record<number, string> = { 1: 'Infernal cape', 2: 'Infernal max cape', 3: 'Imbued saradomin cape', 4: 'Imbued guthix cape', 5: 'Imbued zamorak cape', 6: 'Imbued saradomin max cape', 7: 'Infernal cape (l)' };
+  const name = (x: number) => N[x] ?? `Item ${x}`;
+  const rows = [
+    { group: 'gear' as const, ok: false, line: '', slot: 'cape', item: 1, bank: [2, 1] },
+    { group: 'gear' as const, ok: false, line: '', item: 3, bank: [6, 4, 3, 5] },
+  ];
+  const l = bankLayout(rows, name);
+  assert.deepEqual(l.ids.sort(), [1, 3], 'the exact items held, one each');
+  assert.equal(l.layout[8], 1);
+  assert.equal(l.layout[4], 3);
+  assert.equal(l.layout.filter((x) => x > 0).length, 2, 'one cape per row');
+  // Not the exact item: its closest held form, not another family member.
+  assert.equal(heldOne({ item: 1, bank: [2, 7] }, name), 7);
+  assert.equal(heldOne({ item: 1, bank: [2] }, name), 2);
+  assert.equal(heldOne({ item: 1, bank: [] }, name), null);
 });
 
 test('raid calc says it is rough; a single boss does not', async () => {
