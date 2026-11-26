@@ -27,7 +27,9 @@ import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { tripStateForViewer } from '@/lib/playerItems';
 import type { TripState } from '@/lib/tripState';
 import { rateLimit } from '@/lib/rate-limit';
-import { checkTrip, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
+import { checkTrip, isRestricted, isSpecWeapon, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
+import { tripLayout, type TripLayout } from '@/lib/tripLayout';
+import { ownStats, setupResult, withSlot } from '@/lib/gearNow';
 import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
 import { canonicalKey, ownAlias, targetWhy, type Target } from '@/lib/tripTarget';
@@ -150,6 +152,8 @@ interface Built {
   warn: { ok: boolean; title: string; lines: string[]; fight?: number[]; instance?: true } | null;
   /** A next-trip target is set (lib/tripTarget): the plugin then asks on bank close at any bank. */
   armed: boolean;
+  /** The setup checked, with the player's picks: what 'trip-save' with `swap` keeps. */
+  setup?: GearSetup;
 }
 
 /** The player's own setup for a trip: saved for it, else saved for its boss picked by hand. */
@@ -188,7 +192,136 @@ interface Resolved {
   setup: GearSetup | null;
   /** Null: the calc has no monster it knows to work out a setup for. */
   check: TripCheck | null;
+  /** The setup as the game lays it out (lib/tripLayout), and the names its tips use. */
+  layout?: TripLayout | null;
+  names?: Record<number, string>;
+  /** The monsters it was checked against (for an adjusted setup's DPS). */
+  monsters?: Monster[];
 }
+
+/** What a check reads besides the setup, kept so an adjusted setup is checked the same way. */
+interface CheckCtx {
+  content: TripContent;
+  viewer: GuideViewer;
+  idx: GearIndex;
+  state: TripState | null;
+  nm: { byId: Map<number, string>; pouches: Set<number> };
+  worn: InvItem[];
+  inventory: InvItem[];
+  bank: InvItem[];
+  lootingBag: InvItem[] | undefined;
+}
+
+/** The check of `setup` (null: the calc) and its layout. */
+function runCheck(c: CheckCtx, setup: GearSetup | null, source: TripSource, monsters: Monster[]): Pick<Resolved, 'check' | 'layout' | 'names'> {
+  const { content, viewer, idx, state, nm, worn, inventory, bank, lootingBag } = c;
+  const heldIds = [...worn, ...inventory, ...bank, ...(lootingBag ?? [])].map((i) => i.id);
+  const setupIds = setup ? [...Object.values(setup.gear), ...Object.values(setup.alts ?? {}).flat(), ...(setup.inventory ?? []).filter((x): x is InvItem => !!x).map((x) => x.id)].filter((x): x is number => typeof x === 'number') : [];
+  const needs = equivalentsFor([...heldIds, ...setupIds], 'needs');
+  const holds = equivalentsFor(heldIds, 'holds');
+  const nameOf = (id: number) => nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
+  const isRunePouch = (id: number) => nm.pouches.has(id);
+  const check: TripCheck = checkTrip({ content, setup, source, monsters, worn, inventory, bank, lootingBag, state, levels: viewer.levels, idx, needs, holds, nameOf, isRunePouch, prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {} });
+  // Holding X counts as X's forms and upgrades (as the check reads it).
+  const wide = (list: readonly InvItem[]) => {
+    const raw = new Set(list.map((i) => i.id));
+    const all = new Set<number>();
+    for (const id of raw) for (const x of [id, ...holds(id)]) all.add(x);
+    return (id: number) => all.has(id) || needs(id).some((x) => raw.has(x));
+  };
+  const carries = wide([...worn, ...inventory]);
+  const owns = wide([...worn, ...inventory, ...bank, ...(lootingBag ?? [])]);
+  const slotOfId = (id: number) => {
+    const it = idx.item(id) ?? holds(id).map((x) => idx.item(x)).find(Boolean);
+    return it ? (it.s === '2h' ? 'weapon' : it.s) : null;
+  };
+  const layout = tripLayout({ setup, rows: check.rows, worn, inventory, bank, lootingBag, state, carries, owns, slotOf: slotOfId, nameOf, isRunePouch, isSpec: (id) => isSpecWeapon(idx.item(id)?.n ?? nameOf(id)) });
+  const ids = new Set<number>([...Object.values(layout.worn).map((x) => x.id), ...layout.inventory.filter((x): x is NonNullable<typeof x> => !!x).map((x) => x.id), ...layout.pouch.map((x) => x.id), ...(layout.quiver ? [layout.quiver.id] : [])]);
+  return { check, layout, names: Object.fromEntries([...ids].map((id) => [id, nameOf(id)])) };
+}
+
+/** "head:26382,weapon:26219" → {head: 26382, weapon: 26219}: the player's own picks over the setup. */
+export function parseSwaps(s: string | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const part of (s ?? '').split(',').slice(0, 14)) {
+    const [slot, id] = part.split(':');
+    if (/^[a-z]{3,7}$/.test(slot ?? '') && /^\d{1,6}$/.test(id ?? '')) out[slot] = Number(id);
+  }
+  return out;
+}
+export const swapsArg = (s: Record<string, number>) => Object.entries(s).map(([k, v]) => `${k}:${v}`).join(',');
+
+/** The setup the check used, as one the player can adjust and save: the calc's from its layout. */
+function baseSetup(r: Resolved, content: TripContent, levels: Record<string, number> | null): GearSetup {
+  if (r.setup) return r.setup;
+  const lv = (k: string) => (typeof levels?.[k] === 'number' ? levels[k] : 80);
+  const l = r.layout;
+  return {
+    tier: 'advanced',
+    name: `My ${content.short} setup`,
+    style: 0,
+    stats: { attack: lv('attack'), strength: lv('strength'), ranged: lv('ranged'), magic: lv('magic') },
+    gear: Object.fromEntries(Object.entries(l?.worn ?? {}).map(([k, v]) => [k, v.id])),
+    inventory: (l?.inventory ?? []).map((x) => (x ? (x.q ? { id: x.id, q: x.q } : { id: x.id }) : null)),
+  };
+}
+
+/** The setup with the player's picks in place (a two-hander takes the shield slot with it). */
+function adjusted(base: GearSetup, swaps: Record<string, number>, idx: GearIndex): GearSetup {
+  let s: GearSetup = { ...base, gear: { ...base.gear } };
+  for (const [slot, id] of Object.entries(swaps)) s = withSlot(s, slot, id, idx);
+  return s;
+}
+
+/** Mean DPS of a setup over the trip's monsters, with the player's own levels. */
+function meanDps(s: GearSetup, monsters: Monster[], idx: GearIndex, levels: Record<string, number> | null): number {
+  const mine = { ...s, stats: ownStats(s.stats, levels).stats };
+  const xs = monsters.map((m) => setupResult(mine, m, idx)?.dps ?? 0);
+  return xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : 0;
+}
+
+/** Owned items for `slot`, best first by mean DPS against the trip (the current one marked). */
+function alternatives(slot: string, setup: GearSetup, monsters: Monster[], c: CheckCtx): NonNullable<TripPanelData['alts']> {
+  const { idx, viewer, nm } = c;
+  const nameOf = (id: number) => nm.byId.get(id) ?? idx.item(id)?.n ?? `Item ${id}`;
+  const carried = new Set([...c.worn, ...c.inventory].map((i) => i.id));
+  const pool = [...new Set([...c.worn, ...c.inventory, ...c.bank, ...(c.lootingBag ?? [])].map((i) => i.id))].filter((id) => {
+    const it = idx.item(id);
+    return !!it && !it.hid && (it.s === '2h' ? 'weapon' : it.s) === slot && !isRestricted(it.n);
+  });
+  const cur = setup.gear[slot] ?? null;
+  const base = monsters.length ? meanDps(setup, monsters, idx, viewer.levels) : 0;
+  const dpsOf = (x: GearSetup) => (monsters.length ? meanDps(x, monsters, idx, viewer.levels) : 0);
+  let rows: { id: number; name: string; dps: number; here: boolean; current: boolean; ammo?: number }[] = [...new Set([...(cur != null ? [cur] : []), ...pool])].map((id) => ({ id, name: nameOf(id), dps: dpsOf(withSlot(setup, slot, id, idx)), here: carried.has(id), current: id === cur }));
+  // A weapon is worth what it fires: the likeliest weapons again with each owned ammo (the best kept,
+  // and taken with the weapon when picked), so a bow isn't judged on a crossbow's bolts.
+  if (slot === 'weapon' && monsters.length) {
+    const ammo = [...new Set([...c.worn, ...c.inventory, ...c.bank, ...(c.lootingBag ?? [])].map((i) => i.id))]
+      .map((id) => idx.item(id))
+      .filter((it): it is NonNullable<typeof it> => !!it && !it.hid && it.s === 'ammo' && !isRestricted(it.n))
+      .sort((a, b) => b.b[6] - a.b[6]);
+    rows.sort((a, b) => b.dps - a.dps);
+    rows = rows.map((x, i) => {
+      const wi = idx.item(x.id);
+      const fits = wi?.c === 'Bow' && !/crystal bow|bow of faerdhinen|craw's bow|webweaver/i.test(wi.n) ? /arrow|brutal/i : wi?.c === 'Crossbow' ? (/ballista/i.test(wi.n) ? /javelin/i : /bolt/i) : null;
+      if (i >= 24 || x.current || !fits) return x;
+      const w = withSlot(setup, slot, x.id, idx);
+      let best = x;
+      for (const a of ammo.filter((y) => fits.test(y.n))) {
+        const d = dpsOf({ ...w, gear: { ...w.gear, ammo: a.id } });
+        if (d > best.dps + 1e-9) best = { ...x, dps: d, ammo: a.id };
+      }
+      return best;
+    });
+  }
+  rows.sort((a, b) => b.dps - a.dps || a.name.localeCompare(b.name));
+  return {
+    slot,
+    rows: rows.slice(0, 10).map((x) => ({ id: x.id, name: x.name, here: x.here, current: x.current, ...(x.ammo && x.ammo !== setup.gear.ammo ? { ammo: x.ammo, ammoName: nameOf(x.ammo) } : {}), delta: monsters.length && !x.current ? `${x.dps >= base ? '+' : ''}${(x.dps - base).toFixed(1)} DPS` : '' })),
+    more: Math.max(0, rows.length - 10),
+  };
+}
+
 
 /** Checks by everything they read (checkKey): a few minutes, a few hundred at most. Owner-only by key. */
 const CHECKS = new Map<string, { at: number; p: Promise<Resolved> }>();
@@ -224,7 +357,7 @@ async function resolveCheck(c: {
   lootingBag: InvItem[] | undefined;
   t: ReturnType<typeof phases>;
 }): Promise<Resolved> {
-  const { content, own, viewer, idx, state, nm, worn, inventory, bank, lootingBag, t } = c;
+  const { content, own, viewer, idx, t } = c;
   let setup: GearSetup | null = own;
   let source: TripSource = own ? 'own' : 'calc';
   let sourceLine = own ? 'Checked against your own saved setup' : '';
@@ -249,32 +382,10 @@ async function resolveCheck(c: {
   if (source === 'calc') sourceLine = calcSourceLine(content);
   t.mark('setup');
   const monsters = targets.map((x) => idx.monster(x)).filter((m): m is Monster => !!m);
-  if (!monsters.length && source === 'calc') return { source, sourceLine, guide, setup, check: null };
-  const heldIds = [...worn, ...inventory, ...bank, ...(lootingBag ?? [])].map((i) => i.id);
-  const setupIds = setup ? [...Object.values(setup.gear), ...Object.values(setup.alts ?? {}).flat(), ...(setup.inventory ?? []).filter((x): x is InvItem => !!x).map((x) => x.id)].filter((x): x is number => typeof x === 'number') : [];
-  const needs = equivalentsFor([...heldIds, ...setupIds], 'needs');
-  const holds = equivalentsFor(heldIds, 'holds');
-  const nameOf = (id: number) => nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
-  const check: TripCheck = checkTrip({
-    content,
-    setup,
-    source,
-    monsters,
-    worn,
-    inventory,
-    bank,
-    lootingBag,
-    state,
-    levels: viewer.levels,
-    idx,
-    needs,
-    holds,
-    nameOf,
-    isRunePouch: (id) => nm.pouches.has(id),
-    prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {},
-  });
+  if (!monsters.length && source === 'calc') return { source, sourceLine, guide, setup, check: null, monsters };
+  const out = runCheck(c, setup, source, monsters);
   t.mark('check');
-  return { source, sourceLine, guide, setup, check };
+  return { source, sourceLine, guide, setup, monsters, ...out };
 }
 
 async function build(request: Request, args: Args, viewer: GuideViewer, note: string | null, t = phases()): Promise<Built> {
@@ -347,15 +458,33 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     remember(key, p);
     p.catch(() => CHECKS.delete(key));
   }
-  const { source, sourceLine, guide, check } = await (fresh ?? CHECKS.get(key)!).p;
+  const got = await (fresh ?? CHECKS.get(key)!).p;
   if (fresh) t.mark('cached');
+  const { source, guide } = got;
+  let { sourceLine, check, layout, names } = got;
   if (!check) return { data: { ...withContent, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
+  // The player's own picks (a slot clicked, an alternative taken): the same check of the setup with them.
+  const ctx: CheckCtx = { content, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items };
+  const swaps = parseSwaps(args.swap);
+  const hasPicks = Object.keys(swaps).length > 0;
+  const from = baseSetup(got, content, viewer.levels);
+  const setup = hasPicks ? adjusted(from, swaps, idx) : from;
+  if (hasPicks) {
+    ({ check, layout, names } = runCheck(ctx, setup, source === 'own' ? 'own' : 'guide', got.monsters ?? []));
+    sourceLine = `Your picks over ${source === 'own' ? 'your saved setup' : source === 'guide' ? "the guide's setup" : 'the setup worked out from your bank'}`;
+    t.mark('adjusted');
+  }
+  const alts = args.alt && /^[a-z]{3,7}$/.test(args.alt) ? alternatives(args.alt, setup, got.monsters ?? [], ctx) : null;
   const data: TripPanelData = {
     ...withContent,
     source,
     sourceLine,
     guide,
-    check,
+    check: check!,
+    layout,
+    names,
+    swap: swapsArg(swaps),
+    alts,
     status: 'ready',
     checkedAt: readAt ? readAt.slice(11, 16) : null,
     hasOwn: !!own,
@@ -364,7 +493,9 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const refused = args.held ? HELD_WHY[args.held] : undefined;
   if (refused) data.sourceLine = `${refused}: this is from what Anvil last saw`;
   else if (behind) data.sourceLine = `${sourceLine}. Your newest items haven't arrived: this is from what Anvil last saw`;
-  return { data, warn: behind || refused ? null : { ...tripWarn(content.short, check), ...fightOf(content) }, armed };
+  // Adjusting in the panel is not a bank-close answer: the overlay is left out of it.
+  const quiet = behind || !!refused || hasPicks || !!alts;
+  return { data, warn: quiet ? null : { ...tripWarn(content.short, check!), ...fightOf(content) }, armed, setup };
 }
 
 /**
@@ -432,6 +563,14 @@ export async function tripAct(request: Request, act: string, args: Args): Promis
     const alias = ownAlias(content.key, await ownTripKeys(viewer.accountId));
     if (alias) await forgetOwnTripSetup(viewer.userId, viewer.accountId, alias);
     return tripView(request, again, `Forgot your ${content.short} setup.`);
+  }
+  // The card's setup with the player's picks over it (a slot changed in the panel): that is what is kept.
+  if (parseSwaps(args.swap) && args.swap) {
+    const built = await build(request, { ...again, swap: args.swap }, viewer, null);
+    if (built.setup) {
+      await saveOwnTripSetup(viewer.userId, viewer.accountId, content.key, { ...built.setup, name: `My ${content.short} setup`, tier: 'advanced' });
+      return tripView(request, again, `Saved your picks as your ${content.short} setup.`);
+    }
   }
   const snap = viewer.snapshot;
   const worn = snap?.equipment?.items ?? [];

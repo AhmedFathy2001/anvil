@@ -149,3 +149,27 @@ test('warm: an items push with the bank works the check out; the bank-close ask 
     delete process.env.TRIP_TIMING;
   }
 });
+
+test('adjust: a slot lists what I own for it, a pick re-checks with it (no overlay), saving keeps the picks', async () => {
+  const items = await import('../src/lib/playerItems.ts');
+  const { tripView, tripAct } = await import('../src/lib/pluginUi/tripView.ts');
+  const { ownTripSetup } = await import('../src/lib/tripSetups.ts');
+  const { createHash } = await import('node:crypto');
+  const me = await user('PickMe');
+  await pool.query(`UPDATE users SET plugin_token_hash = $1 WHERE id = $2`, [createHash('sha256').update('pick-me').digest('hex'), me.userId]);
+  const at = () => new Date().toISOString();
+  // Abyssal whip worn; Ghrazi rapier and Dragon scimitar in the bank.
+  await items.saveSnapshot(me.accountId, { bank: { items: [{ id: 22324 }, { id: 4587 }], readAt: at() }, equipment: { items: [{ id: 4151 }], readAt: at() }, inventory: { items: [{ id: 385 }], readAt: at() } });
+  const req = () => new Request('https://example.test/api/plugin/ui', { headers: { Authorization: 'Bearer pick-me', 'X-RSN': 'PickMe' } });
+  const args = { why: 'manual', content: 'vorkath' };
+  const alt = JSON.stringify(await tripView(req(), { ...args, alt: 'weapon' }));
+  assert.match(alt, /Weapon: your options/);
+  assert.match(alt, /Ghrazi rapier/);
+  assert.match(alt, /DPS/);
+  const picked = (await tripView(req(), { ...args, swap: 'weapon:4587' })) as { warn: unknown };
+  assert.equal(picked.warn, null, 'adjusting is no bank-close answer');
+  assert.match(JSON.stringify(picked), /Your picks over/);
+  assert.match(JSON.stringify(picked), /Reset to the setup/);
+  await tripAct(req(), 'trip-save', { content: 'vorkath', swap: 'weapon:4587' });
+  assert.equal((await ownTripSetup(me.userId, me.accountId, 'vorkath'))?.gear.weapon, 4587, 'the picks were kept');
+});

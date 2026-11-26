@@ -731,6 +731,14 @@ only goes out where that is listed.
   the newest, and `warn` is null. A load without `held` (a view restored after login) is checked
   as is: items unchanged since their push are current. That push carries `region` too (Precomputed
   while banking, below).
+- **The card** draws the setup as the game lays it out (lib/tripLayout): the equipment screen, the
+  28 inventory slots (one food or potion a slot, stackables one with a count), the rune pouch and
+  quiver; each item green (worn or packed), amber (in the bank) or red (not owned). A slot's click
+  loads the view with `alt: <slot>` (what the player owns for it, best first by mean DPS against the
+  trip, a bow or crossbow with its best owned ammo); a pick loads it with `swap: "slot:id,…"` (the
+  picks over the setup, kept on every load from the card; "Reset" drops them). Either answers
+  `warn: null`: adjusting in the panel is no bank-close answer. `trip-save` with `swap` keeps the
+  setup with the picks instead of what is worn and carried. Nothing new for the plugin to draw.
 - **Warning lifetime.** Green (Ready) stays 5 seconds. Red stays until the first of: the problems are
   fixed (while red is up, each item push re-asks the view quietly and its answer replaces the warning,
   green then fading after 5s), the player stands in a `fight` region or (with `instance`) in any

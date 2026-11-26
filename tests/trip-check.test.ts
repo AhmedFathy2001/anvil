@@ -476,3 +476,25 @@ test('raid calc: the bank bests are kept by pool, and the same pool gives the sa
   const c = bestLoadout(mon('Kephri#Shielded'), pool.slice(1), ctx);
   assert.notEqual(c, a, 'another pool is worked out again');
 });
+
+test('layout: the game inventory (one food a slot, stackables one), have / bank / none, the setup order kept', async () => {
+  const { tripLayout, isStackable } = await import('../src/lib/tripLayout.ts');
+  const fang = id("Osmumten's fang");
+  const torva = id('Torva platebody');
+  const claws = id('Dragon claws');
+  const setup: GearSetup = { tier: 'advanced', name: 'x', style: 0, stats: STATS, gear: { weapon: fang, body: torva }, inventory: [{ id: claws }, { id: MANTA, q: 5 }, { id: 560, q: 200 }], runePouch: [{ id: 560, q: 100 }] };
+  const worn = [{ id: fang }];
+  const inventory = [{ id: MANTA, q: 3 }];
+  const bank = [{ id: torva }, { id: MANTA, q: 50 }, { id: 560, q: 500 }];
+  const has = (list: InvItem[]) => (x: number) => list.some((i) => i.id === x);
+  const l = tripLayout({ setup, rows: [], worn, inventory, bank, state: null, carries: has([...worn, ...inventory]), owns: has([...worn, ...inventory, ...bank]), slotOf: (x) => (idx.item(x) ? (idx.item(x)!.s === '2h' ? 'weapon' : idx.item(x)!.s) : null), nameOf, isRunePouch: (x) => x === POUCH, isSpec: (x) => x === claws });
+  assert.equal(l.worn.weapon.have, 'here');
+  assert.equal(l.worn.body.have, 'bank');
+  assert.equal(l.inventory[0]?.have, 'none', 'claws: not owned');
+  assert.deepEqual(l.inventory.slice(1, 6).map((x) => x?.have), ['here', 'here', 'here', 'bank', 'bank'], '5 mantas are 5 slots: 3 packed, 2 in the bank');
+  assert.equal(l.inventory[6]?.q, 200, 'runes stack in one slot');
+  assert.equal(l.inventory.length, 28);
+  assert.ok(isStackable('Death rune') && isStackable('Dragon arrow') && !isStackable('Manta ray') && !isStackable('Saradomin brew(4)'));
+  assert.equal(l.inBank, 3);
+  assert.equal(l.notOwned, 1);
+});
