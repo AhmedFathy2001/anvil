@@ -165,9 +165,10 @@ export function segSwitch(key: string, items: { label: string; on: boolean; act:
 /** A filter chip in a grid: dark with a grey outline, the lit one in gold with a gold edge. */
 export function boxChip(label: string, on: boolean, act: Action, tip?: string): Node {
   // A row, so the label's centre stretches the full cell and centres in it.
-  return row(undefined, text(label, on ? GOLD : FAINT, { font: 'small', align: 'c' }), undefined, {
-    bg: 'card',
-    edge: on ? GOLD : LINE,
+  // The chosen one is lifted (filled, white), not outlined in gold: the tabs above already carry the gold.
+  return row(undefined, text(label, on ? 'white' : FAINT, { font: on ? 'bold' : 'small', align: 'c' }), undefined, {
+    bg: on ? '#3a3a3a' : 'card',
+    edge: LINE,
     pad: 3,
     on: act,
     ...(tip ? { tip } : {}),
