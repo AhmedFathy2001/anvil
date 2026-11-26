@@ -132,8 +132,12 @@ export function tripLayout(inp: LayoutInput): TripLayout {
       const n = name(id);
       return inp.isSpec(id) ? 1 : inp.slotOf(id) && !isStackable(n) ? 0 : POTION_RE.test(n) ? 2 : FOOD_RE.test(n) ? 3 : TELEPORT_RE.test(n) ? 5 : 4;
     };
-    const rest = inp.inventory.filter((it) => !picked.includes(it.id) && !wornIds.has(it.id));
-    const all: InvItem[] = [...picked.map((id) => ({ id })), ...rest];
+    // The calc's supplies (rows with a count): packed as many as it says; what is packed besides of
+    // the same kind is them, not extra.
+    const supplies: InvItem[] = inp.rows.filter((r) => r.group === 'supplies' && r.item != null && r.need).map((r) => ({ id: r.item!, q: r.need }));
+    const supplyKinds = new Set(supplies.map((it) => supplyKind(name(it.id))));
+    const rest = inp.inventory.filter((it) => !picked.includes(it.id) && !wornIds.has(it.id) && !(supplyKinds.has(supplyKind(name(it.id))) && !inp.slotOf(it.id)));
+    const all: InvItem[] = [...picked.map((id) => ({ id })), ...supplies, ...rest];
     all.sort((a, b) => rank(a.id) - rank(b.id));
     for (const it of all) put(it);
   }
