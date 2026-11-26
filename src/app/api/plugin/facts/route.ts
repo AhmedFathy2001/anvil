@@ -15,6 +15,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { setProvenClan } from '@/lib/requestHeaderProof';
 import { resolvePluginMember } from '@/lib/auth';
 import { creditRushKills } from '@/lib/itemHuntDb';
+import { worldModeOf } from '@/lib/worldModeRequest';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
     const member = await resolvePluginMember(request).catch(() => null);
     if (member) {
       const rushOwner = owner ?? { userId: member.userId, accountId: member.accountId };
-      const done = await creditRushKills(member, rushOwner, member.clanId, kills.map((k) => k.fact)).catch((err) => {
+      const done = await creditRushKills(member, rushOwner, member.clanId, kills.map((k) => k.fact), new Date(), worldModeOf(request)?.key ?? null).catch((err) => {
         console.warn('[plugin/facts] rush credit failed', err);
         return { credited: 0, factIndexes: [] as number[] };
       });

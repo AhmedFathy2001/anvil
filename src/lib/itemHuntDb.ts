@@ -514,6 +514,8 @@ export interface RushKillFact {
 
 /** No one kill report adds more than this at one name: far past a real one, well short of a loop. */
 const MAX_KILLS_PER_FACT = 20;
+/** Kill reports one character may add to one rush: far above real play (a fast slayer task), well below a loop. */
+const RUSH_KILL_LIMIT = { limit: 240, windowMs: 10 * 60_000 };
 
 /**
  * Kills the plugin reported, credited to the clan's running rushes this character is entered in.
@@ -533,10 +535,14 @@ export async function creditRushKills(
   clanId: number,
   facts: RushKillFact[],
   now: Date = new Date(),
+  /** The game mode the kills came from (lib/worldModes key); null = the main game. */
+  modeKey: string | null = null,
 ): Promise<{ credited: number; factIndexes: number[] }> {
   const done = { credited: 0, factIndexes: [] as number[] };
-  if (facts.length === 0) return done;
-  const rushes = (await activeHunts(clanId, now.getTime())).filter((h) => isRush(h.config) && countsWorld(h.comp.countsOn, null));
+  // Only facts with an id: the id is what makes a resent fact count once (every current plugin sends one).
+  if (owner == null || !facts.some((f) => f.id)) return done;
+  // Only the rushes that count this world: the main game, or the mode a rush is set to (lib/competitionGame).
+  const rushes = (await activeHunts(clanId, now.getTime())).filter((h) => isRush(h.config) && countsWorld(h.comp.countsOn, modeKey));
   if (rushes.length === 0) return done;
   // clan-scope: this clan -- the member's own seats in this clan's running rushes.
   const seats = await db
@@ -556,6 +562,7 @@ export async function creditRushKills(
     if (!seat) continue;
     const names = targetNames(config);
     for (const [index, fact] of facts.entries()) {
+      if (!fact.id) continue;
       // Kills at each target in this fact.
       const byTarget = new Map<string, number>();
       for (const [name, amount] of Object.entries(fact.n)) {
@@ -571,8 +578,14 @@ export async function creditRushKills(
       const counts = [...byTarget.entries()].map(
         ([t, n]) => sql`jsonb_build_object(${t}::text, coalesce((${weeklyParticipants.rushSeen} ->> ${t}::text)::int, 0) + ${n})`,
       );
+      const cap = await rateLimitByKey('rush-kills', String(seat.id), RUSH_KILL_LIMIT);
+      if (!cap.ok) {
+        log.warn('rush.rate-limited', { competitionId: comp.id, seatId: seat.id });
+        break;
+      }
+      const factId = fact.id;
       const credited = await db.transaction(async (tx) => {
-        if (owner && fact.id && !(await claimTileFacts(tx, owner, [fact.id], -comp.id))) return false;
+        if (!(await claimTileFacts(tx, owner, [factId], -comp.id))) return false;
         // clan-scope: global -- the member's own seat, found through this clan's running rushes.
         await tx
           .update(weeklyParticipants)
