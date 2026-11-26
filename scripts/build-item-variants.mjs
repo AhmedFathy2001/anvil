@@ -6,7 +6,7 @@
 // name. A tile tracking any one of them must count the others.
 //
 // Grouped by RuneLite's item-name cache: identical names, plus "(uncharged)" / "(charged)" /
-// "(inactive)" / "(empty)" / "(Deadman)" folded onto the plain name: a Deadman reward copy (Imbued
+// "(inactive)" / "(empty)" / "(Deadman)" and a locked "(l)" folded onto the plain name: a Deadman reward copy (Imbued
 // Zamorak cape (Deadman)) is worn on the main game as the item it copies. Only names with more than one id are kept.
 // Collection-log slots that share a name ("Decorative armour" ×15) are kept apart at read time
 // (lib/itemVariants), not here.
@@ -22,7 +22,14 @@ const OUT_PATH = resolve(HERE, '../src/data/itemVariants.json');
 const NAMES_URL = 'https://static.runelite.net/cache/item/names.json';
 
 export function baseName(name) {
-  return name.trim().replace(/\s*\((uncharged|charged|inactive|empty|deadman)\)$/i, '').toLowerCase();
+  return name
+    .trim()
+    // A locked copy (l) is the same item kept on death: Fighter torso (l) is a Fighter torso, and
+    // Fighter torso (l)(or) the (or) kit's, which lib/itemFamilies then joins to the plain torso.
+    .replace(/\s*\(l\)\s*(?=\(|$)/i, ' ')
+    .trim()
+    .replace(/\s*\((uncharged|charged|inactive|empty|deadman)\)$/i, '')
+    .toLowerCase();
 }
 
 const res = await fetch(NAMES_URL, { headers: { 'User-Agent': 'anvil item variants builder' } });

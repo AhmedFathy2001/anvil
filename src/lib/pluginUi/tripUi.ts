@@ -106,13 +106,11 @@ function tripLine(d: TripPanelData): Node {
     none: 'No monster matches.',
     max: 12,
     more: 'Keep typing to narrow it.',
-    c: [
-      {
-        t: 'col',
-        c: d.monsters.map((m) => row(undefined, text(m.name, 'white', { font: 'small', wrap: W - 20 }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), { bg: 'raised', pad: 3, inset: 6, q: true, k: m.name, on: pick(d, `m:${m.key}`), tip: `Check a trip to ${m.name}: Anvil works a setup out from your bank` })),
-        gap: 3,
-      },
-    ],
+    // Search-only rows: the plugin builds a row only when it matches what's typed. Thousands of eager
+    // rows took ~30 s to draw, and a col with a gap isn't searched at all (its spacers aren't rows).
+    c: [],
+    x: d.monsters.map((m) => [m.name, m.key]),
+    xt: row(undefined, text('{0}', 'white', { font: 'small', wrap: W - 20 }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), { bg: 'raised', pad: 3, inset: 6, on: pick(d, 'm:{1}'), tip: 'Check a trip to {0}: Anvil works a setup out from your bank' }),
   };
   const picker = section([small('Pick your next trip', FAINT), chips, any], { gap: 6 });
   // Nothing picked: the list is open to start with.
