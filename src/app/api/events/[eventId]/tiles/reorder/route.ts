@@ -1,3 +1,4 @@
+import { tilesFrozenByStart } from '@/lib/practiceRules';
 import { STAFF_HIDE_ERROR, staffHideBlocksEventId } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
@@ -38,7 +39,7 @@ export async function POST(
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
-  if (event.startDate && new Date(event.startDate) <= new Date()) {
+  if (tilesFrozenByStart(event)) {
     return NextResponse.json({ error: 'Tile order is locked once the event starts.' }, { status: 400 });
   }
 

@@ -272,10 +272,23 @@ export function CopyTiles({
       {boardId != null && tiles === null && <div className="text-xs text-text-muted">Loading tiles…</div>}
       {tiles && tiles.length > 0 && (
         <>
-          <div className="flex items-center justify-between text-xs text-text-muted">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
             <span>Untick the slow ones and keep the tiles you want to watch work.</span>
-            <span>
-              {picked.length} / {Math.min(max, tiles.length)}
+            <span className="flex items-center gap-3">
+              <button
+                type="button"
+                className="text-gold hover:text-gold-light disabled:opacity-40"
+                disabled={picked.length >= Math.min(max, tiles.length)}
+                onClick={() => onChange(tiles.slice(0, max).map((t) => t.id))}
+              >
+                {tiles.length > max ? `First ${max}` : 'Whole board'}
+              </button>
+              <button type="button" className="hover:text-foreground disabled:opacity-40" disabled={picked.length === 0} onClick={() => onChange([])}>
+                Clear
+              </button>
+              <span>
+                {picked.length} / {Math.min(max, tiles.length)}
+              </span>
             </span>
           </div>
           <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 rounded-lg border border-card-border p-3">
@@ -297,6 +310,70 @@ export function CopyTiles({
         </>
       )}
       {tiles && tiles.length === 0 && <div className="text-xs text-text-muted">That board has no tiles yet.</div>}
+    </div>
+  );
+}
+
+/** A board library entry, as /api/admin/library/boards lists it (lib/libraryBoards LibraryBoard). */
+interface LibraryBoardRow {
+  id: number;
+  title: string;
+  origin: 'anvil' | 'community';
+  clanName: string | null;
+  mode: string;
+  boardSize: number;
+  tiles: Record<string, unknown>[];
+  status: string;
+}
+
+const MODE_LABEL: Record<string, string> = {
+  classic: 'Classic bingo',
+  leagues: 'Point Hunt',
+  race: 'Tile race',
+  showdown: 'Showdown',
+  luckydraw: 'Lucky draw',
+  bounty: 'Bounty',
+  ladder: 'Ladder',
+};
+
+/** How many tiles a library board makes: a classic grid is N×N, a list is its rows. */
+function libraryTileCount(b: LibraryBoardRow): number {
+  return b.mode === 'classic' ? b.boardSize * b.boardSize : b.tiles.length;
+}
+
+/** Pick one of the board library's boards (Anvil's or a community one) to practise whole. */
+function LibraryBoards({ value, onChange, max }: { value: number | null; onChange: (id: number | null) => void; max: number }) {
+  const [boards, setBoards] = useState<LibraryBoardRow[] | null>(null);
+  useEffect(() => {
+    clanFetch('/api/admin/library/boards')
+      .then((r) => (r.ok ? r.json() : { boards: [] }))
+      .then((d: { boards: LibraryBoardRow[] }) => setBoards((d.boards ?? []).filter((b) => b.status === 'published')))
+      .catch(() => setBoards([]));
+  }, []);
+  const options = (boards ?? []).map((b) => {
+    const n = libraryTileCount(b);
+    const from = b.origin === 'anvil' ? 'Anvil' : (b.clanName ?? 'Community');
+    return {
+      value: String(b.id),
+      label: `${b.title} · ${MODE_LABEL[b.mode] ?? b.mode} · ${n} tile${n === 1 ? '' : 's'} · ${from}${n > max ? ' (too big)' : ''}`,
+    };
+  });
+  const chosen = boards?.find((b) => b.id === value) ?? null;
+  return (
+    <div className="space-y-2">
+      <Select
+        value={value == null ? '' : String(value)}
+        onChange={(v) => onChange(v ? Number(v) : null)}
+        options={options}
+        placeholder={boards == null ? 'Loading the library…' : boards.length ? 'Choose a library board' : 'The library has no boards yet'}
+        disabled={!boards?.length}
+        ariaLabel="Library board"
+      />
+      {chosen && libraryTileCount(chosen) > max ? (
+        <div className="text-xs text-red-300">That board has {libraryTileCount(chosen)} tiles; a practice board holds up to {max}.</div>
+      ) : chosen ? (
+        <div className="text-xs text-text-muted">The whole board, in its own format. Change any tile in the tile editor once it starts.</div>
+      ) : null}
     </div>
   );
 }
@@ -331,7 +408,8 @@ export default function PracticeSetup({
   const router = useRouter();
   // Null while loading: "no boards" is an answer, not a placeholder.
   const [boards, setBoards] = useState<Board[] | null>(null);
-  const [mode, setMode] = useState<'copy' | 'pick'>('copy');
+  const [mode, setMode] = useState<'copy' | 'library' | 'pick' | 'blank'>('copy');
+  const [libraryId, setLibraryId] = useState<number | null>(null);
   const [boardId, setBoardId] = useState<number | null>(null);
   const [copyIds, setCopyIds] = useState<number[]>([]);
   const [picked, setPicked] = useState<PickedRow[]>([]);
@@ -352,14 +430,15 @@ export default function PracticeSetup({
           return;
         }
         setBoards(d.boards);
-        if (d.boards.length === 0) setMode('pick');
+        if (d.boards.length === 0) setMode('library');
         else setBoardId(d.boards[0].id);
       })
       .catch(() => setBoards([]));
   }, [router]);
 
-  const tileCount = mode === 'copy' ? copyIds.length : picked.length;
-  const ready = tileCount > 0 && seats.length > 0 && (sides === 1 || seats.length >= 2) && (postTo === 'none' || hook.trim().length > 0);
+  // An empty board is built in the tile editor, so it needs no tiles to start.
+  const tilesReady = mode === 'copy' ? copyIds.length > 0 : mode === 'library' ? libraryId != null : mode === 'pick' ? picked.length > 0 : true;
+  const ready = tilesReady && seats.length > 0 && (sides === 1 || seats.length >= 2) && (postTo === 'none' || hook.trim().length > 0);
 
   async function start() {
     setBusy(true);
@@ -369,7 +448,12 @@ export default function PracticeSetup({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tiles: mode === 'copy' ? { mode: 'copy', eventId: boardId, tileIds: copyIds } : { mode: 'pick', count: picked.length },
+          tiles:
+            mode === 'copy'
+              ? { mode: 'copy', eventId: boardId, tileIds: copyIds }
+              : mode === 'library'
+                ? { mode: 'library', boardId: libraryId }
+                : { mode: 'pick', count: mode === 'pick' ? picked.length : 0 },
           seats,
           sides,
           webhookUrl: postTo === 'hook' ? hook.trim() : null,
@@ -381,8 +465,18 @@ export default function PracticeSetup({
         setError(data.error || 'The practice board could not be started.');
         return;
       }
-      if (mode === 'pick') {
-        const problem = await fillPicked(data.id, picked);
+      if (mode === 'blank') {
+        router.push(clanUrl(`/admin/events/practice/${data.id}/tiles`));
+        return;
+      }
+      const rows: PickedRow[] | null =
+        mode === 'pick'
+          ? picked
+          : mode === 'library' && Array.isArray(data.rows)
+            ? (data.rows as Record<string, unknown>[]).map((row, i) => ({ key: `board:${i}`, label: String(row.label ?? ''), row }))
+            : null;
+      if (rows) {
+        const problem = await fillPicked(data.id, rows);
         if (problem) {
           router.push(clanUrl(`/events/practice/${data.id}?note=${encodeURIComponent(problem)}`));
           return;
@@ -411,11 +505,13 @@ export default function PracticeSetup({
               [
                 {
                   key: 'copy',
-                  title: 'Copy a board',
+                  title: 'Copy one of your boards',
                   blurb: boards == null ? 'Loading this clan’s boards…' : boards.length ? 'Its tiles, rules, hidden tiles and conditions' : 'This clan has no boards yet',
                   off: boards?.length === 0,
                 },
+                { key: 'library', title: 'A library board', blurb: 'Anvil’s or a community board, whole', off: false },
                 { key: 'pick', title: 'Pick tiles', blurb: 'From the tile library, or type them', off: false },
+                { key: 'blank', title: 'Build them yourself', blurb: 'An empty board, in the full tile editor', off: false },
               ] as const
             ).map((c) => (
               <button
@@ -435,8 +531,14 @@ export default function PracticeSetup({
           </div>
           {mode === 'copy' ? (
             <CopyTiles boards={boards} boardId={boardId} onBoard={setBoardId} picked={copyIds} onChange={setCopyIds} max={maxTiles} />
-          ) : (
+          ) : mode === 'library' ? (
+            <LibraryBoards value={libraryId} onChange={setLibraryId} max={maxTiles} />
+          ) : mode === 'pick' ? (
             <PickTiles picked={picked} onChange={setPicked} max={maxTiles} />
+          ) : (
+            <div className="text-xs text-text-muted">
+              Starts as an empty task list and opens the same tile editor a real event uses: every tile kind, combos and conditions. Up to {maxTiles} tiles.
+            </div>
           )}
         </section>
 
