@@ -56,6 +56,8 @@ export interface TripPanelData {
   fromTarget?: boolean;
   /** The plugin can filter its bank (X-Anvil-Bank-Filter): missing rows and "Show missing in bank" do. */
   bankFilter?: boolean;
+  /** ToA only: the raid level the check scales the bosses by (lib/tripRaidLevel), and the ones offered. */
+  raid?: { level: number; levels: readonly number[] } | null;
   /** The setup laid out as the game does (lib/tripLayout): drawn instead of a row per item. */
   layout?: TripLayout | null;
   /** Item names for the layout's tips. */
@@ -68,6 +70,7 @@ export interface TripPanelData {
 
 const W = CARD_W;
 const PICK_KEY = 'trip-pick';
+const RAID_KEY = 'trip-raid';
 const OK_KEY = 'trip-ok';
 const LIST_KEY = 'trip-list';
 
@@ -327,8 +330,28 @@ function why(d: TripPanelData): Node {
   }
 }
 
+/**
+ * "Raid level 300 ▾": the ToA raid level the calc scales the bosses by, opening to a chip per level.
+ * Remembered per character ('trip-raid' saves it and checks again).
+ */
+function raidLine(d: TripPanelData): Node | null {
+  if (!d.raid || !d.content) return null;
+  const content = d.content.key;
+  const shut = text('', SOFT, { font: 'small', runs: [{ s: 'Raid level ', color: FAINT }, { s: String(d.raid.level), color: 'white' }, { s: ' ▾', color: GOLD }], on: { a: 'flip', key: RAID_KEY }, tip: 'The raid level the bosses are scaled to: more defence and hitpoints as it goes up' });
+  const chips: Node = {
+    t: 'grid',
+    cols: 4,
+    gap: 4,
+    vgap: 4,
+    c: d.raid.levels.map((l) => boxChip(String(l), l === d.raid!.level, { a: 'post', act: 'trip-raid', args: regionArgs(d, { content, rl: String(l), ...(d.swap ? { swap: d.swap } : {}) }) }, `Check for raid level ${l}`)),
+  };
+  return { t: 'toggle', key: RAID_KEY, off: shut, lit: col([text('', SOFT, { font: 'small', runs: [{ s: 'Raid level ', color: FAINT }, { s: String(d.raid.level), color: 'white' }, { s: ' ▴', color: GOLD }], on: { a: 'flip', key: RAID_KEY }, tip: 'Close' }), chips], { gap: 4 }) };
+}
+
 export function tripPanelUi(d: TripPanelData): Node {
   const parts: Node[] = [head(d), tripLine(d)];
+  const raid = raidLine(d);
+  if (raid) parts.push(raid);
   if (d.note) parts.push(chip(d.note, 'green', { wrap: W }));
   if (d.status === 'ready' && d.check) parts.push(d.layout ? layoutCard(d, d.check, d.layout) : checkCard(d, d.check));
   else parts.push(why(d));

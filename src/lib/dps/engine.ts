@@ -56,9 +56,17 @@ export interface Monster {
   fa?: number;
   ew?: string;
   ewp?: number;
+  /**
+   * A Tombs of Amascut raid level (set by the caller, never in the dataset): every 5 levels add 2% to
+   * the boss's defence roll (×(1 + level/250)); hitpoints are scaled by the caller.
+   */
+  raidLevel?: number;
   hid?: 1;
   ovr?: 1;
 }
+
+/** The Tombs of Amascut's bosses and what fights beside them: Tumeken's shadow is ×4 against them. */
+export const TOA_MONSTER = /^(akkha|akkha's shadow|ba-ba|kephri|zebak|tumeken's warden|elidinis' warden|obelisk|core|het's seal|baboon|.*scarab.*)$/i;
 
 export interface Stats {
   attack: number;
@@ -182,6 +190,9 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
   const demon = attrs.has('demon');
   const kalphite = attrs.has('kalphite');
 
+  // A ToA raid level raises the defence roll, not the Defence level (drains still hit the base).
+  const defScale = (roll: number) => (monster.raidLevel ? floor(roll * (1 + monster.raidLevel / 250)) : roll);
+
   // Summed equipment bonuses. A blowpipe's darts add their ranged strength.
   const sum = [0, 0, 0, 0, 0, 0, 0, 0, 0];
   for (const g of gear) g.b.forEach((v, i) => (sum[i] += v));
@@ -291,7 +302,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     }
     applyRules();
     const defType = style.type === 'stab' ? 0 : style.type === 'slash' ? 1 : 2;
-    defenceRoll = (monster.lv[0] + 9) * (monster.d[defType] + 64);
+    defenceRoll = defScale((monster.lv[0] + 9) * (monster.d[defType] + 64));
 
     if (/scythe of vitur/i.test(wn)) {
       const size = monster.sz ?? 1;
@@ -352,7 +363,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     applyRules();
     // Ammo-type defences: thrown/darts hit light, arrows standard, bolts heavy.
     const defIdx = weapon?.c === 'Crossbow' ? 6 : weapon?.c === 'Bow' ? 5 : 4;
-    defenceRoll = (monster.lv[0] + 9) * (monster.d[defIdx] + 64);
+    defenceRoll = defScale((monster.lv[0] + 9) * (monster.d[defIdx] + 64));
 
     // Enchanted bolt specials, as an expected value over the fight.
     const bolt = lc(ammo?.n);
@@ -396,16 +407,18 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     const st = style.stance === 'accurate' ? 2 : style.stance === 'longrange' ? 1 : 0;
     const effMag = floor(mag * pr.acc) + st + 9;
 
-    // Tumeken's shadow triples the magic attack and damage bonuses of the rest of the gear.
+    // Tumeken's shadow triples the magic attack and damage bonuses of the gear (×4 inside the Tombs
+    // of Amascut); magic damage stays capped at 100%.
     const shadow = /^tumeken's shadow/i.test(wn);
-    const magicAtt = shadow ? sum[3] * 3 : sum[3];
-    let dmgPct = Math.min(shadow ? sum[7] * 3 : sum[7], 100);
+    const shadowX = shadow ? (TOA_MONSTER.test(monster.n) ? 4 : 3) : 1;
+    const magicAtt = sum[3] * shadowX;
+    let dmgPct = Math.min(sum[7] * shadowX, 100);
     const v = voidSet(gear, 'magic');
     if (v === 'elite') dmgPct += 2.5;
     if (salveE && salveImbued) dmgPct += 20;
     else if (salveI && salveImbued) dmgPct += 15;
 
-    if (shadow) effects.push("Tumeken's shadow: ×3 magic attack and damage bonuses");
+    if (shadow) effects.push(`Tumeken's shadow: ×${shadowX} magic attack and damage bonuses${shadowX === 4 ? ' (Tombs of Amascut)' : ''}`);
     attackRoll = effMag * (magicAtt + 64);
     if (v !== 'none') {
       attackRoll = floor(attackRoll * 1.45);
@@ -437,7 +450,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
       notes.push('Crumble Undead only works on undead.');
       maxHit = 0;
     }
-    defenceRoll = (monster.lv[1] + 9) * (monster.d[3] + 64);
+    defenceRoll = defScale((monster.lv[1] + 9) * (monster.d[3] + 64));
   }
 
   if (monster.fa) notes.push(`Flat armour (${monster.fa}) is not modelled.`);
