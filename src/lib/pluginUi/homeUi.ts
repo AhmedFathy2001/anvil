@@ -1233,22 +1233,40 @@ function huntTargetsCard(w: ScheduleWeekly): Node | null {
 }
 
 /** A Boss Rush's rules, spelled out where the player looks: what scores, what costs, who counts. */
-function rushRulesCard(w: ScheduleWeekly): Node | null {
-  const lines = w.rushRules ?? [];
-  if (!lines.length) return null;
-  const chips = (w.rushChips ?? []).map((c) => chip(c, /^Death/.test(c) ? 'coral' : /^Synergy/.test(c) ? 'purple' : /^Kill/.test(c) ? 'gold' : 'blue'));
-  // The chips say it at a glance; the sentences open in place under "Details".
-  const flip: Action = { a: 'flip', key: `rush-rules:${w.id}` };
-  const detail = lines.map((l) => small(`• ${l}`, SOFT, { wrap: true }));
-  return section(
-    [
-      title('How it scores'),
-      // Two to a line: four side by side do not fit the panel's width.
-      ...[0, 2].flatMap((i) => (chips[i] ? [row(chips[i], chips[i + 1], undefined, { gap: 4 })] : [])),
-      { t: 'toggle', key: `rush-rules:${w.id}`, off: link('Details', flip), lit: col([...detail, link('Less', flip)], { gap: 3 }) },
-    ],
-    { gap: 5 },
+function rushRulesCard(w: ScheduleWeekly, open: boolean): Node | null {
+  const rules = w.rushRules ?? [];
+  if (!rules.length) return null;
+  const key = `rush-rules:${w.id}`;
+  const flip: Action = { a: 'flip', key };
+  // One rule a row: the name, its worth on the right, a line more under it when it helps. Spaced, so
+  // it reads at a glance.
+  const ruleRows = rules.map((r) =>
+    col(
+      [
+        row(text(r.k, SOFT), undefined, text(r.v, /^-/.test(r.v) ? CORAL : /^\+/.test(r.v) ? GOLD : 'white', { font: 'bold', align: 'r' }), { gap: 6 }),
+        ...(r.note ? [small(r.note, FAINT, { wrap: true })] : []),
+      ],
+      { gap: 1 },
+    ),
   );
+  const gp = w.prizeGp ?? [];
+  const hcw = w.prizeCurrency === 'hcw';
+  const prizeRows = gp.map((n, i) =>
+    row(text(ORDINAL[i] ?? `${i + 1}th`, i === 0 ? GOLD : SOFT), undefined, text(hcw ? `${formatGp(n)} HCW gp` : formatGp(n), i === 0 ? GOLD : 'white', { font: i === 0 ? 'bold' : 'regular', ...(hcw ? { tip: HCW_PRIZE_TITLE } : {}) })),
+  );
+  const head = (arrow: string) =>
+    row(title(gp.length ? 'How it scores · prizes' : 'How it scores'), undefined, link(arrow, flip), { gap: 6, on: flip });
+  const body = col(
+    [
+      head('Hide'),
+      ...ruleRows,
+      ...(prizeRows.length ? [gap(4), row(title('Prizes'), undefined, gp.length > 1 ? muted(`${formatGp(gp.reduce((a, b) => a + b, 0))}${hcw ? ' HCW gp' : ''} in all`) : undefined), ...prizeRows] : []),
+    ],
+    { gap: 7 },
+  );
+  // Closed once it runs (the standings matter then), open before it starts.
+  const shut = head('Show');
+  return section([{ t: 'toggle', key, off: open ? body : shut, lit: open ? shut : body }]);
 }
 
 /** The drops a Boss Rush scores, most points first; a drop worth nothing is not listed. Who got each, once someone has. */
@@ -1288,14 +1306,14 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   if (d.weeklyEntry) top.push(weeklyEntryRow(d.weeklyEntry, w.id, upcoming));
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
   parts.push(section(top));
-  // A rush leads with the leaderboard once it runs; its rules and drops follow (before it starts, they lead).
-  const rules = rushRulesCard(w);
+  // A rush: how it scores and its prizes right under the title (closed once it runs), then the leaderboard.
+  const rules = rushRulesCard(w, upcoming);
+  if (rules) parts.push(rules);
   const standingsFirst = !!w.rushRules && !upcoming;
   if (standingsFirst) parts.push(...weeklyStandingsNodes(d, w, s, headcount, path));
-  if (rules) parts.push(rules);
   const targets = huntTargetsCard(w);
   if (targets) parts.push(targets);
-  const prizes = weeklyPrizeCard(w);
+  const prizes = w.rushRules ? null : weeklyPrizeCard(w);
   if (prizes) parts.push(prizes);
   if (!upcoming && !standingsFirst) parts.push(...weeklyStandingsNodes(d, w, s, headcount, path));
   // A team or clan-vs-clan weekly: where your group stands, then every group (names and totals only).

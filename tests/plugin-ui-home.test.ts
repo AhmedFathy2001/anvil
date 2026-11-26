@@ -589,22 +589,23 @@ test('a Boss Rush page spells out its rules and scores in points', async () => {
     startDate: '2026-11-21T20:00:00Z',
     endDate: '2026-11-28T20:00:00Z',
     rushRules,
-    rushChips: ['Kill +1', 'Death -1', 'Synergy +1', 'Plugin only'],
     huntItems: [{ id: 20997, name: 'Twisted bow', pts: 10 }, { id: 13652, name: 'Dragon claws' }],
+    prizeGp: [10_000_000, 5_000_000, 2_000_000],
   };
   const page = JSON.stringify(__weeklyPageForTest(w, Date.parse('2026-11-17T12:00:00Z')));
-  assert.match(page, /"How it scores"/);
+  assert.match(page, /"How it scores · prizes"/);
   assert.match(page, /"Boss Rush"/);
-  assert.match(page, /Each kill at Chambers of Xeric, Theatre of Blood, Tombs of Amascut and 1 more: \+1 pt\./);
-  assert.match(page, /Each death there: -1 pt, mechanics included\./);
-  assert.match(page, /Only kills with the Anvil plugin on count/);
-  assert.match(page, /Clan Synergy: \+1 pt a kill done together with other entrants/);
-  assert.match(page, /never solo-only ones like Phosani's/);
+  assert.match(page, /"Kill"/);
+  assert.match(page, /"\+1 pt"/);
+  assert.match(page, /"Puzzles and mechanics count too\."/);
+  assert.match(page, /"Together"/);
+  assert.match(page, /"Prizes"/);
   assert.match(page, /"Drops that score"/);
   assert.match(page, /"\+10"/);
   assert.ok(!page.includes('Dragon claws'), 'a drop worth nothing is not listed');
-  assert.match(page, /"Kill \+1"/);
-  assert.match(page, /"Details"/);
+  // Before it starts the section is open; the prizes ride in it, not in a card of their own.
+  const toggle = (__weeklyPageForTest(w, Date.parse('2026-11-17T12:00:00Z')) as { t: string; c?: { t: string; off?: unknown }[] }[]).flatMap((n) => (n.c ?? []).filter((c) => c.t === 'toggle'));
+  assert.ok(JSON.stringify(toggle[0]?.off).includes('Hide'), 'open before it starts');
   assert.ok(!page.includes('kills + rare drops'), 'the long target line is left to the title');
 
   // Running, nobody scored: one line and your own row, not ten rows of zeros.
@@ -615,4 +616,7 @@ test('a Boss Rush page spells out its rules and scores in points', async () => {
   assert.ok(all.some((t) => t.startsWith('No points yet')));
   assert.ok(!all.includes('P2'), 'no list of zeros');
   assert.ok(all.includes('dead person'));
+  // Once it runs the section is shut: "Show" to open it.
+  const shut = JSON.stringify(ui);
+  assert.match(shut, /"Show"/);
 });

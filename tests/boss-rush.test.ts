@@ -96,9 +96,11 @@ test('a rush needs a target; one stored with boss keys reads back as their names
 
 test('the rules read out plainly', () => {
   assert.equal(rushRulesWords(DEFAULT_RUSH), '1 kill = 1 pt · each death -1 · plugin kills only · Clan Synergy +1 pt a kill done together');
-  const lines = rushRuleLines({ ...DEFAULT_RUSH, targets: ['Tombs of Amascut', 'Nex'] });
-  assert.equal(lines[0], 'Each kill at Tombs of Amascut, Nex: +1 pt.');
-  assert.ok(lines.some((l) => l.startsWith('Clan Synergy: +1 pt a kill done together with other entrants.')));
+  const rows = rushRuleLines({ ...DEFAULT_RUSH, targets: ['Tombs of Amascut', 'Nex'] });
+  assert.deepEqual(rows.map((r) => `${r.k} ${r.v}`), ['Kill +1 pt', 'Death -1 pt', 'Together +1 pt', 'Drops listed below', 'Kills plugin only', 'Score never below 0']);
+  assert.equal(rows[1].note, 'Puzzles and mechanics count too.');
+  const loose = rushRuleLines({ ...DEFAULT_RUSH, deaths: false, floorZero: false, kcSource: 'any', synergy: { on: true, mode: 'perMate', points: 1, max: 3 } });
+  assert.deepEqual(loose.map((r) => `${r.k} ${r.v}`), ['Kill +1 pt', 'Death free', 'Together +1 pt a mate', 'Drops listed below', 'Kills all count']);
 });
 
 test('raid modes and group targets', () => {
