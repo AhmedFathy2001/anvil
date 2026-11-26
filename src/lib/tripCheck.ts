@@ -424,6 +424,9 @@ const SETS: { kind: 'melee' | 'ranged' | 'magic'; pieces: [Slot, RegExp][] }[] =
  * Null: nothing in the pool can attack.
  */
 export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): Best | null {
+  const memo = bestMemo(ctx.idx);
+  const key = `${m.n}#${m.v ?? ''}|${m.raidLevel ?? 0}|${m.hp}|${JSON.stringify(ctx.stats)}|${ctx.prayer.join()}|${ctx.spell ?? ''}|${[...new Set(ids)].sort((x, y) => x - y).join()}`;
+  if (memo.has(key)) return memo.get(key)!;
   const pool = [...new Set(ids)].map((id) => ctx.idx.item(id)).filter((x): x is GearItem => !!x && !x.hid && usableHeld(x.n));
   const weapons = pool.filter((x) => slotOf(x) === 'weapon');
   const ammo = pool.filter((x) => x.s === 'ammo');
@@ -491,8 +494,19 @@ export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): B
     }
     if (!best || cur.dps > best.result.dps) best = { gear, result: cur, weapon: q.w.id };
   }
+  memo.set(key, best);
+  if (memo.size > BEST_MAX) memo.delete(memo.keys().next().value!);
   return best;
 }
+
+/**
+ * bestLoadout's answers per gear index, by monster, stats, prayers, spell and pool: a raid's bank
+ * bests are worked out once while the bank stays the same (taking items out of it moves them into
+ * the inventory, and the owned pool is unchanged). Callers must not change what comes back.
+ */
+const BEST = new WeakMap<GearIndex, Map<string, Best | null>>();
+const BEST_MAX = 400;
+const bestMemo = (idx: GearIndex) => BEST.get(idx) ?? (BEST.set(idx, new Map()), BEST.get(idx)!);
 
 /** The spell a staff would autocast on this spellbook at this Magic level, for the calc. */
 export function calcSpell(book: number | null, magic: number, weakness?: string | null): string | null {
@@ -665,7 +679,8 @@ const isUtility = (it: GearItem | null): boolean => !!it && it.b.every((x) => x 
  * scales the roll off `raidLevel`). Anything else, or no level, as it is.
  */
 export function raidScaled(m: Monster, raidLevel: number | null | undefined): Monster {
-  if (!raidLevel || !TOA_MONSTER.test(m.n)) return m;
+  // Already scaled (the view scales once, the check again): as it is.
+  if (!raidLevel || m.raidLevel != null || !TOA_MONSTER.test(m.n)) return m;
   return { ...m, raidLevel, hp: Math.round(m.hp * (1 + raidLevel / 250)) };
 }
 
@@ -942,7 +957,7 @@ function quiverAmmo(inp: TripInput, h: Held, anywhere = false): { id: number; q:
 }
 
 /** The overlay's answer: "ToA · 2 problems" with the first lines, or "✓ Ready for ToA". */
-export function tripWarn(short: string, check: TripCheck, max = 4): { ok: boolean; title: string; lines: string[] } {
+export function tripWarn(short: string, check: TripCheck, max = 4): { ok: boolean; title: string; lines: string[]; fight?: number[]; instance?: true } {
   const bad = check.rows.filter((r) => !r.ok);
   if (!bad.length) return { ok: true, title: `✓ Ready for ${short}`, lines: [] };
   const lines = bad.slice(0, max).map((r) => r.line);

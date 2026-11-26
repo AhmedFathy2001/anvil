@@ -114,3 +114,62 @@ test('carried: a waystone in the pushed inventory makes Doom the target, whereve
   await items.saveSnapshot(me.accountId, { inventory: { items: [{ id: 6685 }], readAt: new Date().toISOString() } });
   assert.deepEqual((await store.currentTarget(me.userId, me.accountId)).target, { key: 'vorkath', source: 'last' });
 });
+
+test('warm: an items push with the bank works the check out; the bank-close ask reuses it, a change does not, another person never', async () => {
+  const items = await import('../src/lib/playerItems.ts');
+  const { tripView, warmTrip } = await import('../src/lib/pluginUi/tripView.ts');
+  const { createHash } = await import('node:crypto');
+  const me = await user('WarmMe');
+  const other = await user('WarmOther');
+  for (const [u, tok] of [[me, 'warm-me'], [other, 'warm-other']] as const) await pool.query(`UPDATE users SET plugin_token_hash = $1 WHERE id = $2`, [createHash('sha256').update(tok).digest('hex'), u.userId]);
+  const at = () => new Date().toISOString();
+  await items.saveSnapshot(me.accountId, { bank: { items: [{ id: 26219 }, { id: 4151 }, { id: 20997 }], readAt: at() }, equipment: { items: [{ id: 4151 }], readAt: at() }, inventory: { items: [{ id: 385 }], readAt: at() } });
+  const req = (tok: string, rsn: string) => new Request('https://example.test/api/plugin/ui?v=trip', { headers: { Authorization: `Bearer ${tok}`, 'X-RSN': rsn } });
+  type W = { warn: { title: string; instance?: true } | null; ui: unknown };
+  const logs: unknown[][] = [];
+  const orig = console.log;
+  console.log = (...a: unknown[]) => void logs.push(a);
+  process.env.TRIP_TIMING = '1';
+  try {
+    await warmTrip(req('warm-me', 'WarmMe'), 13454);
+    const first = (await tripView(req('warm-me', 'WarmMe'), { region: '13454', why: 'bank-close' })) as W;
+    assert.match(first.warn?.title ?? '', /^(ToA · \d+ problems?|✓ Ready for ToA)$/);
+    assert.equal(first.warn?.instance, true, 'a raid: any instance is the fight area');
+    assert.ok(logs.some((l) => JSON.stringify(l).includes('"cached"')), 'the ask found the warm');
+    logs.length = 0;
+    await items.saveSnapshot(me.accountId, { inventory: { items: [{ id: 385 }, { id: 385 }], readAt: at() } });
+    await tripView(req('warm-me', 'WarmMe'), { region: '13454', why: 'bank-close' });
+    assert.ok(!logs.some((l) => JSON.stringify(l).includes('"cached"')), 'the inventory changed: worked out again');
+    // Someone else's token on my character gets nothing of mine, warm or not.
+    await warmTrip(req('warm-other', 'WarmMe'), 13454);
+    const theirs = (await tripView(req('warm-other', 'WarmMe'), { region: '13454', why: 'bank-close' })) as W;
+    assert.equal(theirs.warn, null);
+  } finally {
+    console.log = orig;
+    delete process.env.TRIP_TIMING;
+  }
+});
+
+test('adjust: a slot lists what I own for it, a pick re-checks with it (no overlay), saving keeps the picks', async () => {
+  const items = await import('../src/lib/playerItems.ts');
+  const { tripView, tripAct } = await import('../src/lib/pluginUi/tripView.ts');
+  const { ownTripSetup } = await import('../src/lib/tripSetups.ts');
+  const { createHash } = await import('node:crypto');
+  const me = await user('PickMe');
+  await pool.query(`UPDATE users SET plugin_token_hash = $1 WHERE id = $2`, [createHash('sha256').update('pick-me').digest('hex'), me.userId]);
+  const at = () => new Date().toISOString();
+  // Abyssal whip worn; Ghrazi rapier and Dragon scimitar in the bank.
+  await items.saveSnapshot(me.accountId, { bank: { items: [{ id: 22324 }, { id: 4587 }], readAt: at() }, equipment: { items: [{ id: 4151 }], readAt: at() }, inventory: { items: [{ id: 385 }], readAt: at() } });
+  const req = () => new Request('https://example.test/api/plugin/ui', { headers: { Authorization: 'Bearer pick-me', 'X-RSN': 'PickMe' } });
+  const args = { why: 'manual', content: 'vorkath' };
+  const alt = JSON.stringify(await tripView(req(), { ...args, alt: 'weapon' }));
+  assert.match(alt, /Weapon: your options/);
+  assert.match(alt, /Ghrazi rapier/);
+  assert.match(alt, /DPS/);
+  const picked = (await tripView(req(), { ...args, swap: 'weapon:4587' })) as { warn: unknown };
+  assert.equal(picked.warn, null, 'adjusting is no bank-close answer');
+  assert.match(JSON.stringify(picked), /Your picks over/);
+  assert.match(JSON.stringify(picked), /Reset to the setup/);
+  await tripAct(req(), 'trip-save', { content: 'vorkath', swap: 'weapon:4587' });
+  assert.equal((await ownTripSetup(me.userId, me.accountId, 'vorkath'))?.gear.weapon, 4587, 'the picks were kept');
+});

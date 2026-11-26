@@ -309,6 +309,9 @@ export interface StartProofView {
    * session older than the event start means the start baseline is stale.
    */
   maxSessionMinutes: number;
+  /** The host's plugin switches (StartProofConfig.autoShot / .guide): auto-take the shot, show the guide. */
+  autoShot: boolean;
+  guide: boolean;
 }
 
 /**
@@ -341,6 +344,8 @@ export function startProofState(args: {
     status,
     imageUrl: proof?.imageUrl ?? null,
     maxSessionMinutes: cfg?.maxSessionMinutes ?? 0,
+    autoShot: cfg?.autoShot ?? true,
+    guide: cfg?.guide ?? true,
   };
 }
 

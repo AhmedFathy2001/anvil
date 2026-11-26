@@ -14,7 +14,7 @@ import {
 } from '@/lib/pluginConfig';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { withTileCounts } from '@/lib/pluginTileCounts';
-import { TRIP_REGION_IDS } from '@/lib/tripContent';
+import { TRIP_NAMES, TRIP_REGION_IDS } from '@/lib/tripContent';
 import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
 import { combatTaskVarps } from '@/lib/combatTasks';
@@ -313,10 +313,10 @@ export async function GET(request: Request) {
 /**
  * `tripRegions` on every config shape (capability 'trip-check', lib/tripContent): the map regions
  * whose bank closing makes the plugin load the 'trip' view. A person in no clan gets a 404 config, so
- * /api/version carries the same list for them.
+ * /api/version carries the same list for them. `tripNames`: each region's trip, short ("ToA").
  */
-function withTripRegions<T extends object>(body: T): T & { tripRegions: number[] } {
-  return Object.assign(body, { tripRegions: TRIP_REGION_IDS });
+function withTripRegions<T extends object>(body: T): T & { tripRegions: number[]; tripNames: Record<number, string> } {
+  return Object.assign(body, { tripRegions: TRIP_REGION_IDS, tripNames: TRIP_NAMES });
 }
 
 /**
