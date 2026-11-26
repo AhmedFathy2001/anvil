@@ -147,7 +147,7 @@ export const DISCORD_SAMPLES: readonly DiscordSample[] = [
     label: 'Leagues relic',
     embed: () => {
       const mode = resolveWorldMode('MEMBERS,SEASONAL', 'Leagues')!;
-      return markMode(modeEventEmbed('Relic unlocked: Endless Harvest', 'Zezima'), mode.label, mode.icon ? absoluteAssetUrl(proxyWikiUrl(mode.icon)) : null)!;
+      return markMode(modeEventEmbed('Relic unlocked: Endless Harvest', 'Zezima'), mode, mode.icon ? absoluteAssetUrl(proxyWikiUrl(mode.icon)) : null)!;
     },
   },
   {
@@ -157,7 +157,7 @@ export const DISCORD_SAMPLES: readonly DiscordSample[] = [
     embed: () => {
       const mode = resolveWorldMode('DEADMAN,MEMBERS', 'Deadman')!;
       const drop = plugin('drop', { ...ZEZ, source: 'Revenant knight', sourceKind: 'npc', kc: 40, items: [{ id: 22542, name: "Viggora's chainmace (u)", qty: 1, value: 30_000_000 }] })();
-      return markMode(drop, mode.label, mode.icon ? absoluteAssetUrl(proxyWikiUrl(mode.icon)) : null)!;
+      return markMode(drop, mode, mode.icon ? absoluteAssetUrl(proxyWikiUrl(mode.icon)) : null)!;
     },
   },
   { id: 'release', group: 'Releases', label: 'Release announcement', embed: () => releaseEmbed(parseReleaseNote(RELEASE), apexOrigin()) },

@@ -361,8 +361,9 @@ export async function POST(request: Request) {
     }
   }
 
-  // Game-mode stamp ("[Deadman] …") — server-side, so every kind gets it without the plugin knowing
-  // about each one. The icon is a per-clan setting; the URL clan is a fine source for a cosmetic
+  // Game-mode badge (the mode's icon on the post's thumbnail, lib/worldModes markMode) — server-side,
+  // so every kind gets it without the plugin knowing about each one. The bare icon (a post with no
+  // thumbnail) is a per-clan setting; the URL clan is a fine source for a cosmetic
   // mark that is the same across destinations. (A mode nobody catalogued is remembered below, per
   // clan the poster actually posts into — never the URL clan, which any token holder can name.)
   // A death on Hardcore Worlds ends the character (lib/hardcoreFall): its own post, and it goes to the
@@ -370,7 +371,7 @@ export async function POST(request: Request) {
   const fallen = mode?.key === FALLEN_MODE && channel === 'deaths';
   if (fallen) finalEmbed = fallenEmbed(finalEmbed);
   if (mode) {
-    finalEmbed = markMode(finalEmbed, mode.label, await modeIconUrl(clan.id, mode));
+    finalEmbed = markMode(finalEmbed, mode, await modeIconUrl(clan.id, mode));
   }
 
   // Strip OSRS '@component@' chat markup the plugin can't (see lib/chatTags) — turns a forwarded

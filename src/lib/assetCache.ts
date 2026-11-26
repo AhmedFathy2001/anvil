@@ -391,6 +391,157 @@ export async function getScaledAsset(ref: AssetRef, scale: number, opts: GetAsse
   return p;
 }
 
+// ── Mode badges (`/img/mode/<key>/…`, lib/worldModes markMode) ──
+
+/** Sources bigger than this are refused outright (wiki renders are 320px; nothing we badge is near it). */
+export const MODE_BADGE_MAX_SOURCE_PX = 512;
+/** A sprite-sized source is drawn at most this big (a 36×32 item at 1.5× = 54×48) with a 20px badge. */
+const BADGE_SPRITE_PX = 54;
+const BADGE_SPRITE_SIZE = 20;
+/** Bigger art is fitted to this, the badge scaled with it, so the whole image stays inside Discord's 80px thumbnail box. */
+const BADGE_ART_PX = 66;
+const BADGE_SCALES = [4, 3, 2, 1.5, 1];
+
+type Rgba = { data: Buffer; width: number; height: number };
+
+/**
+ * For each output pixel, the source pixel under its centre — stepped the way Pillow's nearest resize
+ * steps it (start at half the ratio, add the ratio per pixel, in doubles), so a render matches the
+ * approved Pillow mock-up pixel for pixel, including which side a centre on a seam falls.
+ */
+function nearestIndices(out: number, src: number): number[] {
+  const ratio = src / out;
+  const idx: number[] = [];
+  let v = 0.5 * ratio;
+  for (let i = 0; i < out; i++, v += ratio) idx.push(Math.max(0, Math.min(src - 1, Math.floor(v))));
+  return idx;
+}
+
+/** Nearest-neighbour resize on straight RGBA, by hand (sharp premultiplies alpha around a resize). */
+function nearest(src: Rgba, width: number, height: number): Rgba {
+  const data = Buffer.alloc(width * height * 4);
+  const xs = nearestIndices(width, src.width);
+  const ys = nearestIndices(height, src.height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const at = (ys[y] * src.width + xs[x]) * 4;
+      src.data.copy(data, (y * width + x) * 4, at, at + 4);
+    }
+  }
+  return { data, width, height };
+}
+
+/** `top` drawn over `dst` at (ox, oy), source-over on straight alpha. */
+function drawOver(dst: Rgba, top: Rgba, ox: number, oy: number): void {
+  for (let y = 0; y < top.height; y++) {
+    for (let x = 0; x < top.width; x++) {
+      const dx = ox + x;
+      const dy = oy + y;
+      if (dx < 0 || dy < 0 || dx >= dst.width || dy >= dst.height) continue;
+      const t = (y * top.width + x) * 4;
+      const d = (dy * dst.width + dx) * 4;
+      const ta = top.data[t + 3] / 255;
+      if (ta === 0) continue;
+      const da = dst.data[d + 3] / 255;
+      const oa = ta + da * (1 - ta);
+      for (let c = 0; c < 3; c++) {
+        dst.data[d + c] = Math.round((top.data[t + c] * ta + dst.data[d + c] * da * (1 - ta)) / oa);
+      }
+      dst.data[d + 3] = Math.round(oa * 255);
+    }
+  }
+}
+
+async function firstFrame(bytes: Buffer): Promise<Rgba | null> {
+  const { default: sharp } = await import('sharp');
+  const meta = await sharp(bytes, { limitInputPixels: 4096 * 4096 }).metadata();
+  const w = meta.width ?? 0;
+  const h = meta.pageHeight ?? meta.height ?? 0;
+  if (!w || !h || w > MODE_BADGE_MAX_SOURCE_PX || h > MODE_BADGE_MAX_SOURCE_PX) return null;
+  const { data, info } = await sharp(bytes, { pages: 1 }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height };
+}
+
+/**
+ * The post's thumbnail with the mode's icon as a badge on its bottom-right corner, as PNG on a
+ * transparent canvas. A sprite (≤ 54px) is drawn at the largest of 4/3/2/1.5/1× that fits 54px,
+ * nearest-neighbour, with a 20px badge — a 36×32 item → 54×48 on a 64×58 canvas, the badge in the
+ * last 20×20. Bigger art is fitted to 66px and the badge grows with it (≤ 80px overall). The badge
+ * overhangs the source by half its size. Null when either image is not usable.
+ */
+export async function renderModeBadge(source: Buffer, badge: Buffer): Promise<Buffer | null> {
+  const { default: sharp } = await import('sharp');
+  const src = await firstFrame(source);
+  const icon = await firstFrame(badge);
+  if (!src || !icon) return null;
+  const m = Math.max(src.width, src.height);
+  let drawn: Rgba;
+  let size: number;
+  if (m <= BADGE_SPRITE_PX) {
+    const k = BADGE_SCALES.find((s) => m * s <= BADGE_SPRITE_PX) ?? 1;
+    drawn = nearest(src, Math.round(src.width * k), Math.round(src.height * k));
+    size = BADGE_SPRITE_SIZE;
+  } else {
+    const k = BADGE_ART_PX / m;
+    const width = Math.max(1, Math.round(src.width * k));
+    const height = Math.max(1, Math.round(src.height * k));
+    const { data } = await sharp(src.data, { raw: { width: src.width, height: src.height, channels: 4 } })
+      .resize(width, height, { kernel: 'lanczos3', fit: 'fill' })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    drawn = { data, width, height };
+    size = 2 * Math.round((Math.max(width, height) * BADGE_SPRITE_SIZE) / BADGE_SPRITE_PX / 2);
+  }
+  const overhang = size / 2;
+  const canvas: Rgba = { data: Buffer.alloc((drawn.width + overhang) * (drawn.height + overhang) * 4), width: drawn.width + overhang, height: drawn.height + overhang };
+  drawOver(canvas, drawn, 0, 0);
+  drawOver(canvas, nearest(icon, size, size), canvas.width - size, canvas.height - size);
+  return sharp(canvas.data, { raw: { width: canvas.width, height: canvas.height, channels: 4 } }).png({ compressionLevel: 9 }).toBuffer();
+}
+
+const badging = new Map<string, Promise<CachedAsset | null | 'limited'>>();
+
+/** Where a mode badge is stored: `asset-cache/mode/<key>/item/<id>.png`, `asset-cache/mode/<key>/wiki/…`. */
+export function modeBadgeCacheKey(modeKey: string, ref: AssetRef): string {
+  return `asset-cache/mode/${modeKey}/${assetCacheKey(ref).slice('asset-cache/'.length)}`;
+}
+
+/**
+ * A mode-badged thumbnail, rendered ONCE from the cached source and the mode's cached icon, then kept
+ * like any asset (memory, then the store). `badgeFile` must be the mode's catalogued wiki icon
+ * (lib/worldModes modeBadgeFile) — both inputs come through getAsset, so only our two upstreams are
+ * ever touched. A new render is a miss: `allowMiss` is asked once before it.
+ */
+export async function getModeBadgedAsset(modeKey: string, badgeFile: string, ref: AssetRef, opts: GetAssetOptions = {}): Promise<CachedAsset | null | 'limited'> {
+  const key = modeBadgeCacheKey(modeKey, ref);
+  const hot = memoryGet(key);
+  if (hot) return hot;
+  const joined = badging.get(key);
+  if (joined) return joined;
+  const p = (async () => {
+    const stored = await readStore(key);
+    if (stored) {
+      memorySet(key, stored);
+      return stored;
+    }
+    if (opts.allowMiss && !(await opts.allowMiss(ref))) return 'limited' as const;
+    const [source, badge] = await Promise.all([getAsset(ref), getAsset({ kind: 'wiki', file: badgeFile })]);
+    if (source === 'limited' || badge === 'limited') return 'limited' as const;
+    if (!source || !badge) return null;
+    const png = await renderModeBadge(source.bytes, badge.bytes).catch(() => null);
+    if (!png) return null;
+    const out: CachedAsset = { bytes: png, contentType: 'image/png' };
+    memorySet(key, out);
+    await storePut(key, out);
+    return out;
+  })()
+    .catch(() => null)
+    .finally(() => badging.delete(key));
+  badging.set(key, p);
+  return p;
+}
+
 /** As {@link getAsset}, from one of our `/img/…` paths (an `?x=N` upscale honoured). Null for a path
  *  that names nothing valid. */
 export async function getAssetByPath(urlPath: string): Promise<CachedAsset | null> {

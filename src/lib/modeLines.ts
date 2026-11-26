@@ -242,7 +242,7 @@ export function patternFromSample(line: string): string {
   return line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\d[\d,]*/g, String.raw`\d[\d,]*`);
 }
 
-/** The Discord embed for one event. The mode label and art are added by markMode. */
+/** The Discord embed for one event. The mode art is added by markMode. */
 export function modeEventEmbed(title: string, rsn: string | null): Record<string, unknown> {
   return {
     title,

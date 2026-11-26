@@ -198,7 +198,7 @@ export async function POST(request: Request) {
     // not as the game's own sentence ("[Hardcore] Congratulations, you've reached a total level of 775.").
     const send = async (url: string | null, facts: PluginEmbedFacts, kind: string) => {
       if (!url) return;
-      const embed = decorate(markMode(pluginEmbed(facts) as unknown as Record<string, unknown>, mode.label, icon)!, ec.clanId);
+      const embed = decorate(markMode(pluginEmbed(facts) as unknown as Record<string, unknown>, mode, icon)!, ec.clanId);
       const post = asGuest ? markGuestPost(embed, undefined) : { embed, content: undefined };
       const ok = await forwardPluginNotification(url, {
         embed: post.embed ?? null,
@@ -237,7 +237,7 @@ export async function POST(request: Request) {
       // A mode's events share one channel of its own (lib/worldModes MODE_EVENTS_CHANNEL); each kind keeps its switch.
       const url = routeModePost(e.kind, { ...routing, normalHook }, MODE_EVENTS_CHANNEL);
       if (!url) continue;
-      const embed = decorate(markMode(modeEventEmbed(e.title, member.rsn), mode.label, icon)!, ec.clanId);
+      const embed = decorate(markMode(modeEventEmbed(e.title, member.rsn), mode, icon)!, ec.clanId);
       const post = asGuest ? markGuestPost(embed, undefined) : { embed, content: undefined };
       const ok = await forwardPluginNotification(url, {
         embed: post.embed ?? null,
