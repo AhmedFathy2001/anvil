@@ -435,7 +435,9 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     fromTarget: isTarget,
   };
   if (!viewer.accountId || (!snap?.equipment && !snap?.inventory)) return { data: { ...withContent, status: 'off' }, warn: null, armed };
-  const readAt = [snap.equipment?.readAt, snap.inventory?.readAt].filter((x): x is string => !!x).sort().pop() ?? '';
+  // The newest push of ANY container: the plugin sends worn and inventory only when they change, so a
+  // bank push (or the looting bag) proves the worn/inventory rows it didn't resend are still current.
+  const readAt = [snap.equipment?.readAt, snap.inventory?.readAt, snap.bank?.readAt, snap.lootingBag?.readAt].filter((x): x is string => !!x).sort().pop() ?? '';
   const age = Date.now() - Date.parse(readAt);
   if (!Number.isFinite(age) || age > STALE_MS) return { data: { ...withContent, status: 'stale', age: Number.isFinite(age) ? ago(age) : undefined }, warn: null, armed };
   // After a save or forget (`note`) no push came first: the items are what the action used.
