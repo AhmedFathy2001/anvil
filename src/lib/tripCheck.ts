@@ -238,7 +238,7 @@ const kindOfType = (t: string): 'melee' | 'ranged' | 'magic' => (t === 'ranged' 
 const AMMOLESS = /crystal bow|bow of faerdhinen|craw's bow|webweaver|blowpipe/i;
 
 /** Is `ammo` what `weapon` fires (or, for a weapon that fires nothing, a blessing that sits there)? */
-function ammoFits(weapon: GearItem, ammo: GearItem): boolean {
+export function ammoFits(weapon: GearItem, ammo: GearItem): boolean {
   const a = ammo.n.toLowerCase();
   const projectile = /arrow|bolt|javelin|dart|brutal|\bshot\b|chinchompa/.test(a);
   if (weapon.c === 'Bow' && !AMMOLESS.test(weapon.n)) return /arrow|brutal/.test(a);
