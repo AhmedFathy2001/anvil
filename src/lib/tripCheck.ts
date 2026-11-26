@@ -72,6 +72,20 @@ const DOLL: Record<string, number> = { head: 1, quiver: 2, cape: 8, neck: 9, amm
 const dose = (n: string) => Number(/\((\d)\)\s*$/.exec(n)?.[1] ?? 0);
 
 /**
+ * The one bank id a gear row shows: the exact item when it is in the bank, else the held form whose
+ * name is closest to it ("Infernal cape (l)" for an Infernal cape, not the Infernal max cape), else the
+ * first held. Null with none in the bank.
+ */
+export function heldOne(r: Pick<TripRow, 'item' | 'bank'>, nameOf: (id: number) => string): number | null {
+  const b = r.bank ?? [];
+  if (!b.length) return null;
+  if (r.item != null && b.includes(r.item)) return r.item;
+  if (r.item == null) return b[0];
+  const want = nameOf(r.item).toLowerCase().replace(/\s*\([^()]*\)\s*$/, '');
+  return b.find((x) => nameOf(x).toLowerCase().replace(/\s*\([^()]*\)\s*$/, '') === want) ?? b.find((x) => nameOf(x).toLowerCase().startsWith(want)) ?? b[0];
+}
+
+/**
  * A bank tag layout for these rows, the way a player lays a setup out: worn pieces as a paper doll on
  * the left, switches to its right (four a row), then each kind of supply on rows of its own, doses
  * 4 → 1. Only what is in the bank (each row's `bank` ids). Display only: the plugin moves nothing.
@@ -82,14 +96,13 @@ export function bankLayout(rows: readonly TripRow[], nameOf: (id: number) => str
   const side: number[][] = [];
   const loose: number[] = [];
   for (const r of rows) {
-    const b = (r.bank ?? []).filter((x) => !used.has(x));
+    // A supply is its kind (every dose); a piece of gear is ONE bank slot, never every form owned.
+    const b = (r.group === 'supplies' ? r.bank ?? [] : [heldOne(r, nameOf)].filter((x): x is number => x != null)).filter((x) => !used.has(x));
     if (!b.length) continue;
     b.forEach((x) => used.add(x));
     const at = r.group === 'spec' ? DOLL.spec : r.slot ? DOLL[r.slot] : undefined;
-    if (at != null && !place.has(at)) {
-      place.set(at, b[0]);
-      loose.push(...b.slice(1));
-    } else if (r.group === 'supplies') side.push([...b].sort((x, y) => dose(nameOf(y)) - dose(nameOf(x))));
+    if (at != null && !place.has(at)) place.set(at, b[0]);
+    else if (r.group === 'supplies') side.push([...b].sort((x, y) => dose(nameOf(y)) - dose(nameOf(x))));
     else loose.push(...b);
   }
   let line = 0;

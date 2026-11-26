@@ -160,7 +160,8 @@ function swapIcons(ids: number[]): Node {
 }
 
 function failRow(r: TripRow, bankFilter: boolean): Node {
-  const filter = bankFilter && r.bank?.length ? r.bank : null;
+  // One bank slot for a piece of gear (the exact item, else its first held form); a supply, every dose.
+  const filter = bankFilter && r.bank?.length ? (r.group === 'supplies' ? r.bank : [r.item != null && r.bank.includes(r.item) ? r.item : r.bank[0]]) : null;
   return row(
     pic(r),
     col([text(r.line, 'white', { wrap: 122 }), r.detail ? small(r.detail, FAINT, { wrap: 122 }) : null, r.swaps?.length ? swapIcons(r.swaps) : null], { gap: 2 }),
