@@ -5,7 +5,7 @@ import { CONTAINER_KINDS, type Snapshot } from '@/lib/gearOwnership';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { cleanContainer, deleteSnapshotsForUser, saveSnapshot, saveTripState } from '@/lib/playerItems';
 import { cleanTripState } from '@/lib/tripState';
-import { TRIP_REGIONS } from '@/lib/tripContent';
+import { tripRegions } from '@/lib/guideAreas';
 import { warmTrip } from '@/lib/pluginUi/tripView';
 import { clearTarget, currentTarget } from '@/lib/tripTargetStore';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -70,7 +70,8 @@ export async function POST(request: Request) {
   const armed = !!(await currentTarget(own.userId, own.accountId).catch(() => null))?.target;
   // Banking for a trip: the bank-close ask will find the check already done.
   const region = Number.isInteger(body.region) ? (body.region as number) : null;
-  if (snap.bank && (armed || (region != null && TRIP_REGIONS[region] && !TRIP_REGIONS[region].noBank))) after(() => warmTrip(request, region));
+  const regions = region != null && !armed ? await tripRegions() : null;
+  if (snap.bank && (armed || (region != null && regions?.[region] && !regions[region].noBank))) after(() => warmTrip(request, region));
   return NextResponse.json({ ok: true, stored: stored + (state ? 1 : 0), armed });
 }
 

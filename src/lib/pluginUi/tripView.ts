@@ -30,7 +30,8 @@ import { rateLimit } from '@/lib/rate-limit';
 import { checkTrip, isSpecWeapon, raidScaled, setupFromHeld, tripWarn, usableHeld, type TripCheck, type TripSource } from '@/lib/tripCheck';
 import { tripLayout, type TripLayout } from '@/lib/tripLayout';
 import { ownStats, setupResult, withSlot } from '@/lib/gearNow';
-import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
+import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, type TripContent } from '@/lib/tripContent';
+import { tripRegions } from '@/lib/guideAreas';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
 import { cleanRaidLevel, RAID_LEVELS, raidLevelFor, saveRaidLevel } from '@/lib/tripRaidLevel';
 import { canonicalKey, ownAlias, targetWhy, type Target } from '@/lib/tripTarget';
@@ -394,7 +395,8 @@ async function resolveCheck(c: {
 
 async function build(request: Request, args: Args, viewer: GuideViewer, note: string | null, t = phases()): Promise<Built> {
   const region = regionOf(args);
-  const regionName = region != null ? TRIP_REGIONS[region]?.name ?? null : null;
+  const regions = await tripRegions();
+  const regionName = region != null ? regions[region]?.name ?? null : null;
   const base: TripPanelData = {
     region: region != null ? String(region) : '',
     regionName,
@@ -428,7 +430,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   // nothing) the next-trip target is checked.
   const asked = args.target && args.target !== 'clear' ? args.target : args.content;
   const picked = contentFromKey(asked ? canonicalKey(asked) : asked);
-  const fromRegion = !picked && region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id))) : null;
+  const fromRegion = !picked && region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id)), regions) : null;
   const content: TripContent | null = picked ?? fromRegion ?? contentFromKey(target?.key);
   const isTarget = !!content && !!target && content.key === target.key && !fromRegion;
   const withContent: TripPanelData = {
@@ -569,7 +571,7 @@ export async function tripAct(request: Request, act: string, args: Args): Promis
   if (!content) return tripView(request, args);
   // Back to the check as it was asked for: the region's own trip stays "picked from" the region.
   const region = regionOf(args);
-  const again: Args = { ...(region != null ? { region: String(region) } : {}), why: 'manual', ...(region != null && TRIP_REGIONS[region]?.content === content.key ? {} : { content: content.key }) };
+  const again: Args = { ...(region != null ? { region: String(region) } : {}), why: 'manual', ...(region != null && (await tripRegions())[region]?.content === content.key ? {} : { content: content.key }) };
   if (act === 'trip-raid') {
     // The ToA raid level the check assumes, remembered for this character.
     const level = cleanRaidLevel(args.rl);

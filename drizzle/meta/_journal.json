@@ -1618,6 +1618,13 @@
       "when": 1795710737945,
       "tag": "0293_rush_adjust",
       "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1795713678830,
+      "tag": "0294_guide_pieces",
+      "breakpoints": true
     }
   ]
 }
