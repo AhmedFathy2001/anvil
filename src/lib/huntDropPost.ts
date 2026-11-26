@@ -65,7 +65,7 @@ export function bountyClaimLine(b: NonNullable<HuntDropPost['bounty']>): string 
 const medal = (place: number) => (place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : '');
 
 function countWords(rule: HuntRule, n: number): string {
-  const unit = rule === 'points' ? (n === 1 ? 'point' : 'points') : n === 1 ? 'drop' : 'drops';
+  const unit = rule === 'points' || rule === 'rush' ? (n === 1 ? 'point' : 'points') : n === 1 ? 'drop' : 'drops';
   return `${n.toLocaleString()} ${unit}`;
 }
 

@@ -574,3 +574,30 @@ test('a weekly paid in Hardcore Worlds gp says so on its prize card, and tags HC
   assert.ok(all.includes('HCW') && all.includes('HCW fell'));
   assert.equal(all.filter((t) => t.startsWith('HCW')).length, 2, 'only the Hardcore Worlds characters are tagged');
 });
+
+test('a Boss Rush page spells out its rules and scores in points', async () => {
+  const { __weeklyPageForTest } = await import('../src/lib/pluginUi/homeUi.ts');
+  const { DEFAULT_RUSH, rushRuleLines } = await import('../src/lib/bossRushRules.ts');
+  const rushRules = rushRuleLines(DEFAULT_RUSH, ['Chambers of Xeric', 'Theatre of Blood', 'Tombs of Amascut', 'ToA: Expert']);
+  const w = {
+    id: 9,
+    title: 'Boss Rush: raids',
+    type: 'hunt',
+    metric: 'x',
+    metricLabel: 'Raids · kills + rare drops - deaths',
+    status: 'upcoming',
+    startDate: '2026-11-21T20:00:00Z',
+    endDate: '2026-11-28T20:00:00Z',
+    rushRules,
+    huntItems: [{ id: 20997, name: 'Twisted bow', pts: 10 }],
+  };
+  const page = JSON.stringify(__weeklyPageForTest(w, Date.parse('2026-11-17T12:00:00Z')));
+  assert.match(page, /"How it scores"/);
+  assert.match(page, /Each kill at Chambers of Xeric, Theatre of Blood, Tombs of Amascut and 1 more: \+1 pt\./);
+  assert.match(page, /Each death there: -1 pt, mechanics included\./);
+  assert.match(page, /Only kills with the Anvil plugin on count/);
+  assert.match(page, /Clan Synergy: \+1 pt for each entrant with you, up to \+3 a kill/);
+  assert.match(page, /never solo-only ones like Phosani's/);
+  assert.match(page, /"Drops that score"/);
+  assert.match(page, /10 pts/);
+});

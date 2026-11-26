@@ -1,5 +1,6 @@
 import { BOSSES } from '@/lib/constants';
 import { bossKeyForName } from '@/lib/pluginStats';
+import { isRaidFamily, raidOfNpc } from '@/lib/raidNpcs';
 
 // What a death report may name as its killer.
 //
@@ -59,6 +60,14 @@ export function shownKiller(source: string | null | undefined): string | null {
 
 export function settleDeathSource(raw: Record<string, unknown>): void {
   if (raw.kind !== 'death') return;
+  // Which raid it was: a Boss Rush over a raid counts the raid's deaths, whatever killed them. A
+  // current plugin says so itself, from the game's own "in this raid" values, which also covers the
+  // deaths nothing is behind (Warden skulls, Zebak's waves, Olm's crystals). An older one only names
+  // a killer, so it is read off the name before anything below blanks it (lib/raidNpcs).
+  // "toa-entry": Entry Mode, which no rush over the raid counts (its kills are not the raid's either).
+  const raid = raw.raid === 'toa-entry' ? null : isRaidFamily(raw.raid) ? raw.raid : raw.sourceKind === 'player' ? null : raidOfNpc(raw.source);
+  if (raid) raw.raid = raid;
+  else delete raw.raid;
   if (typeof raw.source === 'string' && raw.sourceKind !== 'player' && neverKiller(raw.source)) {
     raw.source = null;
     raw.sourceKind = null;

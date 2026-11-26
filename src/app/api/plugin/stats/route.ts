@@ -28,6 +28,7 @@ import { parseEventRules } from '@/lib/eventRules';
 import { mergeModePush } from '@/lib/modeStats';
 import { countsWorld } from '@/lib/competitionGame';
 import { creditWeeklyModePush } from '@/lib/weeklyModeScores';
+import { creditRushPush } from '@/lib/itemHuntDb';
 import type { WorldMode } from '@/lib/worldModes';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
@@ -207,6 +208,15 @@ export async function POST(request: Request) {
       if (!participant) continue; // not enrolled yet — the lifecycle cron enrolls + the sweep baselines
       // Scored off a mode's table (a Hardcore Worlds character), or out of the race since a death.
       if (participant.hiscoresTable || participant.stoppedAt) continue;
+      // A Boss Rush: the kills this push shows the plugin saw (lib/itemHuntDb creditRushPush).
+      if (comp.rushHunt && !participant.optedOut) {
+        await creditRushPush({
+          comp: { id: comp.id, startDate: comp.startDate, endDate: comp.endDate ?? '', hunt: comp.rushHunt },
+          seat: participant,
+          pushed,
+          nowMs: Date.now(),
+        }).catch((e) => log.warn('rush.push-failed', { competitionId: comp.id, error: (e as Error).message }));
+      }
       // A raid across its modes needs every mode in the overlay to be whole; otherwise the sweep has it.
       // The live overlay alone when it holds every key; otherwise each key's freshest count, the
       // stored hiscores under the keys the plugin has not pushed (a pet hunt over two bosses when

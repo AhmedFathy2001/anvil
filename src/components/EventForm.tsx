@@ -96,12 +96,16 @@ const WEEKLY_KINDS = [
   { type: 'boss' as const, label: 'Boss of the Week', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
   { type: 'efficiency' as const, label: 'Efficiency race', chips: 'everyone · Hours played / Hours bossed', defaultMetric: 'ehp' },
   // Ranked by drops, not by a hiscores gain: its own fields (components/weekly/HuntFields).
-  { type: 'hunt' as const, label: 'Item hunt', chips: 'everyone · an item or a pet, first or most', defaultMetric: '' },
+  { type: 'hunt' as const, label: 'Item hunt', chips: 'everyone · an item or a pet, first or most, or a Boss Rush', defaultMetric: '' },
 ];
 type WeeklyType = (typeof WEEKLY_KINDS)[number]['type'];
 
 /** What a hunt calls itself until someone names it: "Item hunt: Uncut onyx", "Pet hunt: Heron + Rocky". */
 function huntName(hunt: HuntFormValue): string {
+  if (hunt.rule === 'rush') {
+    const names = hunt.rushBosses.map((k) => BOSSES.find((b) => b.key === k)?.label ?? k);
+    return names.length ? `Boss Rush: ${names.slice(0, 2).join(' + ')}${names.length > 2 ? ' + more' : ''}` : 'Boss Rush';
+  }
   if (hunt.items.length === 0) return 'Item hunt';
   // A list of nothing but pets is a pet hunt, the way lib/itemHunt huntKindWord names it.
   const kind = hunt.items.every((i) => i.pet) ? 'Pet hunt' : 'Item hunt';
@@ -525,8 +529,12 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
         setError(isHunt ? 'An item hunt needs a start and an end: only drops between the two count. Pick a window on the right.' : 'A weekly competition always needs an end — it scores the gains between its start and end. Pick a window on the right.');
         return;
       }
+      if (isHunt && hunt.rule === 'rush' && hunt.rushBosses.length === 0) {
+        setError('Pick at least one boss for the rush.');
+        return;
+      }
       if (isHunt) {
-        if (hunt.items.length === 0) {
+        if (hunt.rule !== 'rush' && hunt.items.length === 0) {
           setError('Pick at least one item or pet to hunt.');
           return;
         }
@@ -1679,7 +1687,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   <SpecRow label="Tiles to author" value="none — it scores itself" />
                   <SpecRow
                     label="Scoring"
-                    value={isHunt ? (hunt.rule === 'first' ? 'first to get the drop' : hunt.rule === 'points' ? 'most points by the end' : 'most drops by the end') : weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
+                    value={isHunt ? (hunt.rule === 'rush' ? 'kills + drop points - deaths' : hunt.rule === 'first' ? 'first to get the drop' : hunt.rule === 'points' ? 'most points by the end' : 'most drops by the end') : weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
                   />
                   <SpecRow label="Teams" value="none — one leaderboard" />
                   <SpecRow label="Who's in" value={selectedOnly ? 'only the people you add' : includeGuests ? 'roster + guests' : 'full members only'} />
