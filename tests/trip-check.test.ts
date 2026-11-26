@@ -174,6 +174,19 @@ test('a slot in the bank that costs DPS fails; the same item worn passes', () =>
   assert.ok(packed.info.includes('In your inventory: equip Torva full helm before the fight'), packed.info.join(' | '));
 });
 
+test('own setup, everything banked: every slot says take it; gone from the bank too, not found; no "0 slots" line', () => {
+  const lb = id('Lightbearer');
+  const s = setup({ gear: { weapon: fang, head: torvaHelm, ring: lb }, inventory: [] });
+  const bank = [{ id: fang }, { id: torvaHelm }, { id: lb }];
+  const c = checkTrip(input({ setup: s, source: 'own', worn: [], inventory: [], bank }));
+  for (const n of ["Osmumten's fang", 'Torva full helm', 'Lightbearer']) assert.ok(failing(c).includes(`${shortName(n)} is in your bank: take it`), `${n}: ${failing(c).join(' | ')}`);
+  assert.ok(!c.info.some((l) => /Switches/.test(l)), 'nothing packed: no slots line');
+  const gone = checkTrip(input({ setup: s, source: 'own', worn: [], inventory: [], bank: [{ id: fang }, { id: lb }] }));
+  assert.ok(failing(gone).includes('Torva full helm: not found'), failing(gone).join(' | '));
+  // A guide's setup: not owned is an upgrade, never a trip problem.
+  assert.ok(!failing(checkTrip(input({ setup: s, worn: [], inventory: [], bank: [{ id: fang }, { id: lb }] }))).some((l) => /Torva/.test(l)));
+});
+
 test('a zero-bonus ring (Lightbearer) is checked like any item, never "empty will do"', () => {
   const lb = id('Lightbearer');
   const s = setup({ gear: { weapon: fang, head: torvaHelm, ring: lb } });

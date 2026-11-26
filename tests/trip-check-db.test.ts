@@ -79,20 +79,20 @@ test('next-trip target: picked, owner-only, ended by a kc or a clear, beside the
   await pool.query(`UPDATE accounts SET live_stat_key_times = $1 WHERE id = $2`, [JSON.stringify({ vorkath: new Date(Date.now() - 60_000).toISOString(), fishing: new Date().toISOString() }), me.accountId]);
   assert.deepEqual((await store.currentTarget(me.userId, me.accountId)).target, { key: 'vorkath', source: 'last' });
   assert.equal((await store.currentTarget(other.userId, me.accountId)).target, null, 'nobody else reads it');
-  // Doom has no trip definition: a pick of it only takes with a saved setup.
-  assert.equal(await store.pickTarget(me.userId, me.accountId, 'm:Doom of Mokhaiotl', []), false);
+  // Any monster can be picked; Doom picked by hand is stored as the Doom trip (one key per trip).
+  assert.equal(await store.pickTarget(me.userId, me.accountId, 'nope', []), false);
   const setup = { tier: 'advanced' as const, name: 'My Doom setup', gear: { weapon: 26219 }, style: 0, stats: { attack: 99, strength: 99, ranged: 99, magic: 99 } };
-  await setups.saveOwnTripSetup(me.userId, me.accountId, 'm:Doom of Mokhaiotl', setup);
+  await setups.saveOwnTripSetup(me.userId, me.accountId, 'm:Vardorvis', setup);
   const own = await store.ownTripKeys(me.accountId);
   assert.equal(await store.pickTarget(other.userId, me.accountId, 'toa', own), false, "not on somebody else's character");
   assert.equal(await store.pickTarget(me.userId, me.accountId, 'm:Doom of Mokhaiotl', own), true);
-  assert.deepEqual((await store.currentTarget(me.userId, me.accountId)).target, { key: 'm:Doom of Mokhaiotl', source: 'pick' });
+  assert.deepEqual((await store.currentTarget(me.userId, me.accountId)).target, { key: 'doom', source: 'pick' });
   // The target row is not a container.
   await items.saveSnapshot(me.accountId, { inventory: { items: [{ id: 385 }], readAt: new Date().toISOString() } });
   assert.deepEqual(Object.keys((await items.snapshotForViewer(me.userId, me.accountId)) ?? {}), ['inventory']);
-  // A Doom kill ends the pick; with the saved setup the last trip is Doom again.
-  await pool.query(`UPDATE accounts SET live_stat_key_times = $1 WHERE id = $2`, [JSON.stringify({ doomOfMokhaiotl: new Date(Date.now() + 60_000).toISOString() }), me.accountId]);
-  assert.deepEqual((await store.currentTarget(me.userId, me.accountId)).target, { key: 'm:Doom of Mokhaiotl', source: 'last' });
+  // A Vardorvis kill ends the pick; with the saved setup the last trip is Vardorvis.
+  await pool.query(`UPDATE accounts SET live_stat_key_times = $1 WHERE id = $2`, [JSON.stringify({ vardorvis: new Date(Date.now() + 60_000).toISOString() }), me.accountId]);
+  assert.deepEqual((await store.currentTarget(me.userId, me.accountId)).target, { key: 'm:Vardorvis', source: 'last' });
   // A death / logout (the plugin's tripEnd) or "clear": nothing until the next kill.
   await new Promise((r) => setTimeout(r, 5));
   await store.clearTarget(me.accountId);

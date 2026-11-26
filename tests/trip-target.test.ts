@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { bossOfKey, carriedTrip, contentForBoss, guideTarget, isTargetKey, lastKill, resolveTarget, TARGET_IDLE_MS, targetWhy, type TargetInputs } from '../src/lib/tripTarget.ts';
+import { bossOfKey, canonicalKey, carriedTrip, contentForBoss, ownAlias, guideTarget, isTargetKey, lastKill, resolveTarget, TARGET_IDLE_MS, targetWhy, type TargetInputs } from '../src/lib/tripTarget.ts';
 import { MOKHAIOTL_WAYSTONE } from '../src/lib/tripContent.ts';
 
 const NOW = Date.parse('2026-11-26T12:00:00Z');
@@ -21,8 +21,11 @@ test('kills and guides map to trips, or to the player’s own saved setup, never
   assert.equal(contentForBoss('vorkath', []), 'vorkath');
   assert.equal(bossOfKey(DOOM), 'doomOfMokhaiotl');
   assert.equal(contentForBoss('doomOfMokhaiotl', []), 'doom', 'a deep-delve count is a Doom trip');
-  assert.equal(contentForBoss('doomOfMokhaiotl', [DOOM]), DOOM, 'a setup saved for the boss by hand wins');
-  assert.equal(contentForBoss('doomOfMokhaiotl', [DOOM, 'doom']), 'doom', 'unless one is saved for the trip too');
+  assert.equal(contentForBoss('doomOfMokhaiotl', [DOOM]), 'doom', 'one key per trip: the hand-picked setup is only its source');
+  assert.equal(canonicalKey(`${DOOM}#Delve 1`), 'doom');
+  assert.equal(canonicalKey(VARD), VARD);
+  assert.equal(ownAlias('doom', [DOOM, VARD]), DOOM, 'the setup saved by hand stands in for the trip');
+  assert.equal(ownAlias('doom', [VARD]), null);
   assert.equal(contentForBoss('vardorvis', []), null, 'Vardorvis has no trip definition');
   assert.equal(contentForBoss('vardorvis', [VARD]), VARD, 'its own saved setup makes it one');
   assert.equal(guideTarget('tombs-of-amascut-entry', null, null, []), 'toa', 'the trip naming the guide');
@@ -79,7 +82,9 @@ test('clears: a trip end or "clear", two hours idle, a pick that is no longer a 
   const idle = TARGET_IDLE_MS / 60_000 + 1;
   assert.equal(resolveTarget(inp({ state: { pick: { key: 'toa', at: ago(idle) } } })), null);
   assert.equal(resolveTarget(inp({ kcTimes: { vorkath: ago(idle) } })), null);
-  assert.equal(resolveTarget(inp({ state: { pick: { key: DOOM, at: ago(5) } } })), null, 'a forgotten setup is no target');
+  assert.deepEqual(resolveTarget(inp({ state: { pick: { key: VARD, at: ago(5) } } })), { key: VARD, source: 'pick' }, 'any monster can be picked');
+  assert.deepEqual(resolveTarget(inp({ state: { pick: { key: DOOM, at: ago(5) } } })), { key: 'doom', source: 'pick' }, 'Doom picked by hand is the Doom trip');
+  assert.equal(resolveTarget(inp({ state: { pick: { key: 'nope', at: ago(5) } } })), null, 'not a trip or a monster');
 });
 
 // ── the panel ──────────────────────────────────────────────────────────────────────────────
