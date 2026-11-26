@@ -718,9 +718,14 @@ only goes out where that is listed.
   key or `m:<monster>` from the view's own picker. Actions `trip-save` and `trip-forget` (args
   `{region, content}`) keep or drop the player's own setup for a trip.
 - **Fresh items.** A plugin sending `X-Anvil-Bank-Filter: 1` pushes what is worn and carried (and
-  `state`) on `POST /api/plugin/items` just before a check the player asked for (a bank close, or a
-  click on a `trip` load), whether or not it changed, under the same guard as every item push. For such a plugin the view never judges items read over 20 seconds before the
-  request: it answers status "Checking what you carry…" with `warn: null` instead of a Ready.
+  `state`, and the bank) on `POST /api/plugin/items` just before a check the player asked for (a bank
+  close, or a click on a `trip` load), whether or not it changed, under the same guard as every item
+  push, and then loads the view with `held: '1'`, or with why it couldn't (`paused`, `signed-out`,
+  `no-character`, `sharing-off`, `no-site`, `failed`), which the card says (with `warn` null). The
+  panel's Refresh and "Check again" count as asked. Only such a load with items over 20 seconds old
+  (the push hasn't landed) is held back: the card still checks the last items and says they are not
+  the newest, and `warn` is null. A load without `held` (a view restored after login) is checked
+  as is: items unchanged since their push are current.
 - **Bank filter** (header `X-Anvil-Bank-Filter: 1`): failing rows carry the action
   `{a: 'bank', ids: '<id>,<id>'}` (the bank's own ids that count as the missing item, its forms and
   upgrades included), and the card has a "Show missing in bank" button with every such id. The plugin
