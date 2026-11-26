@@ -27,7 +27,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { checkTrip, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
 import { contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
-import { SOURCE_LABEL, type Target } from '@/lib/tripTarget';
+import { targetWhy, type Target } from '@/lib/tripTarget';
 import { clearTarget, currentTarget, ownTripKeys, pickTarget } from '@/lib/tripTargetStore';
 import type { GuideViewer } from '@/lib/guideViewer';
 import { verifyPluginTokenUser } from '@/lib/auth';
@@ -159,7 +159,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     ...base,
     content: content ? { key: content.key, name: content.name, short: content.short } : null,
     fromRegion: !!fromRegion,
-    target: target ? { key: target.key, short: contentFromKey(target.key)?.short ?? target.key, why: SOURCE_LABEL[target.source] } : null,
+    target: target ? { key: target.key, short: contentFromKey(target.key)?.short ?? target.key, why: targetWhy(target) } : null,
     fromTarget: isTarget,
   };
   if (!viewer.accountId || (!snap?.equipment && !snap?.inventory)) return { data: { ...withContent, status: 'off' }, warn: null, armed };

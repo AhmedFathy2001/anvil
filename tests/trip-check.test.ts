@@ -107,14 +107,12 @@ test('regions: each picks its content; Ferox only with a spade; every content is
   assert.equal(contentForRegion(11601, new Set())?.key, 'nex');
   assert.equal(contentForRegion(12344, new Set()), null);
   assert.equal(contentForRegion(12344, new Set([SPADE]))?.key, 'barrows');
-  // Doom: the ruins (the waystone's landing 1311,9497 and the ruins 1311,9520), Tal Teklan's bank only with a waystone.
+  // Doom: the ruins (the waystone's landing 1311,9497 and the ruins 1311,9520); no bank of its own.
   const region = (x: number, y: number) => ((x >> 6) << 8) | (y >> 6);
   assert.equal(region(1311, 9497), 5268);
-  assert.equal(region(1244, 3121), 4912);
   assert.equal(contentForRegion(5268, new Set())?.key, 'doom');
   assert.ok(TRIP_REGIONS[5268].noBank);
-  assert.equal(contentForRegion(4912, new Set()), null);
-  assert.equal(contentForRegion(4912, new Set([MOKHAIOTL_WAYSTONE]))?.key, 'doom');
+  assert.deepEqual(tripContent('doom')?.tripItems?.ids, [MOKHAIOTL_WAYSTONE]);
   assert.equal(contentForRegion(1, new Set()), null);
   assert.deepEqual(TRIP_REGION_IDS, [...TRIP_REGION_IDS].sort((a, b) => a - b));
   for (const r of Object.values(TRIP_REGIONS)) assert.ok(tripContent(r.content), r.content);

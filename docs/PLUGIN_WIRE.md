@@ -738,7 +738,8 @@ The pre-trip check's next-trip target (lib/tripTarget, lib/tripTargetStore), so 
 the plugin only remembers one flag.
 
 - The target, strongest first: the player's pick (a trip chip in the view, or "Going here next" on a
-  guide), the guide they opened most recently when it maps to a trip, else the trip of their last boss
+  guide), a trip item worn or packed in the last push (`TripContent.tripItems`: a Mokhaiotl waystone
+  is a Doom trip, "carrying a waystone"), the guide they opened most recently when it maps to a trip, else the trip of their last boss
   kc (the stat push's per-key stamps). Only a trip in `TRIP_CONTENT` or one the player saved a setup
   for (`trip-save`) can be a target. A pick or guide gives way to a kc after it; anything older than
   2 hours, or than the last `tripEnd` / "clear", is gone.

@@ -6,7 +6,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { bossOfKey, contentForBoss, guideTarget, isTargetKey, lastKill, resolveTarget, TARGET_IDLE_MS, type TargetInputs } from '../src/lib/tripTarget.ts';
+import { bossOfKey, carriedTrip, contentForBoss, guideTarget, isTargetKey, lastKill, resolveTarget, TARGET_IDLE_MS, targetWhy, type TargetInputs } from '../src/lib/tripTarget.ts';
+import { MOKHAIOTL_WAYSTONE } from '../src/lib/tripContent.ts';
 
 const NOW = Date.parse('2026-11-26T12:00:00Z');
 const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
@@ -56,6 +57,19 @@ test('a kc after a pick ends it: the last trip takes over', () => {
   assert.equal(resolveTarget(inp({ state, kcTimes: { vardorvis: ago(5) } })), null);
   assert.deepEqual(resolveTarget(inp({ kcTimes: { vardorvis: ago(5) }, ownKeys: [VARD] })), { key: VARD, source: 'last' });
   assert.deepEqual(resolveTarget(inp({ kcTimes: { doomOfMokhaiotl: ago(5) } })), { key: 'doom', source: 'last' }, 'a deep delve: last trip Doom');
+});
+
+test('carried: a waystone worn or packed makes Doom the target at any bank; a pick beats it; gone, it falls back', () => {
+  const kcTimes = { vorkath: ago(20) };
+  const carried = { ids: [6685, MOKHAIOTL_WAYSTONE], at: ago(1) };
+  assert.equal(carriedTrip([6685]), null);
+  const t = resolveTarget(inp({ carried, kcTimes, guide: { key: 'cox', at: ago(5) } }));
+  assert.deepEqual(t, { key: 'doom', source: 'carried' }, 'beats the guide and the last trip');
+  assert.equal(targetWhy(t!), 'carrying a waystone');
+  assert.deepEqual(resolveTarget(inp({ carried, state: { pick: { key: 'toa', at: ago(3) } } })), { key: 'toa', source: 'pick' });
+  // The waystone used or banked: the next reading has none, and the last trip takes over again.
+  assert.deepEqual(resolveTarget(inp({ carried: { ids: [6685], at: ago(0) }, kcTimes })), { key: 'vorkath', source: 'last' });
+  assert.equal(resolveTarget(inp({ carried, state: { clearedAt: ago(0) } })), null, 'a trip end after the reading clears it');
 });
 
 test('clears: a trip end or "clear", two hours idle, a pick that is no longer a target', () => {
