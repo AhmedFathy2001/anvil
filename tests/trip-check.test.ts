@@ -448,3 +448,9 @@ test('bank layout: worn pieces as a paper doll, switches beside, each supply kin
   assert.deepEqual([l.layout[12], l.layout[13], l.layout[14]], [24, 22, 21], 'supplies their own row, 4 → 1');
   assert.deepEqual(l.ids.sort((a, b) => a - b), [11, 12, 13, 14, 15, 21, 22, 24]);
 });
+
+test('raid calc says it is rough; a single boss does not', async () => {
+  const { calcSourceLine } = await import('../src/lib/tripContent.ts');
+  assert.equal(calcSourceLine(tripContent('tob')!), 'Rough: worked out from your bank. A ToB guide for your role will be more accurate.');
+  assert.ok(!calcSourceLine(tripContent('vorkath')!).startsWith('Rough'));
+});

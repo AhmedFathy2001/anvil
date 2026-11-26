@@ -25,7 +25,7 @@ import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { tripStateForViewer } from '@/lib/playerItems';
 import { rateLimit } from '@/lib/rate-limit';
 import { checkTrip, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
-import { contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
+import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
 import { canonicalKey, ownAlias, targetWhy, type Target } from '@/lib/tripTarget';
 import { clearTarget, currentTarget, ownTripKeys, pickTarget } from '@/lib/tripTargetStore';
@@ -201,7 +201,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
       }
     }
   }
-  if (source === 'calc') sourceLine = `No setup saved for ${content.name}: compared with the best your bank can make`;
+  if (source === 'calc') sourceLine = calcSourceLine(content);
   const monsters = targets.map((t) => idx.monster(t)).filter((m): m is Monster => !!m);
   if (!monsters.length && source === 'calc') return { data: { ...withContent, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
 
