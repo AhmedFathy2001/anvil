@@ -1,3 +1,4 @@
+import { tilesFrozenByStart } from '@/lib/practiceRules';
 import { STAFF_HIDE_ERROR, staffHideBlocksEventId } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
@@ -41,7 +42,8 @@ export async function PUT(
     return NextResponse.json({ error: 'Routes are for tile races only.' }, { status: 400 });
   }
   // Mid-race edits are an admin's call, and recorded (lib/raceRoutesDb applyLiveRouteEdit).
-  const live = !!event.startDate && new Date(event.startDate) <= new Date();
+  // A practice board is authored while it runs (lib/practiceRules tilesFrozenByStart): never a live edit.
+  const live = tilesFrozenByStart(event);
   if (live && !(await verifyAdmin())) {
     return NextResponse.json({ error: 'Only an admin can change the route once the race has started.' }, { status: 403 });
   }

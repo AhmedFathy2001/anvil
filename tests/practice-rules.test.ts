@@ -15,6 +15,7 @@ import {
   practiceDue,
   practiceRunning,
   practiceTeams,
+  tilesFrozenByStart,
 } from '../src/lib/practiceRules';
 import { pickActivePluginEvent } from '../src/lib/pluginEventPick';
 import { appendBoardTiles, boardLabel, prefixPracticeLabels } from '../src/lib/pluginBoardTiles';
@@ -71,6 +72,13 @@ test('the setup body is checked: tiles, people, sides, length', () => {
   assert.equal(parsePracticeInput({ ...good, tiles: { mode: 'pick', count: PRACTICE_MAX_TILES + 1 } }).ok, false);
   assert.equal(parsePracticeInput({ ...good, tiles: { mode: 'pick', count: 3 } }).ok, true);
   assert.equal(parsePracticeInput({ ...good, tiles: { mode: 'other' } }).ok, false);
+  // An empty board (built in the tile editor) and a library board.
+  assert.equal(parsePracticeInput({ ...good, tiles: { mode: 'pick', count: 0 } }).ok, true);
+  assert.equal(parsePracticeInput({ ...good, tiles: { mode: 'pick', count: -1 } }).ok, false);
+  const lib = parsePracticeInput({ ...good, tiles: { mode: 'library', boardId: '7' } });
+  assert.deepEqual(lib.ok && lib.value.tiles, { mode: 'library', boardId: 7 });
+  assert.equal(parsePracticeInput({ ...good, tiles: { mode: 'library' } }).ok, false);
+  assert.equal(parsePracticeInput({ ...good, tiles: { mode: 'library', boardId: 0 } }).ok, false);
   // Duplicates fold; no posts is fine.
   const dup = parsePracticeInput({ ...good, seats: [10, 10, 11], webhookUrl: '' });
   assert.equal(dup.ok, true);
@@ -168,4 +176,16 @@ test('a practice board’s popups say [Practice] — once — and a real board�
   assert.deepEqual((active.trackedDrops as { label: string }[]).map((d) => d.label), ['[Practice] Any Barrows item']);
   assert.deepEqual((active.completedTiles as { label: string }[]).map((d) => d.label), ['[Practice] Done one']);
   assert.deepEqual((before as { label: string }[])[0].label, 'Any Barrows item', 'new rows, the originals untouched');
+});
+
+test('a practice board’s tiles never freeze at the start; a real board’s do', () => {
+  const now = Date.parse('2026-11-26T12:00:00Z');
+  const before = '2026-11-26T11:00:00Z';
+  const after = '2026-11-26T13:00:00Z';
+  assert.equal(tilesFrozenByStart({ startDate: before }, now), true, 'a started real board');
+  assert.equal(tilesFrozenByStart({ practice: false, startDate: before }, now), true);
+  assert.equal(tilesFrozenByStart({ startDate: after }, now), false, 'not started yet');
+  assert.equal(tilesFrozenByStart({ startDate: null }, now), false, 'no start date');
+  assert.equal(tilesFrozenByStart({ practice: true, startDate: before }, now), false, 'a running practice board stays authorable');
+  assert.equal(PRACTICE_MAX_TILES >= 49, true, 'a whole 7×7 fits');
 });

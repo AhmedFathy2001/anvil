@@ -97,13 +97,14 @@ export async function POST(request: Request) {
   const parsed = parsePracticeInput(await request.json().catch(() => null));
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
   try {
-    const id = await createPracticeBoard(session.userId, clan.id, parsed.value);
+    const { id, rows } = await createPracticeBoard(session.userId, clan.id, parsed.value);
     // The board's rules card, to the test hook only (lib/eventRulesPost; nothing without a hook).
     // A copied board's tiles are already there; a picked board's arrive with the import, after.
     if (parsed.value.webhookUrl && parsed.value.tiles.mode === 'copy') {
       postEventRules(id, clan.id).catch((e) => log.warn('practice.rules-post-failed', { eventId: id }, e));
     }
-    return NextResponse.json({ id });
+    // A library board's rows, for the setup screen to fill the blank tiles with (the tile import).
+    return NextResponse.json({ id, rows });
   } catch (e) {
     if (e instanceof PracticeError) return NextResponse.json({ error: e.message }, { status: e.status });
     throw e;

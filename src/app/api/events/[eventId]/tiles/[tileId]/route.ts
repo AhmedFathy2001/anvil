@@ -1,3 +1,4 @@
+import { tilesFrozenByStart } from '@/lib/practiceRules';
 import { STAFF_HIDE_ERROR, maskRaceTilesForSession, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
 import { maskRaceTile } from '@/lib/raceHideAhead';
 import { NextResponse } from 'next/server';
@@ -85,7 +86,7 @@ export async function DELETE(
     const option = await db.query.tiles.findFirst({ where: and(eq(tiles.id, tId), eq(tiles.eventId, eId)) });
     if (option && option.parentTileId != null && option.easeLevel != null) {
       if (await raceTileHiddenForSession(event, option)) return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
-      const started = !!event.startDate && new Date(event.startDate) <= new Date();
+      const started = tilesFrozenByStart(event);
       if (started && !atLeast(editor.role, 'admin')) {
         return NextResponse.json({ error: 'Removing an easier option on a live race is admin-only.' }, { status: 403 });
       }
@@ -103,7 +104,7 @@ export async function DELETE(
       { status: 400 },
     );
   }
-  if (event.startDate && new Date(event.startDate) <= new Date()) {
+  if (tilesFrozenByStart(event)) {
     return NextResponse.json({ error: 'Tiles cannot be removed after the event has started.' }, { status: 400 });
   }
 

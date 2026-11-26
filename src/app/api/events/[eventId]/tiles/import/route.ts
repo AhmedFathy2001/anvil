@@ -1,7 +1,7 @@
 import { RAID_TILE_TYPE, conditionsKindError, validateConditions } from '@/lib/tileConditionsCheck';
 import { STAFF_HIDE_ERROR, staffHideBlocksEventId } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
-import { PRACTICE_MAX_TILES } from '@/lib/practiceRules';
+import { PRACTICE_MAX_TILES, tilesFrozenByStart } from '@/lib/practiceRules';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { clogTileError } from '@/lib/clogTiles';
 import { eventForRequest } from '@/lib/eventScope';
@@ -593,7 +593,7 @@ export async function POST(
   // A PRACTICE board (lib/practice) is authored while it runs — adding tiles to it and testing them
   // is the point — so its tiles take a whole import whenever, as before a real start. Never more
   // than its own cap.
-  const eventStarted = !event.practice && !!event.startDate && new Date(event.startDate) <= new Date();
+  const eventStarted = tilesFrozenByStart(event);
   const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
 
   // Rows arrive either as a JSON body (client-parsed CSV / programmatic use) or as a

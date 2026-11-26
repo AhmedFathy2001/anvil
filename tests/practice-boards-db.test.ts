@@ -101,13 +101,15 @@ before(async () => {
   killTileId = made[0].id;
   const pick = made.filter((t) => t.label !== 'Slow tile').map((t) => t.id);
 
-  practiceId = await practice.createPracticeBoard(people.admin.userId, alpha, {
+  const made1 = await practice.createPracticeBoard(people.admin.userId, alpha, {
     tiles: { mode: 'copy', eventId: realEventId, tileIds: pick },
     seats: [people.admin.seatId, people.helper.seatId],
     sides: 2,
     webhookUrl: TEST_HOOK,
     hours: 1,
   });
+  practiceId = made1.id;
+  assert.equal(made1.rows, null, 'a copied board brings its tiles itself');
 });
 
 after(async () => {
@@ -335,4 +337,49 @@ test('ended, it is swept a week later — and only practice boards are', async (
   assert.equal((await db.select().from(s.events).where(eq(s.events.id, practiceId))).length, 0);
   assert.equal((await db.select().from(s.events).where(eq(s.events.id, realEventId))).length, 1);
   assert.equal(await practice.deletePracticeBoard(realEventId), false, 'a real board can never be deleted through here');
+});
+
+test('a library board starts whole, in its own format; an empty board starts for the tile editor', async () => {
+  const stamp = new Date().toISOString();
+  const rows = ['Zulrah', 'Vorkath', 'Cerberus', 'Hydra'].map((n) => ({ label: `${n} kill`, tileType: 'kill', targetNpcs: [n], requiredAmount: 1 }));
+  const [grid] = await db
+    .insert(s.libraryBoards)
+    .values({ title: 'Tiny grid', origin: 'anvil', mode: 'classic', boardSize: 2, tiles: JSON.stringify(rows), createdAt: stamp, updatedAt: stamp })
+    .returning();
+  const [huge] = await db
+    .insert(s.libraryBoards)
+    .values({ title: 'Huge grid', origin: 'anvil', mode: 'classic', boardSize: 8, tiles: '[]', createdAt: stamp, updatedAt: stamp })
+    .returning();
+  const seat = { seats: [people.admin.seatId], sides: 1 as const, webhookUrl: null, hours: 1 as const };
+
+  await assert.rejects(
+    practice.createPracticeBoard(people.admin.userId, alpha, { ...seat, tiles: { mode: 'library', boardId: huge.id } }),
+    (e: unknown) => e instanceof practice.PracticeError && /holds up to/.test(e.message),
+    'an 8×8 is too big for a practice board',
+  );
+
+  const made = await practice.createPracticeBoard(people.admin.userId, alpha, { ...seat, tiles: { mode: 'library', boardId: grid.id } });
+  const [ev] = await db.select().from(s.events).where(eq(s.events.id, made.id));
+  assert.equal(ev.practice, true);
+  assert.equal(ev.name, 'Practice · Tiny grid');
+  assert.equal(ev.format, 'bingo');
+  assert.equal(ev.scoringMode, 'tiles', 'a classic library board stays a classic grid');
+  assert.equal(ev.boardSize, 2);
+  assert.equal((await db.select().from(s.tiles).where(eq(s.tiles.eventId, made.id))).length, 4, 'N×N blank tiles for the import to fill');
+  assert.equal(made.rows?.length, 4, 'the rows come back for the import');
+  const grant = await db.select().from(s.eventEditors).where(and(eq(s.eventEditors.eventId, made.id), eq(s.eventEditors.userId, people.admin.userId)));
+  assert.equal(grant.length, 1, 'the creator may author its tiles');
+  await practice.endPracticeBoard(made.id);
+
+  const empty = await practice.createPracticeBoard(people.admin.userId, alpha, { ...seat, tiles: { mode: 'pick', count: 0 } });
+  const [blank] = await db.select().from(s.events).where(eq(s.events.id, empty.id));
+  assert.equal(blank.scoringMode, 'points', 'a task list, so the editor can add tiles one by one');
+  assert.equal(blank.boardSize, 0);
+  assert.equal((await db.select().from(s.tiles).where(eq(s.tiles.eventId, empty.id))).length, 0);
+  assert.equal(
+    (await db.select().from(s.eventEditors).where(eq(s.eventEditors.eventId, empty.id))).length,
+    1,
+    'the creator may build it in the tile editor',
+  );
+  await practice.endPracticeBoard(empty.id);
 });

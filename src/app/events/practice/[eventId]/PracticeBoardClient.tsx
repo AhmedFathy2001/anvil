@@ -180,6 +180,10 @@ export default function PracticeBoardClient({
                 >
                   Reset all progress
                 </button>
+                {/* The real tile editor, unlocked on a practice board while it runs: every tile kind. */}
+                <ClanLink href={`/admin/events/practice/${view.id}/tiles`} className={cn(btn, 'inline-flex items-center')}>
+                  Edit tiles
+                </ClanLink>
                 <button type="button" className={btn} disabled={!!busy || room === 0} onClick={() => setAdding(adding ? null : 'copy')}>
                   Add tiles
                 </button>
