@@ -262,12 +262,15 @@ test('parseEventRules: startProof is off by default and tolerant when present', 
     pick: 'random',
     // A policy stored before the session window existed must not grow the demand on read.
     maxSessionMinutes: 0,
+    // The plugin switches were on for everyone before the host could choose, and stay on.
+    autoShot: true,
+    guide: true,
   });
   // Garbage inside falls back rather than throwing.
   assert.deepEqual(
     parseEventRules(JSON.stringify({ startProof: { onMissing: 'explode', autoAcceptPlugin: 'yes', locations: 'nope', maxSessionMinutes: 'soon' } }))
       .startProof,
-    { onMissing: 'flag', autoAcceptPlugin: true, locations: [], pick: 'random', maxSessionMinutes: 0 },
+    { onMissing: 'flag', autoAcceptPlugin: true, locations: [], pick: 'random', maxSessionMinutes: 0, autoShot: true, guide: true },
   );
   assert.equal(
     parseEventRules(JSON.stringify({ startProof: { autoAcceptPlugin: false } })).startProof?.autoAcceptPlugin,
@@ -402,6 +405,13 @@ test('validateEventRules: startProof shape is enforced and round-trips', () => {
   assert.ok('error' in validateEventRules({ startProof: { locations: [{ label: 'Nowhere', x: 12, y: 3491 }] } }));
   assert.deepEqual(validateEventRules({ startProof: { maxSessionMinutes: 1000 } }), {
     error: 'rules.startProof.maxSessionMinutes must be an integer between 0 (off) and 720',
+  });
+  // The host's plugin switches: only an explicit false turns one off, and junk is refused.
+  const off = parseEventRules(JSON.stringify({ startProof: { autoShot: false, guide: false } })).startProof;
+  assert.equal(off?.autoShot, false);
+  assert.equal(off?.guide, false);
+  assert.deepEqual(validateEventRules({ startProof: { guide: 'no' } }), {
+    error: 'rules.startProof.guide must be a boolean',
   });
 
   // Requiring a starting shot is on its own enough to stop being a "default" (NULL) rules column.

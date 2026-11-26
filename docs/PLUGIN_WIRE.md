@@ -338,7 +338,8 @@ the button simply never appears:
 ```json
 { "required": true, "drawn": true, "location": "Edgeville bank",
   "spot": { "x": 3094, "y": 3491, "radius": 25 }, "maxSessionMinutes": 15,
-  "keyword": "ANVIL-GRAPE-47", "needsUpload": true, "status": null, "imageUrl": null }
+  "keyword": "ANVIL-GRAPE-47", "needsUpload": true, "status": null, "imageUrl": null,
+  "autoShot": true, "guide": true }
 ```
 
 `keyword` is per PLAYER and derived from the event's draw stamp — a value that does not exist
@@ -355,6 +356,14 @@ squares from it still counts, measured Chebyshev-style — `max(|dx|, |dy|)`.
 logout, so a player who has been logged in since before the event has a stale start baseline.
 A plugin that supports this should refuse to file a session older than the window and say so —
 "log out and back in, then take the shot" — rather than filing something staff must chase.
+
+`autoShot` and `guide` are the host's plugin switches for the event (they replace the plugin's
+own "Auto starting shot" / "Starting shot guide" settings). `autoShot`: take and file the shot
+by itself once the player stands still on the pinned spot with every check green. `guide`:
+while a shot is owed, show the on-screen card with the checks, the hint arrow and the world map
+pin. Both are `true` unless the host turned them off; a site that predates them omits both,
+and a plugin must then treat them as `true`. Older plugins ignore them and keep using their
+own settings.
 
 Filing one: upload the PNG through `POST /api/upload` as usual, then
 `POST /api/events/:eventId/start-proof` with plugin-token auth and
