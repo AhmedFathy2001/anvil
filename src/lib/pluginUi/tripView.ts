@@ -1,7 +1,7 @@
-// The data behind the pre-trip check (pluginUi/tripUi): view 'trip' and the actions 'trip-save' and
-// 'trip-forget'. The plugin loads the view with args {region, why: 'bank-close' | 'manual'} when the
-// bank closes in one of the config's `tripRegions` (lib/tripContent), or when the player asks; the
-// answer is the usual {ui} plus `warn` for its overlay:
+// The data behind the pre-trip check (pluginUi/tripUi): view 'trip' and the actions 'trip-save',
+// 'trip-forget' and 'trip-raid' (the ToA raid level, lib/tripRaidLevel). The plugin loads the view
+// with args {region, why: 'bank-close' | 'manual'} when the bank closes in one of the config's
+// `tripRegions` (lib/tripContent), or when the player asks; the answer is the usual {ui} plus `warn` for its overlay:
 //
 //   warn: { ok, title: "ToA · 2 problems", lines: ["No stab weapon: Kephri (Fang in bank)", …] }
 //         { ok: true, title: "✓ Ready for ToA", lines: [] }
@@ -27,6 +27,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { checkTrip, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
 import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
+import { cleanRaidLevel, RAID_LEVELS, raidLevelFor, saveRaidLevel } from '@/lib/tripRaidLevel';
 import { canonicalKey, ownAlias, targetWhy, type Target } from '@/lib/tripTarget';
 import { clearTarget, currentTarget, ownTripKeys, pickTarget } from '@/lib/tripTargetStore';
 import type { GuideViewer } from '@/lib/guideViewer';
@@ -190,7 +191,13 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const behind = !!content && !note && args.held === '1' && age > BEHIND_MS;
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
-  const [state, own, nm] = await Promise.all([tripStateForViewer(viewer.userId, viewer.accountId), ownSetupFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []), itemNames()]);
+  const toa = content.key === 'toa';
+  const [state, own, nm, raidLevel] = await Promise.all([
+    tripStateForViewer(viewer.userId, viewer.accountId),
+    ownSetupFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []),
+    itemNames(),
+    toa ? raidLevelFor(viewer.accountId) : Promise.resolve(null),
+  ]);
   let setup: GearSetup | null = own;
   let source: TripSource = own ? 'own' : 'calc';
   let sourceLine = own ? 'Checked against your own saved setup' : '';
@@ -240,9 +247,11 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     holds,
     nameOf,
     isRunePouch: (id) => nm.pouches.has(id),
+    raidLevel,
     prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {},
   });
   const data: TripPanelData = {
+    raid: raidLevel != null ? { level: raidLevel, levels: RAID_LEVELS } : null,
     ...withContent,
     source,
     sourceLine,
@@ -280,7 +289,7 @@ export async function tripView(request: Request, args: Args, note: string | null
 
 /** 'trip-save' (what they wear and carry becomes their setup for the trip) and 'trip-forget'. */
 export async function tripAct(request: Request, act: string, args: Args): Promise<View | null> {
-  if (act !== 'trip-save' && act !== 'trip-forget') return null;
+  if (act !== 'trip-save' && act !== 'trip-forget' && act !== 'trip-raid') return null;
   const viewer = await tripViewer(request);
   if (viewer === 'not-yours' || !viewer.userId || !viewer.accountId) return message('Sign in with the plugin, on your own character, to save a setup.');
   const rl = await rateLimit(request, `plugin-trip-setups:${viewer.userId}`, { limit: 20, windowMs: 60_000 });
@@ -290,6 +299,12 @@ export async function tripAct(request: Request, act: string, args: Args): Promis
   // Back to the check as it was asked for: the region's own trip stays "picked from" the region.
   const region = regionOf(args);
   const again: Args = { ...(region != null ? { region: String(region) } : {}), why: 'manual', ...(region != null && TRIP_REGIONS[region]?.content === content.key ? {} : { content: content.key }) };
+  if (act === 'trip-raid') {
+    // The ToA raid level the check assumes, remembered for this character.
+    const level = cleanRaidLevel(args.rl);
+    if (level != null) await saveRaidLevel(viewer.accountId, level);
+    return tripView(request, again);
+  }
   if (act === 'trip-forget') {
     await forgetOwnTripSetup(viewer.userId, viewer.accountId, content.key);
     // The same trip's setup saved for the boss picked by hand goes too.

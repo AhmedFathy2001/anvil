@@ -7,12 +7,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ammoFits, bankLayout, bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, meleeReaches, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, usableHeld, type TripInput } from '../src/lib/tripCheck.ts';
+import { ammoFits, raidScaled, bankLayout, bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, meleeReaches, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, usableHeld, type TripInput } from '../src/lib/tripCheck.ts';
 import { contentForRegion, contentFromKey, MOKHAIOTL_WAYSTONE, SPADE, TRIP_CONTENT, TRIP_REGION_IDS, TRIP_REGIONS, tripContent } from '../src/lib/tripContent.ts';
 import { cleanTripState, storedTripState } from '../src/lib/tripState.ts';
 import { equivalentsFor } from '../src/lib/itemFamilies.ts';
 import { indexGear, type GearData } from '../src/lib/dps/summary.ts';
-import type { Monster } from '../src/lib/dps/engine.ts';
+import { bestStyle, type Monster } from '../src/lib/dps/engine.ts';
 import type { GearSetup, InvItem } from '../src/lib/guideTiers.ts';
 import itemsJson from '../src/data/gearItems.json' with { type: 'json' };
 import monstersJson from '../src/data/gearMonsters.json' with { type: 'json' };
@@ -492,6 +492,15 @@ test('ammo: each launcher fires only its own', () => {
   assert.ok(!ammoFits(it('Magic shortbow'), it('Dragon arrow')), 'no dragon arrows from a magic shortbow');
   assert.ok(ammoFits(it('Twisted bow'), it('Dragon arrow')));
   assert.ok(!ammoFits(it('Rune crossbow'), it('Ruby dragon bolts (e)')) && ammoFits(it('Rune crossbow'), it('Ruby bolts (e)')));
+  // Ascension crossbows fire only ascension bolts; no other crossbow fires them.
+  assert.ok(ammoFits(it('Ascension crossbows'), it('Onyx ascension bolts (e)')) && !ammoFits(it('Ascension crossbows'), it('Dragonstone bolts (e)')));
+  assert.ok(!ammoFits(it('Rune crossbow'), it('Ascension bolts')));
+  // Barbarian Assault's Barbed arrows (+125 ranged strength) fire only in the minigame: never the calc's pick.
+  assert.ok(isRestricted('Barbed arrow') && !isRestricted('Dragon arrow'));
+  const tb = bestLoadout(mon('Zebak#Normal'), [id('Twisted bow'), id('Barbed arrow'), id('Dragon arrow')], { idx, stats: STATS, prayer: ['rigour'], spell: null })!;
+  assert.equal(nameOf(tb.gear.ammo), 'Dragon arrow');
+  const asc = bestLoadout(mon('Vorkath#Post-quest'), [id('Ascension crossbows'), id('Dragonstone bolts (e)'), id('Onyx ascension bolts (e)')], { idx, stats: STATS, prayer: ['rigour'], spell: null })!;
+  assert.equal(nameOf(asc.gear.ammo), 'Onyx ascension bolts (e)');
   assert.ok(!meleeReaches(mon('Zulrah#Magma')) && !meleeReaches(mon('Great Olm#Head (Normal)')) && meleeReaches(mon('Great Olm#Left claw (Normal)')));
 });
 
@@ -521,23 +530,58 @@ test('endgame bank: Zulrah is Shadow worn (charge it) and a bow switch; no melee
   assert.ok(!lines.some((l) => /scythe|fang|torva|rancour/i.test(l)), lines.join(' | '));
 });
 
-test('endgame bank: ToA is Shadow for Akkha, the bow for Zebak, melee for Kephri, Elder maul to spec', () => {
-  const idsOf = (key: string) => {
-    const b = bestLoadout(mon(key), [...ENDGAME.map((x) => x.id), id("Tumeken's shadow"), id('Scythe of Vitur'), id("Dizana's quiver"), DRAGON_ARROW], { idx, stats: STATS, prayer: calcPrayers(LEVELS, null), spell: null })!;
+test('endgame bank: ToA is the Shadow (x4 in the Tombs), melee in Torva without a d\'hide top, Elder maul and Lightbearer to spec', () => {
+  const pool = [...ENDGAME.map((x) => x.id), id("Tumeken's shadow"), id('Scythe of Vitur'), id("Dizana's quiver"), DRAGON_ARROW];
+  const pick = (key: string, rl = 300) => {
+    const b = bestLoadout(raidScaled(mon(key), rl), pool, { idx, stats: STATS, prayer: calcPrayers(LEVELS, null), spell: null })!;
     return { weapon: nameOf(b.weapon), gear: Object.values(b.gear).map(nameOf) };
   };
-  assert.equal(idsOf('Akkha').weapon, "Tumeken's shadow");
-  const zebak = idsOf('Zebak#Normal');
-  assert.equal(zebak.weapon, 'Twisted bow');
-  assert.ok(zebak.gear.includes('Dragon arrow') && zebak.gear.includes('Masori body (f)'), zebak.gear.join(', '));
-  const baba = idsOf('Ba-Ba');
-  assert.ok(['Scythe of Vitur', "Osmumten's fang"].includes(baba.weapon), baba.weapon);
-  assert.ok(baba.gear.includes('Torva platebody') && !baba.gear.includes('Mixed hide top'), baba.gear.join(', '));
-  const c = endgame('toa');
+  for (const k of ['Akkha', 'Zebak#Normal', "Tumeken's Warden#Damaged"]) assert.equal(pick(k).weapon, "Tumeken's shadow", k);
+  const akkha = pick('Akkha').gear;
+  for (const n of ['Ancestral hat', 'Ancestral robe top', 'Occult necklace', 'Imbued Zamorak cape (Deadman)', 'Confliction gauntlets']) assert.ok(akkha.includes(n), `${n}: ${akkha.join(', ')}`);
+  // The best melee kit (no melee-only boss here, so asked of melee alone).
+  const melee = bestLoadout(mon('Ba-Ba'), pool.filter((x) => ![id("Tumeken's shadow"), id('Twisted bow')].includes(x)), { idx, stats: STATS, prayer: calcPrayers(LEVELS, null), spell: null })!;
+  const mg = Object.values(melee.gear).map(nameOf);
+  assert.ok(['Scythe of Vitur', "Osmumten's fang"].includes(nameOf(melee.weapon)), nameOf(melee.weapon));
+  assert.ok(mg.includes('Torva platebody') && !mg.includes('Mixed hide top'), mg.join(', '));
+  const c = endgame('toa', { raidLevel: 300 });
   const lines = gearLines(c);
   assert.ok(!lines.some((l) => /sunlight|dragonstone|mixed hide|rune arrow/i.test(l)), lines.join(' | '));
-  assert.ok(lines.some((l) => /^Shadow\b/.test(l)) && lines.some((l) => /^Twisted bow\b/.test(l)), lines.join(' | '));
-  assert.deepEqual(c.rows.filter((r) => r.group === 'spec').map((r) => r.line), ['Elder maul (spec): in your bank']);
+  assert.ok(lines.some((l) => /^Shadow\b/.test(l)), lines.join(' | '));
+  assert.deepEqual(c.rows.filter((r) => r.group === 'spec').map((r) => r.line), ['Elder maul (spec): in your bank', 'Lightbearer (ring switch): in your bank']);
+  assert.match(c.rows.find((r) => r.line.startsWith('Lightbearer'))!.detail ?? '', /twice as fast/);
+});
+
+test("Tumeken's shadow: x4 against the Tombs' bosses, x3 elsewhere, magic damage capped at 100%", () => {
+  const gear = { weapon: id("Tumeken's shadow"), neck: id('Occult necklace'), hands: id('Confliction gauntlets'), head: id('Ancestral hat'), body: id('Ancestral robe top'), legs: id('Ancestral robe bottom'), cape: id('Imbued Zamorak cape') };
+  const run = (m: Monster) => bestStyle({ gear, style: 0, stats: STATS, prayer: ['augury'] }, m, idx.item)!.result;
+  const akkha = mon('Akkha');
+  const inToa = run(akkha);
+  const outside = run({ ...akkha, n: 'Not Akkha' });
+  assert.ok(inToa.effects.some((e) => /×4/.test(e)) && outside.effects.some((e) => /×3/.test(e)));
+  assert.ok(inToa.maxHit > outside.maxHit && inToa.attackRoll > outside.attackRoll);
+  // Magic damage: 1% (Shadow) + 5 + 7 + 3 + 3 + 3 + 2 = 24% worn → ×4 = 96%, ×3 = 72%; the cap holds past 100%.
+  const base = run({ ...akkha, n: 'Not Akkha' }).maxHit / 1.72;
+  assert.ok(Math.abs(inToa.maxHit - Math.floor(base * 1.96)) <= 1, `${inToa.maxHit} vs ${base * 1.96}`);
+});
+
+test('ToA raid level: +2% defence roll and hitpoints per 5 levels; other monsters untouched', () => {
+  const akkha = mon('Akkha');
+  const at300 = raidScaled(akkha, 300);
+  assert.equal(at300.hp, Math.round(akkha.hp * 2.2));
+  assert.equal(raidScaled(mon('Vorkath#Post-quest'), 300), mon('Vorkath#Post-quest'));
+  const gear = { weapon: id('Scythe of Vitur') };
+  const plain = bestStyle({ gear, style: 0, stats: STATS }, akkha, idx.item)!.result;
+  const scaled = bestStyle({ gear, style: 0, stats: STATS }, at300, idx.item)!.result;
+  assert.equal(scaled.defenceRoll, Math.floor(plain.defenceRoll * 2.2));
+  assert.ok(scaled.dps < plain.dps);
+});
+
+test('the quiver and its arrows are one row', () => {
+  const c = endgame('toa', { raidLevel: 600, bank: ENDGAME_BANK.filter((x) => x.id !== SHADOW_U && x.id !== id('Dragon hunter crossbow')) });
+  const lines = gearLines(c);
+  assert.ok(lines.some((l) => /^Dizana's quiver with Dragon arrows: take the quiver \(charge it\)/.test(l)), lines.join(' | '));
+  assert.ok(!lines.some((l) => /^Dragon arrow/.test(l)), lines.join(' | '));
 });
 
 test('endgame bank: a ToB melee boss is the Scythe in Torva with Rancour, Ferocious and Ultor', () => {
@@ -548,4 +592,13 @@ test('endgame bank: a ToB melee boss is the Scythe in Torva with Rancour, Feroci
   const c = endgame('tob');
   const lines = gearLines(c);
   assert.ok(lines.some((l) => /^Scythe is in your bank: take it \(charge it\)/.test(l)), lines.join(' | '));
+});
+
+test('the ToA card offers its raid level; other trips do not', async () => {
+  const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
+  const base = { region: '13454', regionName: 'the ToA lobby', content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, fromRegion: true, source: 'calc' as const, sourceLine: 'x', guide: null, check: endgame('toa', { raidLevel: 300 }), status: 'ready' as const, checkedAt: '18:42', hasOwn: false, canSave: false, options: [], monsters: [] };
+  const ui = JSON.stringify(tripPanelUi({ ...base, raid: { level: 300, levels: [0, 150, 300, 500] } }));
+  assert.ok(ui.includes('"Raid level "') && ui.includes('"300"'), 'Raid level 300 shown');
+  assert.ok(ui.includes('"act":"trip-raid"') && ui.includes('"rl":"500"'), 'a chip per level saves it');
+  assert.ok(!JSON.stringify(tripPanelUi({ ...base, raid: null })).includes('trip-raid'));
 });

@@ -21,7 +21,7 @@
 // at the bank, before the trip, and says nothing about the fight itself.
 
 import type { DpsResult, GearItem, Monster } from './dps/engine';
-import { bestStyle } from './dps/engine';
+import { bestStyle, TOA_MONSTER } from './dps/engine';
 import { SLOTS, stylesFor, type Slot } from './dps/tables';
 import { setupLoadout, type GearIndex } from './dps/summary';
 import { ownStats, withSlot } from './gearNow';
@@ -122,6 +122,8 @@ export interface TripInput {
   nameOf: (id: number) => string;
   isRunePouch: (id: number) => boolean;
   prefs?: Prefs;
+  /** The Tombs of Amascut raid level to scale its bosses by (lib/tripRaidLevel); none: unscaled. */
+  raidLevel?: number | null;
 }
 
 // ── Item kinds ───────────────────────────────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ export interface TripInput {
 /** Weapons carried for their special attack, not to fight with. */
 const SPEC_RE = /^(dragon claws|burning claws|dragon warhammer|elder maul|(bandos|armadyl|saradomin|zamorak|ancient) godsword|crystal halberd|voidwaker|dragon dagger|abyssal dagger|zaryte crossbow|dawnbringer|eldritch nightmare staff|volatile nightmare staff|granite maul|tonalztics of ralos|dragon crossbow)\b/i;
 export const isSpecWeapon = (name: string | null | undefined): boolean => !!name && SPEC_RE.test(name.trim());
+const LIGHTBEARER = /^lightbearer\b/i;
 /**
  * The spec weapons a PvM trip would rather bring, best first: defence drain, then the big hits, then
  * the rest. The old order (whatever the bank listed first) put a Dragon dagger over an Elder maul.
@@ -305,10 +308,11 @@ const slotOf = (it: GearItem | null): Slot | null => {
 /**
  * Copies of gear that work only somewhere else, never in main-game PvM: Bounty Hunter (bh) and
  * Deadman copies, Last Man Standing, Pete Kayer's challenges, Leagues (Trailblazer) and historical
- * copies, the Gauntlet's crystal and corrupted gear, Castle Wars ammo. The calc never picks or
+ * copies, the Gauntlet's crystal and corrupted gear, Castle Wars ammo, Barbarian Assault's attacker
+ * arrows (Barbed arrows: +125 ranged strength, fired only in the minigame). The calc never picks or
  * suggests them. Locked "(l)" items are the real thing and stay.
  */
-const RESTRICTED = /\((bh|deadman|deadman mode|dmm|beta|lms|last man standing|pete kayer's challenges|the gauntlet|trailblazer reloaded|historical|basic|attuned|perfected)\)|^corrupted |^castle wars (arrow|bolts)/i;
+const RESTRICTED = /\((bh|deadman|deadman mode|dmm|beta|lms|last man standing|pete kayer's challenges|the gauntlet|trailblazer reloaded|historical|basic|attuned|perfected)\)|^corrupted |^castle wars (arrow|bolts)|^(barbed|bullet|field|blunt) arrow$/i;
 export const isRestricted = (name: string): boolean => RESTRICTED.test(name);
 /**
  * Deadman: Armageddon's "(Deadman)" copies are ornaments Nigel makes from the real item, with its
@@ -349,12 +353,13 @@ export function ammoFits(weapon: GearItem, ammo: GearItem): boolean {
   }
   if (weapon.c === 'Crossbow') {
     if (/ballista/.test(w)) return /javelin/.test(a);
-    // Hunters' crossbows fire their own bolts only; so do Karil's and the Dorgeshuun crossbow.
+    // Hunters' crossbows fire their own bolts only; so do Karil's, the Dorgeshuun and Ascension crossbows.
     if (/hunters' sunlight crossbow/.test(w)) return /antler bolts/.test(a);
     if (/hunters' crossbow/.test(w)) return /kebbit bolts/.test(a);
     if (/karil's crossbow/.test(w)) return /bolt rack/.test(a);
     if (/dorgeshuun crossbow/.test(w)) return /bone bolts/.test(a);
-    if (!/bolt/.test(a) || /antler bolts|kebbit bolts|bolt rack|bone bolts/.test(a)) return false;
+    if (/ascension crossbows/.test(w)) return /ascension bolts/.test(a);
+    if (!/bolt/.test(a) || /antler bolts|kebbit bolts|bolt rack|bone bolts|ascension bolts/.test(a)) return false;
     return /dragon bolts/.test(a) ? DRAGON_XBOWS.test(w) : true;
   }
   return !projectile;
@@ -529,9 +534,15 @@ interface CalcHeld {
   bankOf: (id: number) => number[];
   /** Every form of it the player holds is uncharged: the calc counted it charged. */
   needsCharge: (id: number) => boolean;
-  /** A worn piece's row ({label, slot}) or a switch's (no slot). */
-  row: (id: number, o: { label?: string; slot?: string; detail: string }) => TripRow;
+  /** A worn piece's row ({label, slot}) or a switch's (no slot); a quiver's names the ammo in it. */
+  row: (id: number, o: { label?: string; slot?: string; detail: string; ammo?: number }) => TripRow;
+  /** The quiver's ammo, when `id` is it. */
+  inQuiver: (id: number) => boolean;
+  isQuiver: (id: number) => boolean;
 }
+
+/** "Seeking dragon arrow" → "Seeking dragon arrows". */
+const plural = (n: string) => (/s$/i.test(n) ? n : `${n}s`);
 
 function calcHeld(inp: TripInput, h: Held, qv: { id: number; q: number } | null, quiverIn: boolean): CalcHeld {
   const forms = new Map<number, number[]>();
@@ -547,9 +558,17 @@ function calcHeld(inp: TripInput, h: Held, qv: { id: number; q: number } | null,
     const f = forms.get(id);
     return !!f?.length && f.every((r) => isUncharged(r, inp));
   };
-  const row = (id: number, o: { label?: string; slot?: string; detail: string }): TripRow => {
-    const n = shortName(inp.nameOf(id));
+  const isQuiver = (id: number) => QUIVER_RE.test(inp.nameOf(id));
+  const row = (id: number, o: { label?: string; slot?: string; detail: string; ammo?: number }): TripRow => {
     const slot = o.slot ? { slot: o.slot } : {};
+    // A quiver and the arrows in it: one row, "Blessed Dizana's quiver with Seeking dragon arrows".
+    if (o.ammo != null) {
+      const full = `${inp.nameOf(id).replace(/\s*\((uncharged|empty)\)\s*$/i, '')} with ${plural(shortName(inp.nameOf(o.ammo)))}`;
+      const charge = needsCharge(id);
+      if (along(id)) return charge ? { group: 'gear', ok: false, line: `${full}: charge the quiver`, detail: o.detail, item: id, ...slot } : { group: 'gear', ok: true, line: `Quiver: ${full}`, item: id, ...slot };
+      return { group: 'gear', ok: false, line: `${full}: take the quiver${charge ? ' (charge it)' : ''}`, detail: charge ? `${o.detail} · uncharged in your bank: charge it before the trip` : o.detail, item: id, bank: bankOf(id), ...slot };
+    }
+    const n = shortName(inp.nameOf(id));
     if (inQuiver(id)) {
       return quiverIn
         ? { group: 'gear', ok: true, line: `Quiver: ${n}`, item: id, ...slot }
@@ -564,7 +583,7 @@ function calcHeld(inp: TripInput, h: Held, qv: { id: number; q: number } | null,
     const take = o.label ? `${n} is in your bank: take it` : `${n} (switch): in your bank`;
     return { group: 'gear', ok: false, line: charge ? `${take} (charge it)` : take, detail: charge ? `${o.detail} · uncharged in your bank: charge it before the trip` : o.detail, item: id, bank: bankOf(id), ...slot };
   };
-  return { along, bankOf, needsCharge, row };
+  return { along, bankOf, needsCharge, row, inQuiver, isQuiver };
 }
 
 /**
@@ -605,17 +624,25 @@ function raidRows(inp: TripInput, c: CalcHeld & { stats: CalcCtx['stats']; praye
   const [worn, ...switches] = kits;
   const rows: TripRow[] = [];
   const wornIds = new Set(Object.values(worn.gear));
+  // The quiver's arrows go on the quiver's row; the quiver names them.
+  const quiverOf = (gear: Record<string, number>) => {
+    const ammo = gear.ammo != null && c.inQuiver(gear.ammo) ? gear.ammo : null;
+    return ammo != null && Object.values(gear).some(c.isQuiver) ? ammo : null;
+  };
+  const wq = quiverOf(worn.gear);
   for (const [slot, id] of Object.entries(worn.gear)) {
+    if (id === wq) continue;
     const label = SLOT_LABEL[slot] ?? slot;
-    rows.push(c.row(id, { label, slot, detail: `${label} · your ${worn.kind} setup, worn` }));
+    rows.push(c.row(id, { label, slot, detail: `${label} · your ${worn.kind} setup, worn`, ...(wq != null && c.isQuiver(id) ? { ammo: wq } : {}) }));
   }
   const listed = new Set(wornIds);
   for (const k of switches) {
+    const q = quiverOf(k.gear);
     for (const id of new Set(Object.values(k.gear))) {
       // One row per item: a ring both switches wear is packed once.
-      if (listed.has(id)) continue;
+      if (listed.has(id) || id === q) continue;
       listed.add(id);
-      rows.push(c.row(id, { detail: `${KIND_LABEL[k.kind]} switch for ${targetList(k.bosses)}` }));
+      rows.push(c.row(id, { detail: `${KIND_LABEL[k.kind]} switch for ${targetList(k.bosses)}`, ...(q != null && c.isQuiver(id) ? { ammo: q } : {}) }));
     }
   }
   info.push(`One setup for ${per.length} bosses: ${worn.kind} worn${switches.length ? `, ${switches.map((k) => k.kind).join(' and ')} switches` : ''}`);
@@ -633,7 +660,17 @@ export function strengthWords(ratio: number): string {
 /** An item with no bonuses at all (Lightbearer, Ring of shadows): worn for what it does, never "will do" without. */
 const isUtility = (it: GearItem | null): boolean => !!it && it.b.every((x) => x === 0);
 
-export function checkTrip(inp: TripInput): TripCheck {
+/**
+ * A ToA boss at a raid level: every 5 levels add 2% to its hitpoints and its defence roll (the engine
+ * scales the roll off `raidLevel`). Anything else, or no level, as it is.
+ */
+export function raidScaled(m: Monster, raidLevel: number | null | undefined): Monster {
+  if (!raidLevel || !TOA_MONSTER.test(m.n)) return m;
+  return { ...m, raidLevel, hp: Math.round(m.hp * (1 + raidLevel / 250)) };
+}
+
+export function checkTrip(input: TripInput): TripCheck {
+  const inp: TripInput = input.raidLevel ? { ...input, monsters: input.monsters.map((m) => raidScaled(m, input.raidLevel)) } : input;
   const rows: TripRow[] = [];
   const unknown: string[] = [];
   const h = held(inp);
@@ -787,6 +824,14 @@ export function checkTrip(inp: TripInput): TripCheck {
   } else if (inp.content.spec && ownedSpecs.length) {
     const packed = ownedSpecs.find((id) => h.carried.has(id));
     rows.push(packed ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(packed))}`, item: packed } : { group: 'spec', ok: false, line: `${shortName(name(ownedSpecs[0]))} (spec): in your bank`, item: ownedSpecs[0], bank: h.inBank(ownedSpecs[0]) });
+  }
+  // Lightbearer beside a spec weapon: spec energy back twice as fast, worn between specs.
+  const lightbearer = [...h.owned.keys()].find((id) => LIGHTBEARER.test(inp.idx.item(knownAs(id, inp) ?? id)?.n ?? name(id)));
+  const inSetup = !!inp.setup && [...Object.values(inp.setup.gear), ...(inp.setup.inventory ?? []).map((x) => x?.id)].some((id) => id != null && LIGHTBEARER.test(name(id)));
+  if (lightbearer != null && !inSetup && rows.some((r) => r.group === 'spec') && !rows.some((r) => r.item === lightbearer)) {
+    rows.push(h.carries(lightbearer)
+      ? { group: 'spec', ok: true, line: 'Lightbearer: spec energy back twice as fast', item: lightbearer }
+      : { group: 'spec', ok: false, line: 'Lightbearer (ring switch): in your bank', detail: 'Spec energy back twice as fast: wear it between specs', item: lightbearer, bank: h.inBank(lightbearer) });
   }
 
   // ── Spellbook and runes ──
