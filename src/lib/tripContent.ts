@@ -49,6 +49,10 @@ export interface TripContent {
    * Absent: a default of restores, the style's potion and food to fill.
    */
   supplies?: { kind: SupplyKind; n: number | 'fill'; style?: 'melee' | 'ranged' | 'magic' }[];
+  /** Utility spells the trip casts (their runes go in the pouch): on `book` (0 standard … 3 Arceuus) only. */
+  spells?: { name: string; book: 0 | 1 | 2 | 3; level: number; casts: number }[];
+  /** Vengeance is cast here when the player is on Lunar. */
+  veng?: true;
 }
 
 /** A kind of supply the calc packs (lib/tripSupplies names each kind's items, best first). */
@@ -73,6 +77,7 @@ export const TRIP_CONTENT: TripContent[] = [
     // The Nylocas come in all three styles.
     requires: [{ phase: 'Nylocas', styles: ['melee', 'ranged', 'magic'] }],
     switchSlots: 8,
+    veng: true,
     supplies: [{ kind: 'Combat potions', n: 1, style: 'melee' }, { kind: 'Ranging potions', n: 1, style: 'ranged' }, { kind: 'Magic boost', n: 1, style: 'magic' }, { kind: 'Restores', n: 'fill' }, { kind: 'Brews', n: 4 }],
   },
   {
@@ -87,6 +92,8 @@ export const TRIP_CONTENT: TripContent[] = [
   {
     key: 'vorkath', name: 'Vorkath', short: 'Vorkath', guide: 'vorkath-guide', targets: ['Vorkath#Post-quest'], fightRegions: [9023],
     supplies: [{ kind: 'Ranging potions', n: 1, style: 'ranged' }, { kind: 'Combat potions', n: 1, style: 'melee' }, { kind: 'Magic boost', n: 1, style: 'magic' }, { kind: 'Antifires', n: 1 }, { kind: 'Anti-venoms', n: 1 }, { kind: 'Restores', n: 2 }, { kind: 'Food', n: 'fill' }],
+    // The zombified spawn: one Crumble Undead a kill.
+    spells: [{ name: 'Crumble Undead', book: 0, level: 39, casts: 10 }],
   },
   // Zulrah's shrine 2268,3070 (the instance's template); Zul-Andra itself (8751) is where players bank.
   {

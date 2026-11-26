@@ -732,3 +732,55 @@ test('calc supplies: the trip template filled from the bank, owned forms first, 
   const food = v.rows.find((r) => r.group === 'supplies' && /^Food/.test(r.line))!;
   assert.ok((food.need ?? 0) >= 10, `${food.need} food`);
 });
+
+// ── spells and the rune pouch ────────────────────────────────────────────────────────────────
+
+const DIVINE_POUCH = 27281;
+const runeName = (x: number) => (x === DIVINE_POUCH ? 'Divine rune pouch' : x === POUCH ? 'Rune pouch' : supplyName(x));
+const isPouch = (x: number) => x === POUCH || x === DIVINE_POUCH;
+const pouchRows = (c: ReturnType<typeof checkTrip>) => c.rows.filter((r) => r.group === 'pouch' && r.item != null && r.item !== POUCH && r.item !== DIVINE_POUCH);
+const runeNeed = (c: ReturnType<typeof checkTrip>, rune: number) => pouchRows(c).find((r) => r.item === rune)?.need ?? 0;
+const STATE = (book: number) => cleanTripState({ book, pray: ['rigour', 'augury'], quiver: [DRAGON_ARROW, 2000] })!;
+
+test('runes: Vorkath on the standard book takes Crumble Undead runes', () => {
+  const c = endgame('vorkath', { state: STATE(0), bank: [...ENDGAME_BANK, { id: POUCH }], nameOf: runeName, isRunePouch: isPouch });
+  // 10 casts: 2 earth, 2 air, 1 chaos each.
+  assert.equal(runeNeed(c, 557), 20, pouchRows(c).map((r) => r.line).join(' | '));
+  assert.equal(runeNeed(c, 556), 20);
+  assert.equal(runeNeed(c, 562), 10);
+  assert.ok(c.rows.some((r) => r.group === 'book' && /Standard spellbook/.test(r.line) && /Crumble Undead/.test(r.detail ?? '')));
+  // On Arceuus it isn't cast (not on that book): no crumble runes.
+  const arc = endgame('vorkath', { state: STATE(3), bank: [...ENDGAME_BANK, { id: POUCH }], nameOf: runeName, isRunePouch: isPouch });
+  assert.equal(runeNeed(arc, 562), 0);
+});
+
+test('runes: an Ancients barrage setup fills the pouch with death and blood; a Kodai wand covers the water', () => {
+  const content = contentFromKey('m:Cerberus')!;
+  const magicBank = (wand: string) => [wand, 'Ancestral hat', 'Ancestral robe top', 'Ancestral robe bottom', 'Occult necklace', 'Imbued Zamorak cape'].map((n) => ({ id: id(n) })).concat([{ id: DIVINE_POUCH }]);
+  const run = (wand: string) => checkTrip(input({ setup: null, content, monsters: [mon('Cerberus')], bank: magicBank(wand), state: STATE(1), nameOf: runeName, isRunePouch: isPouch }));
+  const kodai = run('Kodai wand');
+  assert.ok(runeNeed(kodai, 560) > 0 && runeNeed(kodai, 565) > 0, pouchRows(kodai).map((r) => r.line).join(' | '));
+  assert.equal(runeNeed(kodai, 555), 0, 'the Kodai gives water without end');
+  assert.equal(runeNeed(kodai, 560), 2 * runeNeed(kodai, 565), 'Ice Barrage: 4 death to 2 blood');
+  assert.ok(pouchRows(kodai).every((r) => r.inPouch), 'two kinds: both in the divine pouch');
+  const master = run('Master wand');
+  assert.equal(runeNeed(master, 555), (6 / 4) * runeNeed(master, 560), 'without it: 6 water a cast');
+});
+
+test('runes: a staff giving fire and air without end leaves only the wrath of Fire Surge', () => {
+  const content = contentFromKey('m:Cerberus')!;
+  const bank = ['Smoke battlestaff', 'Ancestral hat', 'Ancestral robe top', 'Ancestral robe bottom'].map((n) => ({ id: id(n) })).concat([{ id: POUCH }]);
+  const c = checkTrip(input({ setup: null, content, monsters: [mon('Bloodthirsty gargoyle')], bank, state: STATE(0), nameOf: runeName, isRunePouch: isPouch }));
+  const runes = pouchRows(c).map((r) => r.item);
+  assert.deepEqual(runes, [21880], c.rows.map((r) => `${r.group}:${r.line}`).join(' | '));
+});
+
+test('runes: Arceuus at a raid packs thrall and Death Charge runes; the fifth kind goes in the inventory', () => {
+  const c = endgame('toa', { raidLevel: 300, state: STATE(3), bank: [...ENDGAME_BANK, { id: DIVINE_POUCH }], nameOf: runeName, isRunePouch: isPouch });
+  const book = c.rows.find((r) => r.group === 'book');
+  assert.ok(/Arceuus spellbook/.test(book?.line ?? '') && /Resurrect Greater/.test(book?.detail ?? '') && /Death Charge/.test(book?.detail ?? ''), book?.detail);
+  for (const r of [554, 565, 564, 560, 566]) assert.ok(runeNeed(c, r) > 0, `${r}: ${pouchRows(c).map((x) => x.line).join(' | ')}`);
+  assert.equal(pouchRows(c).filter((r) => r.inPouch).length, 4, 'a divine pouch holds four kinds');
+  assert.equal(pouchRows(c).filter((r) => !r.inPouch).length, 1);
+  assert.ok(c.rows.some((r) => r.group === 'pouch' && r.item === DIVINE_POUCH), 'the pouch itself is packed');
+});
