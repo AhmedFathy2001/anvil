@@ -213,7 +213,8 @@ function weeklyIcon(w: ScheduleWeekly): Node | undefined {
 
 function weeklyGain(w: ScheduleWeekly, gained: number): string {
   const safe = Math.max(0, gained);
-  // An item hunt's number is its drops (lib/itemHuntDb competitionBoard).
+  // A Boss Rush's number is its points; an item hunt's, its drops (lib/itemHuntDb competitionBoard).
+  if (w.rushRules) return `${count(safe)} ${safe === 1 ? 'pt' : 'pts'}`;
   if (w.type === 'hunt') return `${count(safe)} ${safe === 1 ? 'drop' : 'drops'}`;
   if (w.type === 'efficiency') return `${(safe / EFFICIENCY_SCALE).toFixed(2)} hrs`;
   return `${count(safe)} ${w.type === 'skill' ? 'xp' : 'kc'}`;
@@ -1212,7 +1213,7 @@ function huntTargetsCard(w: ScheduleWeekly): Node | null {
   const allPets = /^pet hunt/i.test(w.title || '') || w.metricLabel.toLowerCase().startsWith('pet');
   return section(
     [
-      row(title(allPets ? 'Pets' : 'Targets'), undefined, muted(found ? `${found} of ${items.length} found` : `${items.length} to find`)),
+      row(title(w.rushRules ? 'Drops that score' : allPets ? 'Pets' : 'Targets'), undefined, muted(found ? `${found} of ${items.length} found` : `${items.length} to find`)),
       ...items.map((it) => {
         const name = text(clip(it.name, 18), it.got ? 'white' : SOFT, { icon: icon({ item: it.id, w: 24, h: 22 }), tip: it.name });
         const right = it.got
@@ -1228,6 +1229,13 @@ function huntTargetsCard(w: ScheduleWeekly): Node | null {
     ],
     { gap: 4 },
   );
+}
+
+/** A Boss Rush's rules, spelled out where the player looks: what scores, what costs, who counts. */
+function rushRulesCard(w: ScheduleWeekly): Node | null {
+  const lines = w.rushRules ?? [];
+  if (!lines.length) return null;
+  return section([title('How it scores'), ...lines.map((l) => muted(l, { wrap: true }))], { gap: 4 });
 }
 
 function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
@@ -1249,13 +1257,15 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
         // What it is, whole, on its own line; then where you stand; then the clock. Side by side the
         // name was clipped and its picture sat in the middle of the card.
         text(w.metricLabel, SOFT, { icon: weeklyIcon(w), wrap: 175 }),
-        withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move),
+        withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.rushRules ? 'No points yet' : w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move),
         row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(` · ${headcount}`) : undefined, undefined, { gap: 0 }),
       ];
   // In or out: before it starts as well as while it runs (lib/pluginUi/signupPanel).
   if (d.weeklyEntry) top.push(weeklyEntryRow(d.weeklyEntry, w.id, upcoming));
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
   parts.push(section(top));
+  const rules = rushRulesCard(w);
+  if (rules) parts.push(rules);
   const targets = huntTargetsCard(w);
   if (targets) parts.push(targets);
   const prizes = weeklyPrizeCard(w);

@@ -221,6 +221,8 @@ export async function POST(request: Request) {
       valueGp: int(raw?.valueGp, MAX_VALUE_GP),
       source: str(raw?.source),
       sourceKind: str(raw?.sourceKind, 16),
+      // Set by settleDeathSource above, never by the client: the name it was read from is the client's.
+      ...(kind === 'death' && typeof raw?.raid === 'string' ? { raid: raw.raid } : {}),
       kc: int(raw?.kc, MAX_KC),
       // Combat tasks: the task as the completion line named it, and the tier that line claimed.
       // Both are only ever read for kind 'ca' — the tier is the fallback for a task our own dataset

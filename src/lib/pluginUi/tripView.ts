@@ -41,10 +41,19 @@ type Args = Record<string, string>;
 /** Items read longer ago than this aren't checked: the trip has moved on. */
 const STALE_MS = 30 * 60_000;
 /**
- * A plugin that filters its bank (X-Anvil-Bank-Filter) also pushes what is worn and carried just before
- * every trip check, so items older than this mean that push hasn't landed: never claim Ready off them.
+ * A check the plugin pushed what is held for first (args.held = '1') with items older than this: that
+ * push hasn't landed, so the overlay claims nothing (the card still shows the last items).
  */
 const BEHIND_MS = 20_000;
+/** Why the plugin couldn't push what is held before a check (args.held other than '1'), said on the card. */
+const HELD_WHY: Record<string, string> = {
+  paused: 'Anvil is paused for this account in the plugin (Not my account), so your items weren’t sent',
+  'signed-out': 'The plugin isn’t signed in, so your items weren’t sent',
+  'no-character': 'The plugin hasn’t seen your character yet, so your items weren’t sent',
+  'sharing-off': 'Item sharing is off in the plugin settings, so your items weren’t sent',
+  'no-site': 'This site doesn’t take items from the plugin yet',
+  failed: 'Couldn’t send your items just now',
+};
 const freshPush = (request: Request) => request.headers.get('X-Anvil-Bank-Filter') === '1';
 
 const regionOf = (args: Args): number | null => {
@@ -175,7 +184,10 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const age = Date.now() - Date.parse(readAt);
   if (!Number.isFinite(age) || age > STALE_MS) return { data: { ...withContent, status: 'stale', age: Number.isFinite(age) ? ago(age) : undefined }, warn: null, armed };
   // After a save or forget (`note`) no push came first: the items are what the action used.
-  if (content && !note && freshPush(request) && age > BEHIND_MS) return { data: { ...withContent, status: 'behind', checkedAt: readAt.slice(11, 16) }, warn: null, armed };
+  // The plugin pushed what is held just before asking (args.held) yet the items are older: that push
+  // hasn't landed. Still checked against the last items, said so, and no overlay claim off them. A
+  // load the plugin didn't push for (a restored view) is items unchanged since their push: current.
+  const behind = !!content && !note && args.held === '1' && age > BEHIND_MS;
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
   const [state, own, nm] = await Promise.all([tripStateForViewer(viewer.userId, viewer.accountId), ownSetupFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []), itemNames()]);
@@ -241,7 +253,10 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     hasOwn: !!own,
     canSave: worn.length + inventory.length > 0,
   };
-  return { data, warn: tripWarn(content.short, check), armed };
+  const refused = args.held ? HELD_WHY[args.held] : undefined;
+  if (refused) data.sourceLine = `${refused}: this is from what Anvil last saw`;
+  else if (behind) data.sourceLine = `${sourceLine}. Your newest items haven't arrived: this is from what Anvil last saw`;
+  return { data, warn: behind || refused ? null : tripWarn(content.short, check), armed };
 }
 
 /**

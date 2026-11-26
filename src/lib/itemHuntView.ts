@@ -4,6 +4,7 @@
 
 import { gainParts } from '@/lib/weeklyMetric';
 import { weeklyMetricLabel } from '@/lib/constants';
+import { rushRulesWords } from '@/lib/bossRushRules';
 import { itemObtainInfo } from '@/lib/itemObtain';
 import {
   type HuntConfig,
@@ -21,6 +22,8 @@ import {
   huntPets,
   huntRows,
   huntBountyBoard,
+  isRush,
+  rushTallyWords,
   type HuntRowProgress,
 } from '@/lib/itemHunt';
 import { parsePrizeCurrency, type PrizeCurrency } from '@/lib/competitionGame';
@@ -62,6 +65,8 @@ export interface HuntViewRow {
   rank: number;
   rsn: string;
   count: number;
+  /** Boss Rush: "312 kc · +55 drops · 4 deaths", what the score is made of. */
+  rushWords: string | null;
   isMe: boolean;
   /** Kills at the source (or XP) since the hunt started; null when the hunt shows neither. */
   statGain: number | null;
@@ -105,6 +110,8 @@ export interface HuntView {
   rule: HuntRule;
   /** A points hunt: each item and what it scores, for the line under the title. */
   points: { name: string; points: number }[] | null;
+  /** Boss Rush: its scoring on one line ("1 kill = 1 pt · each death -1 · plugin kills only"). */
+  rushRules: string | null;
   /** A points hunt: only each player's first drop of each item scores. */
   firstOfEach: boolean;
   endingWords: string;
@@ -170,6 +177,7 @@ export function buildHuntView(
     rank: r.rank,
     rsn: r.rsn,
     count: r.count,
+    rushWords: r.rush ? rushTallyWords(r.rush) : null,
     isMe: mine.has(r.rsn),
     statGain: stat ? r.statGain : null,
     statPending: !!stat && !baselined.get(r.rsn),
@@ -184,7 +192,7 @@ export function buildHuntView(
     completeAt: r.completeAt,
     heldIds: [...new Set(r.drops.map((d) => d.itemId).filter((id): id is number => id != null && targetIds.has(id)))],
     drops: r.drops.map((d, i) => ({
-      score: config.rule !== 'points' ? null : config.repeat === 'first' && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
+      score: config.rule === 'rush' ? dropScore(config, d) : config.rule !== 'points' ? null : config.repeat === 'first' && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
       id: d.id,
       itemId: d.itemId,
       itemName: d.itemName,
@@ -204,7 +212,8 @@ export function buildHuntView(
     kindWord: huntKindWord(config),
     line: huntLine(config, comp.metric),
     rule: config.rule,
-    points: config.rule === 'points' ? config.items.map((it) => ({ name: it.name, points: it.points ?? 1 })) : null,
+    points: config.rule === 'points' ? config.items.map((it) => ({ name: it.name, points: it.points ?? 1 })) : config.rule === 'rush' ? config.items.filter((it) => (it.points ?? 0) > 0).map((it) => ({ name: it.name, points: it.points ?? 0 })) : null,
+    rushRules: isRush(config) ? rushRulesWords(config.rush) : null,
     firstOfEach: config.rule === 'points' && config.repeat === 'first',
     endingWords: huntEndingWords(config.ends),
     confirm: config.confirm,
