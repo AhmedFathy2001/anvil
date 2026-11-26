@@ -221,6 +221,15 @@ const slotOf = (it: GearItem | null): Slot | null => {
 
 // ── The best loadout from a pool of items (the calc) ─────────────────────────────────────────
 
+/**
+ * Copies of gear that work only somewhere else, never in main-game PvM: Bounty Hunter (bh) and
+ * Deadman copies, Last Man Standing, Pete Kayer's challenges, Leagues (Trailblazer) and historical
+ * copies, the Gauntlet's crystal and corrupted gear, Castle Wars ammo. The calc never picks or
+ * suggests them. Locked "(l)" items are the real thing and stay.
+ */
+const RESTRICTED = /\((bh|deadman|deadman mode|dmm|beta|lms|last man standing|pete kayer's challenges|the gauntlet|trailblazer reloaded|historical|basic|attuned|perfected)\)|^corrupted |^castle wars (arrow|bolts)/i;
+export const isRestricted = (name: string): boolean => RESTRICTED.test(name);
+
 export interface Best {
   gear: Record<string, number>;
   result: DpsResult;
@@ -268,7 +277,7 @@ const tryGear = (gear: Record<string, number>, m: Monster, ctx: CalcCtx, dart: n
  * are only found when a single swap shows them. Null: nothing in the pool can attack.
  */
 export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): Best | null {
-  const pool = [...new Set(ids)].map((id) => ctx.idx.item(id)).filter((x): x is GearItem => !!x && !x.hid);
+  const pool = [...new Set(ids)].map((id) => ctx.idx.item(id)).filter((x): x is GearItem => !!x && !x.hid && !isRestricted(x.n));
   const weapons = pool.filter((x) => slotOf(x) === 'weapon');
   const ammo = pool.filter((x) => x.s === 'ammo');
   const darts = pool.filter((x) => /dart$/i.test(x.n) && x.c === 'Thrown').sort((a, b) => b.b[6] - a.b[6]);
@@ -354,6 +363,65 @@ const CALC_FLOOR = 0.85;
 /** A missing slot that costs less than this share of DPS isn't worth a line. */
 const SLOT_FLOOR = 0.01;
 
+const KIND_LABEL = { melee: 'Melee', ranged: 'Ranged', magic: 'Magic' } as const;
+
+/**
+ * The calc for a raid: ONE setup for every boss. Each boss's best loadout from the bank names the
+ * style it wants; per style the kit that does best across that style's bosses (each boss's share of
+ * its own best, summed) is chosen; the style most bosses want is worn and the others are switches.
+ * Rows: each worn piece and each switch, carried or "in your bank: take it". When what is carried
+ * already does nearly as well against every boss, one passing row says so.
+ */
+function raidRows(inp: TripInput, h: Held, c: { stats: CalcCtx['stats']; prayer: string[]; ownedIds: number[]; carriedIds: number[] }, info: string[]): TripRow[] {
+  const name = (id: number) => inp.nameOf(id);
+  const per = inp.monsters
+    .map((m) => {
+      const ctx: CalcCtx = { idx: inp.idx, stats: c.stats, prayer: c.prayer, spell: calcSpell(inp.state?.book ?? 0, c.stats.magic, m.ew) };
+      return { m, ctx, best: bestLoadout(m, c.ownedIds, ctx), carried: bestLoadout(m, c.carriedIds, ctx) };
+    })
+    .filter((p): p is typeof p & { best: Best } => !!p.best && p.best.result.dps > 0);
+  if (!per.length) return [];
+  const bosses = per.map((p) => shortTarget(p.m.n));
+  if (per.every((p) => p.carried && p.carried.result.dps >= CALC_FLOOR * p.best.result.dps)) {
+    return [{ group: 'gear', ok: true, line: `Your setup covers all ${per.length} bosses`, detail: bosses.join(', ') }];
+  }
+  const byKind = new Map<'melee' | 'ranged' | 'magic', typeof per>();
+  for (const p of per) {
+    const k = kindOfType(p.best.result.style.type);
+    byKind.set(k, [...(byKind.get(k) ?? []), p]);
+  }
+  const kits = [...byKind.entries()]
+    .map(([kind, ps]) => {
+      let pick = ps[0].best;
+      let top = -1;
+      for (const cand of ps) {
+        const score = ps.reduce((a, q) => a + (tryGear(cand.best.gear, q.m, q.ctx, null)?.dps ?? 0) / q.best.result.dps, 0);
+        if (score > top) [top, pick] = [score, cand.best];
+      }
+      return { kind, gear: pick.gear, bosses: ps.map((q) => shortTarget(q.m.n)) };
+    })
+    .sort((a, b) => b.bosses.length - a.bosses.length);
+  const [worn, ...switches] = kits;
+  const rows: TripRow[] = [];
+  const wornIds = new Set(Object.values(worn.gear));
+  for (const [slot, id] of Object.entries(worn.gear)) {
+    const label = SLOT_LABEL[slot] ?? slot;
+    rows.push(h.carries(id)
+      ? { group: 'gear', ok: true, line: `${label}: ${shortName(name(id))}`, item: id }
+      : { group: 'gear', ok: false, line: `${shortName(name(id))} is in your bank: take it`, detail: `${label} · your ${worn.kind} setup, worn`, item: id, bank: h.inBank(id) });
+  }
+  for (const k of switches) {
+    for (const id of new Set(Object.values(k.gear))) {
+      if (wornIds.has(id)) continue;
+      rows.push(h.carries(id)
+        ? { group: 'gear', ok: true, line: `Switch: ${shortName(name(id))}`, item: id }
+        : { group: 'gear', ok: false, line: `${shortName(name(id))} (switch): in your bank`, detail: `${KIND_LABEL[k.kind]} switch for ${targetList(k.bosses)}`, item: id, bank: h.inBank(id) });
+    }
+  }
+  info.push(`One setup for ${per.length} bosses: ${worn.kind} worn${switches.length ? `, ${switches.map((k) => k.kind).join(' and ')} switches` : ''}`);
+  return rows;
+}
+
 /** How the carried loadout's DPS compares with the bank's best, in words: "about half as strong as". */
 export function strengthWords(ratio: number): string {
   if (ratio < 0.4) return 'less than half as strong as';
@@ -380,6 +448,7 @@ export function checkTrip(inp: TripInput): TripCheck {
   const state = inp.state;
   const pouchIn = inp.inventory.some((it) => inp.isRunePouch(it.id));
   const packedNotWorn: string[] = [];
+  const info0: string[] = [];
 
   // ── Gear ──
   const specIn = (ids: number[]) => ids.filter((id) => isSpecWeapon(inp.idx.item(id)?.n ?? name(id)));
@@ -460,7 +529,9 @@ export function checkTrip(inp: TripInput): TripCheck {
     const ownedIds = ids(h.owned);
     const carriedIds = ids(h.carried);
     const short = new Map<string, { targets: string[]; row: TripRow }>();
-    for (const m of inp.monsters) {
+    // A raid (several bosses) is ONE trip with one inventory: one setup, never a list per boss.
+    if (inp.monsters.length > 1) rows.push(...raidRows(inp, h, { stats, prayer, ownedIds, carriedIds }, info0));
+    else for (const m of inp.monsters) {
       const ctx: CalcCtx = { idx: inp.idx, stats, prayer, spell: calcSpell(state?.book ?? 0, stats.magic, m.ew) };
       const o = bestLoadout(m, ownedIds, ctx);
       if (!o) continue;
@@ -493,7 +564,10 @@ export function checkTrip(inp: TripInput): TripCheck {
   }
 
   // ── Spec weapon ──
-  const ownedSpecs = [...h.owned.keys()].filter((id) => isSpecWeapon(inp.idx.item(knownAs(id, inp) ?? id)?.n ?? name(id)));
+  const ownedSpecs = [...h.owned.keys()].filter((id) => {
+    const n = inp.idx.item(knownAs(id, inp) ?? id)?.n ?? name(id);
+    return isSpecWeapon(n) && !isRestricted(n) && !isRestricted(name(id));
+  });
   if (setupSpecs.length) {
     for (const id of setupSpecs) {
       if (!h.owns(id)) continue;
@@ -581,13 +655,13 @@ export function checkTrip(inp: TripInput): TripCheck {
   }
 
   // ── The inventory's room ──
-  const info: string[] = [];
+  const info: string[] = [...info0];
   if (packedNotWorn.length) info.push(`In your inventory: equip ${packedNotWorn.join(', ')} before the fight`);
   // Only with something packed: "0 slots · 28 free" says nothing.
   if (inp.inventory.length) {
     const sw = inp.inventory.filter((it) => inp.idx.item(knownAs(it.id, inp) ?? it.id)).length;
     const pouch = pouchIn ? 1 : 0;
-    info.push(`Switches ${sw} slot${sw === 1 ? '' : 's'} · ${Math.max(0, 28 - sw - pouch)} free for supplies`);
+    if (sw) info.push(`Switches ${sw} slot${sw === 1 ? '' : 's'} · ${Math.max(0, 28 - sw - pouch)} free for supplies`);
   }
   return { rows, info, unknown, bank: [...new Set(rows.filter((r) => !r.ok).flatMap((r) => r.bank ?? []))] };
 }

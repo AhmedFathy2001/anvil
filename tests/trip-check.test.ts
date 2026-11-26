@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { bestLoadout, calcPrayers, checkTrip, isSpecWeapon, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, type TripInput } from '../src/lib/tripCheck.ts';
+import { bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, type TripInput } from '../src/lib/tripCheck.ts';
 import { contentForRegion, contentFromKey, MOKHAIOTL_WAYSTONE, SPADE, TRIP_CONTENT, TRIP_REGION_IDS, TRIP_REGIONS, tripContent } from '../src/lib/tripContent.ts';
 import { cleanTripState, storedTripState } from '../src/lib/tripState.ts';
 import { equivalentsFor } from '../src/lib/itemFamilies.ts';
@@ -400,4 +400,31 @@ test('entry: "Next trip: Doom (last trip) ›", else "Pre-trip check ›", both 
   // A monster picked by hand keeps a whole word for the overlay's title.
   assert.equal(contentFromKey('m:Thermonuclear smoke devil')?.short, 'Thermonuclear');
   assert.equal(contentFromKey('m:Doom of Mokhaiotl#Delve 1')?.short, 'Doom');
+});
+
+// ── raids and restricted copies ────────────────────────────────────────────────────────────
+
+test('restricted copies: Bounty Hunter, Deadman, LMS, Gauntlet, Leagues never count; locked (l) does', () => {
+  for (const n of ["Corrupted statius's platebody (bh)", 'Abyssal dagger (bh)', 'Armadyl godsword (Deadman)', "Morrigan's coif (Deadman Mode)", 'Crystal bow (basic)', 'Corrupted bow (perfected)', "Torva full helm (Pete Kayer's Challenges)", 'Infernal axe (or) (Trailblazer Reloaded)', 'Crystal bow (historical)', 'Castle wars bolts', 'Corrupted Scythe of Vitur']) assert.ok(isRestricted(n), n);
+  for (const n of ['Fire cape (l)', 'Avernic defender (l)', 'Crystal bow', 'Crystal bow (i)', 'Torva full helm', 'Bow of Faerdhinen (c)']) assert.ok(!isRestricted(n), n);
+});
+
+test('raid calc: ONE setup for the whole raid (worn + switches), never a line per boss, never a BH copy', () => {
+  const tob = tripContent('tob')!;
+  const monsters = tob.targets.map((t) => mon(t));
+  const names = ['Scythe of Vitur', 'Twisted bow', 'Sanguinesti staff', 'Torva full helm', 'Torva platebody', 'Torva platelegs', 'Masori body (f)', 'Masori chaps (f)', 'Ferocious gloves', 'Primordial boots', 'Amulet of torture', 'Dragon arrow', 'Ultor ring'];
+  const bh = ["Corrupted statius's platebody (bh)", "Corrupted statius's full helm (bh)", "Corrupted morrigan's leather body (bh)"].map(id);
+  const bank = [...names.map(id), ...bh].map((x) => ({ id: x }));
+  const c = checkTrip(input({ setup: null, content: tob, monsters, worn: [], inventory: [], bank }));
+  const lines = c.rows.map((r) => r.line);
+  assert.ok(!lines.some((l) => /^(Maiden|Bloat|Sotetseg|Xarpus|Verzik)\b/.test(l)), lines.join(' | '));
+  assert.ok(c.info.some((l) => /^One setup for 5 bosses: \w+ worn/.test(l)), c.info.join(' | '));
+  assert.ok(c.rows.some((r) => /is in your bank: take it/.test(r.line)), 'the worn set to take');
+  assert.ok(!c.rows.some((r) => r.item != null && bh.includes(r.item)), 'no Bounty Hunter copy picked');
+  // A Deadman spec weapon is never the spec to take.
+  const dmm = checkTrip(input({ setup: null, content: tob, monsters, worn: [], inventory: [], bank: [...bank, { id: id('Armadyl godsword (Deadman)') }] }));
+  assert.ok(!dmm.rows.some((r) => r.group === 'spec'), dmm.rows.filter((r) => r.group === 'spec').map((r) => r.line).join(' | '));
+  // Everything worn and packed already: one passing row.
+  const worn = checkTrip(input({ setup: null, content: tob, monsters, worn: bank.filter((x) => !bh.includes(x.id)), inventory: [], bank: [] }));
+  assert.ok(worn.rows.some((r) => r.ok && /^Your setup covers all 5 bosses$/.test(r.line)) || failing(worn).length > 0, worn.rows.map((r) => r.line).join(' | '));
 });
