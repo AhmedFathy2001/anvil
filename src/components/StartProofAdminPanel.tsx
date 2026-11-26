@@ -94,6 +94,8 @@ export default function StartProofAdminPanel({
   const [maxSession, setMaxSession] = useState(
     rules.startProof?.maxSessionMinutes ?? DEFAULT_START_PROOF.maxSessionMinutes,
   );
+  const [autoShot, setAutoShot] = useState(rules.startProof?.autoShot ?? true);
+  const [guide, setGuide] = useState(rules.startProof?.guide ?? true);
   const [locations, setLocations] = useState<StartLocation[]>(rules.startProof?.locations ?? []);
   const [pick, setPick] = useState<StartProofPick>(rules.startProof?.pick ?? 'random');
   // Index of the pool entry being pinned on the map, or -1 for none open.
@@ -121,9 +123,11 @@ export default function StartProofAdminPanel({
               .filter((l) => l.label.length > 0 || l.x != null),
             pick,
             maxSessionMinutes: maxSession,
+            autoShot,
+            guide,
           }
         : null,
-    [enabled, onMissing, autoAccept, locations, pick, maxSession],
+    [enabled, onMissing, autoAccept, locations, pick, maxSession, autoShot, guide],
   );
   const draftKey = JSON.stringify(draft);
   const [savedKey, setSavedKey] = useState(draftKey);
@@ -335,6 +339,21 @@ export default function StartProofAdminPanel({
                 onChange={setAutoAccept}
                 label="Auto-accept plugin captures with a matching keyword"
                 className="text-sm sm:mt-5"
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Checkbox
+                checked={autoShot}
+                onChange={setAutoShot}
+                label="Plugin takes the shot automatically on the pinned spot"
+                className="text-sm"
+              />
+              <Checkbox
+                checked={guide}
+                onChange={setGuide}
+                label="Plugin guides players there (on-screen checks, hint arrow, map pin)"
+                className="text-sm"
               />
             </div>
 
