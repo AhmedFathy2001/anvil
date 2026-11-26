@@ -173,3 +173,15 @@ test('adjust: a slot lists what I own for it, a pick re-checks with it (no overl
   await tripAct(req(), 'trip-save', { content: 'vorkath', swap: 'weapon:4587' });
   assert.equal((await ownTripSetup(me.userId, me.accountId, 'vorkath'))?.gear.weapon, 4587, 'the picks were kept');
 });
+
+test('items: an emptied container (everything banked) is stored as an empty list, replacing the last', async () => {
+  const items = await import('../src/lib/playerItems.ts');
+  const me = await user('EmptyMe');
+  await items.saveSnapshot(me.accountId, { equipment: { items: [{ id: 4151 }], readAt: new Date().toISOString() }, inventory: { items: [{ id: 385 }], readAt: new Date().toISOString() } });
+  const cleaned = items.cleanContainer('equipment', { items: [] });
+  assert.deepEqual(cleaned?.items, [], 'an empty list is a reading, not a bad one');
+  await items.saveSnapshot(me.accountId, { equipment: cleaned!, inventory: items.cleanContainer('inventory', { items: [] })! });
+  const snap = await items.snapshotForViewer(me.userId, me.accountId);
+  assert.deepEqual(snap?.equipment?.items, []);
+  assert.deepEqual(snap?.inventory?.items, []);
+});
