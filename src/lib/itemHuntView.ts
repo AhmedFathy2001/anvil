@@ -192,7 +192,7 @@ export function buildHuntView(
     completeAt: r.completeAt,
     heldIds: [...new Set(r.drops.map((d) => d.itemId).filter((id): id is number => id != null && targetIds.has(id)))],
     drops: r.drops.map((d, i) => ({
-      score: config.rule === 'rush' ? dropScore(config, d) : config.rule !== 'points' ? null : config.repeat === 'first' && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
+      score: config.rule !== 'points' && config.rule !== 'rush' ? null : config.repeat === 'first' && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
       id: d.id,
       itemId: d.itemId,
       itemName: d.itemName,
@@ -214,7 +214,7 @@ export function buildHuntView(
     rule: config.rule,
     points: config.rule === 'points' ? config.items.map((it) => ({ name: it.name, points: it.points ?? 1 })) : config.rule === 'rush' ? config.items.filter((it) => (it.points ?? 0) > 0).map((it) => ({ name: it.name, points: it.points ?? 0 })) : null,
     rushRules: isRush(config) ? rushRulesWords(config.rush) : null,
-    firstOfEach: config.rule === 'points' && config.repeat === 'first',
+    firstOfEach: (config.rule === 'points' || config.rule === 'rush') && config.repeat === 'first',
     endingWords: huntEndingWords(config.ends),
     confirm: config.confirm,
     status: weeklyStatus(comp),

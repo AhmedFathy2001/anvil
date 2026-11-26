@@ -20,7 +20,6 @@ import {
   MAX_HUNT_ITEMS,
   MAX_HUNT_ROWS,
   MAX_ITEM_POINTS,
-  MAX_RUSH_BOSSES,
   type HuntConfirm,
   type HuntEnding,
   autoRowStat,
@@ -31,7 +30,7 @@ import NumberInput from '@/components/NumberInput';
 import { PET_GROUPS } from '@/lib/petGroups';
 import { itemIconUrl } from '@/lib/tileIcons';
 import { MAX_WEEKLY_PLACES } from '@/lib/weeklyPrizes';
-import { MAX_RUSH_POINTS, MAX_SYNERGY, type RushRules, rarityWords } from '@/lib/bossRushRules';
+import { MAX_RUSH_POINTS, MAX_RUSH_TARGETS, MAX_SYNERGY, RUSH_RAID_TARGETS, type RushRules, rarityWords } from '@/lib/bossRushRules';
 
 /**
  * The item hunt half of the create form: one list of what is hunted (a pet is just another row),
@@ -85,7 +84,18 @@ async function searchHunt(q: string): Promise<SearchResult | null> {
   }
 }
 
-export default function HuntFields({ value, onChange, prizes = false }: { value: HuntFormValue; onChange: (next: HuntFormValue) => void; prizes?: boolean }) {
+export default function HuntFields({
+  value,
+  onChange,
+  prizes = false,
+  kind,
+}: {
+  value: HuntFormValue;
+  onChange: (next: HuntFormValue) => void;
+  prizes?: boolean;
+  /** 'rush': the Boss Rush card, kept on its rule. 'hunt': the Item hunt card, without it. Absent (editing one): whichever it is. */
+  kind?: 'rush' | 'hunt';
+}) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult | null>(null);
   const [searching, setSearching] = useState(false);
@@ -246,52 +256,52 @@ export default function HuntFields({ value, onChange, prizes = false }: { value:
 
   const [rushNote, setRushNote] = useState('');
 
-  /** Bosses picked for the rush: each one's log uniques join the list with no points yet. */
-  async function addRushBosses(keys: string[]) {
-    const wanted = keys.filter((k, i) => k && !value.rushBosses.includes(k) && keys.indexOf(k) === i).slice(0, MAX_RUSH_BOSSES - value.rushBosses.length);
+  /** Targets picked for the rush: each one's notable drops join the list with no points yet. */
+  async function addRushTargets(names: string[]) {
+    const have = new Set(value.rush.targets.map((t) => t.toLowerCase()));
+    const wanted = names.filter((n, i) => n && !have.has(n.toLowerCase()) && names.findIndex((x) => x.toLowerCase() === n.toLowerCase()) === i).slice(0, MAX_RUSH_TARGETS - value.rush.targets.length);
     if (wanted.length === 0) return;
-    // One boss at a time, so a drop two of them share knows both as where it counts from.
-    const per: { key: string; drops: { id: number; name: string; sources: string[]; pet: boolean; rate: number | null }[] }[] = [];
-    const noPages: string[] = [];
+    // The targets go in at once, so a quick second pick is not lost to the drops still loading.
+    const targets = [...value.rush.targets, ...wanted];
+    // One target at a time, so a drop two of them share knows both as where it counts from.
+    const per = new Map<string, { id: number; name: string; sources: string[]; pet: boolean; rate: number | null }[]>();
     await Promise.all(
-      wanted.map(async (key) => {
+      wanted.map(async (t) => {
         try {
-          const res = await clanFetch(`/api/admin/weekly/rush-drops?bosses=${encodeURIComponent(key)}`);
-          if (!res.ok) return;
-          const data = await res.json();
-          per.push({ key, drops: data.drops ?? [] });
-          noPages.push(...(data.noPage ?? []));
+          const res = await clanFetch(`/api/admin/weekly/rush-drops?targets=${encodeURIComponent(t)}`);
+          if (res.ok) per.set(t, (await res.json()).drops ?? []);
         } catch {
-          /* the boss still counts; its drops can be added by hand */
+          /* the target still counts; its drops can be added by hand */
         }
       }),
     );
-    setRushNote(noPages.length ? `${noPages.join(', ')} ${noPages.length === 1 ? 'has' : 'have'} no collection log page: add the drops with the search below.` : '');
+    const none = wanted.filter((t) => !(per.get(t)?.length));
+    setRushNote(none.length ? `No notable drops listed for ${none.join(', ')}: add any with the search below.` : '');
     let items = value.items;
-    for (const key of wanted) {
-      const drops = per.find((p) => p.key === key)?.drops ?? [];
-      // Already listed (another boss drops it too): it now also counts from here.
+    for (const t of wanted) {
+      const drops = per.get(t) ?? [];
+      // Already listed (another target drops it too): it now also counts from here.
       items = items.map((it) => {
         const d = drops.find((x) => x.id === it.id);
         if (!d || !it.rushFrom) return it;
-        return { ...it, rushFrom: [...it.rushFrom, key], sources: [...new Set([...it.sources, ...d.sources])], known: [...new Set([...it.known, ...d.sources])] };
+        return { ...it, rushFrom: [...it.rushFrom, t], sources: [...new Set([...it.sources, ...d.sources])], known: [...new Set([...it.known, ...d.sources])] };
       });
       const fresh = drops
         .filter((d) => !items.some((it) => it.id === d.id))
-        .map((d) => ({ ...huntFormRow({ id: d.id, name: d.name, known: d.sources, sources: d.sources, pet: d.pet, points: 0 }), rushFrom: [key], rate: d.rate, stat: '', statAuto: false }));
+        .map((d) => ({ ...huntFormRow({ id: d.id, name: d.name, known: d.sources, sources: d.sources, pet: d.pet, points: 0 }), rushFrom: [t], rate: d.rate, stat: '', statAuto: false }));
       items = add(fresh, items);
     }
-    set({ rushBosses: [...value.rushBosses, ...wanted], items });
+    onChange({ ...value, rush: { ...value.rush, targets }, items });
   }
 
-  /** A boss taken off the rush: the drops only it brought go with it. Rows added by hand stay. */
-  function removeRushBoss(key: string) {
+  /** A target taken off the rush: the drops only it brought go with it. Rows added by hand stay. */
+  function removeRushTarget(name: string) {
     const items = value.items.flatMap((it) => {
-      if (!it.rushFrom?.includes(key)) return [it];
-      const rest = it.rushFrom.filter((k) => k !== key);
+      if (!it.rushFrom?.includes(name)) return [it];
+      const rest = it.rushFrom.filter((k) => k !== name);
       return rest.length === 0 ? [] : [{ ...it, rushFrom: rest }];
     });
-    set({ rushBosses: value.rushBosses.filter((k) => k !== key), items });
+    set({ rush: { ...value.rush, targets: value.rush.targets.filter((t) => t !== name) }, items });
   }
 
   const setRush = (patch: Partial<RushRules>) => set({ rush: { ...value.rush, ...patch } });
@@ -306,14 +316,15 @@ export default function HuntFields({ value, onChange, prizes = false }: { value:
 
   return (
     <div className="space-y-4">
+      {/* Boss Rush is its own card: no rule to pick. An item hunt picks among the other three. */}
+      {!(kind === 'rush' || (kind == null && rush)) && (
       <div>
         <p className="mb-1.5 text-sm font-medium text-foreground/70">Rule</p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-3">
           {([
             ['first', 'First to get one', 'Any of them counts. Others are listed in the order they got one.'],
             ['most', 'Most by the end', 'The highest count wins. A tie goes to whoever got there first.'],
             ['points', 'Most points', 'Each row is worth the points you give it.'],
-            ['rush', 'Boss Rush', 'Kills at the bosses you pick, plus the points you give each drop, minus deaths.'],
           ] as const).map(([key, label, blurb]) => (
             <label key={key} className={`flex cursor-pointer gap-2.5 rounded-lg border p-3 text-sm ${value.rule === key ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
               <Radio name="hunt-rule" checked={value.rule === key} onChange={() => set({ rule: key })} />
@@ -325,13 +336,14 @@ export default function HuntFields({ value, onChange, prizes = false }: { value:
           ))}
         </div>
       </div>
+      )}
 
       {rush && (
         <RushFields
-          bosses={value.rushBosses}
+          targets={value.rush.targets}
           rules={value.rush}
-          onAdd={(keys) => void addRushBosses(keys)}
-          onRemove={removeRushBoss}
+          onAdd={(names) => void addRushTargets(names)}
+          onRemove={removeRushTarget}
           onRules={setRush}
           note={rushNote}
         />
@@ -599,7 +611,7 @@ export default function HuntFields({ value, onChange, prizes = false }: { value:
         )}
       </div>
 
-      {value.rule === 'points' && (
+      {(value.rule === 'points' || rush) && (
         <div>
           <p className="mb-1.5 text-sm font-medium text-foreground/70">A second drop of the same item</p>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -891,46 +903,144 @@ export function HuntEndingFields({
   );
 }
 
-/** "All raids": every raid and its harder mode. Entry Mode is not on the hiscores, so it never counts. */
-const RUSH_RAID_KEYS = ['chambersOfXeric', 'chambersOfXericChallengeMode', 'theatreOfBlood', 'theatreOfBloodHardMode', 'tombsOfAmascut', 'tombsOfAmascutExpertMode'];
+/** "All raids": every raid and its harder mode, as the game names them. Entry Modes are picked one by one. */
+const ALL_RAIDS = RUSH_RAID_TARGETS.filter((r) => !/entry mode/i.test(r.name)).map((r) => r.name);
 
-const RUSH_BOSS_OPTIONS = BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases }));
+/** What the picker offers before anything is typed: every raid mode, then every boss the hiscores keep. */
+const RAID_KEYS = new Set(['chambersOfXeric', 'chambersOfXericChallengeMode', 'theatreOfBlood', 'theatreOfBloodHardMode', 'tombsOfAmascut', 'tombsOfAmascutExpertMode']);
+const LOCAL_TARGETS: { name: string; hint: string; keywords: string[] }[] = [
+  ...RUSH_RAID_TARGETS.map((r) => ({ name: r.name, hint: 'Raid', keywords: ['raids', r.raid] })),
+  ...BOSSES.filter((b) => !RAID_KEYS.has(b.key)).map((b) => ({ name: b.label, hint: 'Boss', keywords: b.aliases ?? [] })),
+];
 
 /**
- * Boss Rush's own settings: the bosses (each fills the drop list below with its log uniques), what a
- * kill and a death are worth, whose kills count, and whether a score can go below 0. The host can
- * change the points, deaths and the floor while it runs (lib/itemHuntDb updateHuntSettings).
+ * Pick any number of targets without the list closing: bosses and raid modes straight away, any
+ * other monster by name as you type (the wiki's list, api/admin/npc-search). A click ticks or unticks.
+ */
+function TargetPicker({ picked, onAdd, onRemove, full }: { picked: string[]; onAdd: (names: string[]) => void; onRemove: (name: string) => void; full: boolean }) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [found, setFound] = useState<string[]>([]);
+  const box = useRef<HTMLDivElement>(null);
+  const on = new Set(picked.map((p) => p.toLowerCase()));
+
+  useEffect(() => {
+    function away(e: MouseEvent) {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, []);
+
+  useEffect(() => {
+    const query = q.trim();
+    if (query.length < 2) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await clanFetch(`/api/admin/npc-search?q=${encodeURIComponent(query)}`);
+        const rows = res.ok ? ((await res.json()) as { name: string }[]) : [];
+        if (!cancelled) setFound(rows.map((r) => r.name));
+      } catch {
+        if (!cancelled) setFound([]);
+      }
+    }, 220);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [q]);
+
+  const query = q.trim().toLowerCase();
+  const local = LOCAL_TARGETS.filter((o) => !query || o.name.toLowerCase().includes(query) || o.keywords.some((k) => k.toLowerCase().includes(query)));
+  const localNames = new Set(local.map((o) => o.name.toLowerCase()));
+  const options = [
+    ...local.map((o) => ({ name: o.name, hint: o.hint })),
+    ...(query.length >= 2 ? found.filter((n) => !localNames.has(n.toLowerCase())).map((n) => ({ name: n, hint: 'Monster' })) : []),
+  ].slice(0, 80);
+
+  return (
+    <div ref={box} className="relative">
+      <Input
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setOpen(false);
+        }}
+        placeholder={full ? `That is the most a rush can hold (${MAX_RUSH_TARGETS})` : 'Search a boss, raid mode or monster'}
+        aria-label="Search a boss, raid mode or monster"
+        autoComplete="off"
+        className="min-h-11"
+      />
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-card-border bg-card-bg shadow-xl" role="listbox" aria-multiselectable>
+          {options.length === 0 && <p className="px-3 py-2 text-xs text-text-muted">{query.length >= 2 ? 'Nothing found. Try the name as the game writes it.' : 'Type to find a monster.'}</p>}
+          {options.map((o) => {
+            const ticked = on.has(o.name.toLowerCase());
+            return (
+              <button
+                key={o.name}
+                type="button"
+                role="option"
+                aria-selected={ticked}
+                disabled={!ticked && full}
+                // The list stays open: pick as many as you like.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => (ticked ? onRemove(picked.find((p) => p.toLowerCase() === o.name.toLowerCase()) ?? o.name) : onAdd([o.name]))}
+                className={`flex min-h-10 w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm hover:bg-gold/10 disabled:opacity-40 ${ticked ? 'bg-gold/[0.06]' : ''}`}
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${ticked ? 'border-gold bg-gold text-brown-dark' : 'border-card-border'}`}>{ticked ? '✓' : ''}</span>
+                <span className="min-w-0 flex-1 truncate">{o.name}</span>
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">{o.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Boss Rush's own settings: the targets (each fills the drop list below with its notable drops),
+ * what a kill and a death are worth, whose kills count, Clan Synergy, and whether a score can go
+ * below 0. All but the targets can change while it runs (lib/itemHuntDb updateHuntSettings).
  */
 export function RushFields({
-  bosses,
+  targets,
   rules,
   onAdd,
   onRemove,
   onRules,
   note = '',
-  lockBosses = false,
+  lockTargets = false,
 }: {
-  bosses: string[];
+  targets: string[];
   rules: RushRules;
-  onAdd?: (keys: string[]) => void;
-  onRemove?: (key: string) => void;
+  onAdd?: (names: string[]) => void;
+  onRemove?: (name: string) => void;
   onRules: (patch: Partial<RushRules>) => void;
   note?: string;
-  /** Running: the bosses are fixed, their starting counts are already read. */
-  lockBosses?: boolean;
+  /** Running: the targets are fixed, their starting counts are already read. */
+  lockTargets?: boolean;
 }) {
-  const label = (k: string) => BOSSES.find((b) => b.key === k)?.label ?? k;
+  const s = rules.synergy;
+  const setSynergy = (patch: Partial<RushRules['synergy']>) => onRules({ synergy: { ...s, ...patch } });
   return (
     <div className="space-y-4">
       <div>
-        <p className="mb-1.5 text-sm font-medium text-foreground/70">Bosses</p>
-        {bosses.length > 0 && (
+        <p className="mb-1.5 text-sm font-medium text-foreground/70">What counts</p>
+        {targets.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
-            {bosses.map((k) => (
-              <span key={k} className="flex min-h-9 items-center gap-1.5 rounded-full border border-gold/40 bg-gold/[0.06] pl-3 pr-1 text-xs">
-                {label(k)}
-                {!lockBosses && onRemove && (
-                  <button type="button" onClick={() => onRemove(k)} className="min-h-9 min-w-9 rounded-full text-text-muted hover:text-red-400" aria-label={`Remove ${label(k)}`}>
+            {targets.map((t) => (
+              <span key={t} className="flex min-h-9 items-center gap-1.5 rounded-full border border-gold/40 bg-gold/[0.06] pl-3 pr-1 text-xs">
+                {t}
+                {!lockTargets && onRemove && (
+                  <button type="button" onClick={() => onRemove(t)} className="min-h-9 min-w-9 rounded-full text-text-muted hover:text-red-400" aria-label={`Remove ${t}`}>
                     ×
                   </button>
                 )}
@@ -938,13 +1048,13 @@ export function RushFields({
             ))}
           </div>
         )}
-        {!lockBosses && onAdd && bosses.length < MAX_RUSH_BOSSES && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="w-full sm:w-72">
-              <Select value="" onChange={(v) => v && onAdd([v])} ariaLabel="Add a boss" placeholder="Add a boss or raid" searchable options={RUSH_BOSS_OPTIONS.filter((o) => !bosses.includes(o.value))} />
+        {!lockTargets && onAdd && onRemove && (
+          <div className="flex flex-wrap items-start gap-2">
+            <div className="min-w-0 flex-1 basis-72">
+              <TargetPicker picked={targets} onAdd={onAdd} onRemove={onRemove} full={targets.length >= MAX_RUSH_TARGETS} />
             </div>
-            {RUSH_RAID_KEYS.some((k) => !bosses.includes(k)) && (
-              <button type="button" onClick={() => onAdd(RUSH_RAID_KEYS)} className="min-h-11 rounded-lg border border-gold/40 px-3 text-sm font-semibold text-gold hover:bg-gold/10">
+            {ALL_RAIDS.some((r) => !targets.some((t) => t.toLowerCase() === r.toLowerCase())) && (
+              <button type="button" onClick={() => onAdd(ALL_RAIDS)} className="min-h-11 rounded-lg border border-gold/40 px-3 text-sm font-semibold text-gold hover:bg-gold/10">
                 All raids
               </button>
             )}
@@ -952,7 +1062,9 @@ export function RushFields({
         )}
         {note && <p className="mt-1.5 text-xs text-amber-300">{note}</p>}
         <p className="mt-1.5 text-xs text-text-muted">
-          {lockBosses ? 'The bosses are set once it has started.' : `Up to ${MAX_RUSH_BOSSES}. A raid's modes are separate bosses: pick each one that counts.`}
+          {lockTargets
+            ? 'What counts is set once it has started.'
+            : `Up to ${MAX_RUSH_TARGETS}: bosses, each raid mode (Entry Mode included, picked on its own) or any monster, hiscores or not. "All raids" adds every raid and its harder mode.`}
         </p>
       </div>
 
@@ -973,7 +1085,7 @@ export function RushFields({
           )}
         </div>
       </div>
-      {rules.deaths && <p className="-mt-2 text-xs text-text-muted">A death counts when the plugin names one of the bosses as the killer.</p>}
+      {rules.deaths && <p className="-mt-2 text-xs text-text-muted">A death counts when the plugin names a target as the killer, or it happened inside a raid that counts (puzzle and mechanic deaths included).</p>}
 
       <div>
         <p className="mb-1.5 text-sm font-medium text-foreground/70">Whose kills count</p>
@@ -995,31 +1107,47 @@ export function RushFields({
 
       <div>
         <Checkbox
-          checked={rules.synergy.on}
-          onChange={(on) => onRules({ synergy: { ...rules.synergy, on } })}
+          checked={s.on}
+          onChange={(v) => setSynergy({ on: v })}
           label="Clan Synergy"
-          description="A kill at a raid or group boss done together with other entrants is worth more, for each of them."
+          description="A kill at a raid or group boss done together with other entrants is worth more."
           className="text-sm"
         />
-        {rules.synergy.on && (
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 pl-6 text-sm">
-            <span className="flex items-center gap-2">
-              <span className="text-foreground/70">+</span>
-              <NumberInput value={rules.synergy.perMate} onChange={(v) => onRules({ synergy: { ...rules.synergy, perMate: v } })} min={0} max={MAX_SYNERGY} fallback={1} className="w-20" aria-label="Points per clanmate" />
-              <span className="text-text-muted">per clanmate with you</span>
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="text-foreground/70">up to</span>
-              <NumberInput value={rules.synergy.max} onChange={(v) => onRules({ synergy: { ...rules.synergy, max: v } })} min={0} max={MAX_SYNERGY} fallback={3} className="w-20" aria-label="Most per kill" />
-              <span className="text-text-muted">a kill</span>
-            </span>
+        {s.on && (
+          <div className="mt-2 space-y-2 pl-6 text-sm">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {([
+                ['flat', 'A bonus for doing it together', 'The same bonus however many of you there were.'],
+                ['perMate', 'A bonus per clanmate', 'More clanmates with you, more points, up to a cap.'],
+              ] as const).map(([key, title, blurb]) => (
+                <label key={key} className={`flex cursor-pointer gap-2.5 rounded-lg border p-3 ${s.mode === key ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
+                  <Radio name="rush-synergy-mode" checked={s.mode === key} onChange={() => setSynergy({ mode: key })} />
+                  <span>
+                    <span className="block text-sm font-medium">{title}</span>
+                    <span className="block text-xs text-text-muted">{blurb}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="flex items-center gap-2">
+                <span className="text-foreground/70">+</span>
+                <NumberInput value={s.points} onChange={(v) => setSynergy({ points: v })} min={0} max={MAX_SYNERGY} fallback={1} className="w-20" aria-label="Clan Synergy points" />
+                <span className="text-text-muted">{s.mode === 'flat' ? 'a kill done together' : 'per clanmate with you'}</span>
+              </span>
+              {s.mode === 'perMate' && (
+                <span className="flex items-center gap-2">
+                  <span className="text-foreground/70">up to</span>
+                  <NumberInput value={s.max} onChange={(v) => setSynergy({ max: v })} min={0} max={MAX_SYNERGY} fallback={3} className="w-20" aria-label="Most per kill" />
+                  <span className="text-text-muted">a kill</span>
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-text-muted">
+              Counts at the raids (Entry Mode included) and group bosses (God Wars, Nex, the Nightmare, Corp, the Dagannoth Kings, the Royal Titans, the Hueycoatl, Yama and the like), never at a
+              boss fought alone such as Phosani&rsquo;s Nightmare. Everyone in the group needs the plugin running: kills that land together are how it knows.
+            </p>
           </div>
-        )}
-        {rules.synergy.on && (
-          <p className="mt-1.5 pl-6 text-xs text-text-muted">
-            Counts at the raids and group bosses (God Wars, Nex, the Nightmare, Corp, the Dagannoth Kings, the Royal Titans, the Hueycoatl, Yama and the like), never at a boss fought alone such as
-            Phosani&rsquo;s Nightmare. Everyone in the group needs the plugin running: kills that land together are how it knows.
-          </p>
         )}
       </div>
 

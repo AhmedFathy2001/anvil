@@ -64,7 +64,7 @@ interface EventFormProps {
    */
   /** Empty stretch from the schedule's "Fill the gap" (validated days): the dates start filled in. */
   gapPrefill?: { start: string; end: string | null } | null;
-  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency' | 'hunt'; placement?: 'solo' };
+  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency' | 'hunt'; placement?: 'solo'; rush?: true };
   /**
    * The clan's two prize pots (lib/coffer), read by the page. `hcwCoffer` is the clan setting that it
    * keeps a Hardcore Worlds coffer at all; without it every prize is main game gp and "Paid in" is
@@ -96,14 +96,14 @@ const WEEKLY_KINDS = [
   { type: 'boss' as const, label: 'Boss of the Week', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
   { type: 'efficiency' as const, label: 'Efficiency race', chips: 'everyone · Hours played / Hours bossed', defaultMetric: 'ehp' },
   // Ranked by drops, not by a hiscores gain: its own fields (components/weekly/HuntFields).
-  { type: 'hunt' as const, label: 'Item hunt', chips: 'everyone · an item or a pet, first or most, or a Boss Rush', defaultMetric: '' },
+  { type: 'hunt' as const, label: 'Item hunt', chips: 'everyone · an item or a pet, first or most', defaultMetric: '' },
 ];
 type WeeklyType = (typeof WEEKLY_KINDS)[number]['type'];
 
 /** What a hunt calls itself until someone names it: "Item hunt: Uncut onyx", "Pet hunt: Heron + Rocky". */
 function huntName(hunt: HuntFormValue): string {
   if (hunt.rule === 'rush') {
-    const names = hunt.rushBosses.map((k) => BOSSES.find((b) => b.key === k)?.label ?? k);
+    const names = hunt.rush.targets;
     return names.length ? `Boss Rush: ${names.slice(0, 2).join(' + ')}${names.length > 2 ? ' + more' : ''}` : 'Boss Rush';
   }
   if (hunt.items.length === 0) return 'Item hunt';
@@ -188,7 +188,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const router = useRouter();
   const chosenWeekly = choice?.weekly ? WEEKLY_KINDS.find((w) => w.type === choice.weekly) ?? null : null;
   const [name, setName] = useState(
-    chosenWeekly ? defaultWeeklyTitle(chosenWeekly.type, chosenWeekly.defaultMetric) : suggestedName,
+    choice?.rush ? 'Boss Rush' : chosenWeekly ? defaultWeeklyTitle(chosenWeekly.type, chosenWeekly.defaultMetric) : suggestedName,
   );
   // Until the admin types their own, the name follows the choice. Otherwise picking Skill of the
   // Week on a form that opened as "The AFK Spot Bingo #7" creates a competition CALLED that.
@@ -263,7 +263,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   );
   const [weeklyMetric, setWeeklyMetric] = useState(chosenWeekly?.defaultMetric ?? 'attack');
   // Item hunt: what is hunted, where each item counts from, the rule and how it ends.
-  const [hunt, setHunt] = useState<HuntFormValue>(DEFAULT_HUNT);
+  // Boss Rush is its own card: the same hunt underneath, opened on its rule and kept there.
+  const rushOnly = !!choice?.rush;
+  const [hunt, setHunt] = useState<HuntFormValue>(rushOnly ? { ...DEFAULT_HUNT, rule: 'rush' } : DEFAULT_HUNT);
   const isHunt = weeklyType === 'hunt';
   /** The competition's default name, for the placeholder and for a name nobody typed. */
   const weeklyName = (type: WeeklyType, metric: string, h: HuntFormValue = hunt) => (type === 'hunt' ? huntName(h) : defaultWeeklyTitle(type, metric));
@@ -529,8 +531,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
         setError(isHunt ? 'An item hunt needs a start and an end: only drops between the two count. Pick a window on the right.' : 'A weekly competition always needs an end — it scores the gains between its start and end. Pick a window on the right.');
         return;
       }
-      if (isHunt && hunt.rule === 'rush' && hunt.rushBosses.length === 0) {
-        setError('Pick at least one boss for the rush.');
+      if (isHunt && hunt.rule === 'rush' && hunt.rush.targets.length === 0) {
+        setError('Pick at least one boss, raid or monster for the rush.');
         return;
       }
       if (isHunt) {
@@ -1027,7 +1029,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           )}
 
           {weeklyType && (
-            <Section title={isHunt ? 'Item hunt' : 'Competition'}>
+            <Section title={isHunt ? (hunt.rule === 'rush' ? 'Boss Rush' : 'Item hunt') : 'Competition'}>
               {isHunt && (
                 <HuntFields
                   value={hunt}
@@ -1036,6 +1038,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                     if (!nameTouched) setName(huntName(next));
                   }}
                   prizes
+                  kind={rushOnly ? 'rush' : 'hunt'}
                 />
               )}
               {!isHunt && <div>
