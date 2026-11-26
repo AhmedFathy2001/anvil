@@ -46,6 +46,9 @@ export const CONTENT_KC: Record<string, string[]> = {
   zulrah: ['zulrah'],
   barrows: ['barrows'],
   nex: ['nex'],
+  // Stamped by the plugin's "Deep delves completed" line (delve 9+); delves 1-8 print no count, so
+  // a shallow Doom trip is only the target by a pick or a guide.
+  doom: ['doomOfMokhaiotl'],
 };
 
 const BOSS_KEYS = new Set(BOSSES.map((b) => b.key));
@@ -56,10 +59,15 @@ export function bossOfKey(key: string): string | null {
   return bossKeyForName(key.slice(MONSTER_PREFIX.length).split('#')[0].trim());
 }
 
-/** The target a boss kc means: the trip it belongs to, else the player's own setup for that boss. */
+/**
+ * The target a boss kc means: the trip it belongs to, else the player's own setup for that boss. A
+ * setup they saved for the boss picked by hand ("m:Doom of Mokhaiotl#…") wins over the trip's guide
+ * or calc, unless they saved one for the trip itself too.
+ */
 export function contentForBoss(boss: string, ownKeys: readonly string[]): string | null {
-  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return key;
-  return ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
+  const own = ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
+  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return own && !ownKeys.includes(key) ? own : key;
+  return own;
 }
 
 /** Can this key be a target: a known trip, or one the player saved a setup for. */

@@ -34,7 +34,7 @@ export interface TripPanelData {
   guide: { id: number; title: string } | null;
   check: TripCheck | null;
   /** Why there is no check: sharing off, items too old, signed out, nothing picked, no target known. */
-  status: 'ready' | 'off' | 'stale' | 'signed-out' | 'none' | 'no-targets';
+  status: 'ready' | 'off' | 'stale' | 'behind' | 'signed-out' | 'none' | 'no-targets';
   /** "2h ago" for a stale reading. */
   age?: string;
   checkedAt: string | null;
@@ -48,6 +48,8 @@ export interface TripPanelData {
   target?: { key: string; short: string; why: string } | null;
   /** The content shown is the target (else a region's or a hand-picked one). */
   fromTarget?: boolean;
+  /** The plugin can filter its bank (X-Anvil-Bank-Filter): missing rows and "Show missing in bank" do. */
+  bankFilter?: boolean;
 }
 
 const W = CARD_W;
@@ -61,6 +63,8 @@ const pick = (d: TripPanelData, key: string): Action => ({ a: 'load', v: 'trip',
 /** Make it the next-trip target: checked at whichever bank the player gears up at. */
 const aim = (d: TripPanelData, key: string): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: key }) });
 const clearAim = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: 'clear' }) });
+/** The plugin's bank shows only these ids (display only: nothing is moved). */
+const bankAction = (ids: number[]): Action => ({ a: 'bank', ids: ids.join(',') });
 
 function head(d: TripPanelData): Node {
   return row(title('Pre-trip check'), undefined, text('↻', GOLD, { on: again(d), tip: 'Check again with what you carry now' }), { gap: 6 });
@@ -127,12 +131,19 @@ function pic(r: TripRow): Node {
   return r.item ? icon({ item: r.item, w: 26, h: 23 }) : text('', 'white', { w: 26, align: 'c', icon: { t: 'icon', glyph: 'close', w: 10, h: 10, color: CORAL } });
 }
 
-function failRow(r: TripRow): Node {
+/** The items to take, as pictures (the calc's swaps): eight at most, the rest counted. */
+function swapIcons(ids: number[]): Node {
+  const shown = ids.slice(0, 8);
+  return { t: 'grid', cols: 4, gap: 3, vgap: 3, c: [...shown.map((id) => icon({ item: id, w: 26, h: 23 })), ...(ids.length > shown.length ? [small(`+${ids.length - shown.length}`, FAINT)] : [])] };
+}
+
+function failRow(r: TripRow, bankFilter: boolean): Node {
+  const filter = bankFilter && r.bank?.length ? r.bank : null;
   return row(
     pic(r),
-    col([text(r.line, 'white', { wrap: 122 }), r.detail ? small(r.detail, FAINT, { wrap: 122 }) : null], { gap: 1 }),
+    col([text(r.line, 'white', { wrap: 122 }), r.detail ? small(r.detail, FAINT, { wrap: 122 }) : null, r.swaps?.length ? swapIcons(r.swaps) : null], { gap: 2 }),
     icon({ glyph: 'close', w: 10, h: 10, color: CORAL }),
-    { gap: 6 },
+    { gap: 6, ...(filter ? { on: bankAction(filter), tip: 'Show it in your open bank' } : {}) },
   );
 }
 
@@ -144,8 +155,10 @@ function checkCard(d: TripPanelData, c: TripCheck): Node {
   const short = d.content?.short ?? 'the trip';
   const top = bad.length
     ? text(`${bad.length} problem${bad.length === 1 ? '' : 's'}`, CORAL, { font: 'bold' })
-    : text(`✓ Ready for ${short}`, GREEN, { font: 'bold' });
-  const source = row(small(d.sourceLine, FAINT, { wrap: d.source === 'calc' ? W - 34 : W }), undefined, d.source === 'calc' ? chip('calc', 'blue', { tip: 'No setup of yours or a guide’s: Anvil worked this out from your bank and the monster’s weaknesses' }) : undefined, { gap: 4 });
+    : text(`✓ Ready for ${short}`, GREEN, { font: 'bold', wrap: W });
+  // The one line saying what it was checked against, and when.
+  const source = small(`${d.sourceLine}${d.checkedAt ? ` · ${d.checkedAt}` : ''}`, FAINT, { wrap: W });
+  const showAll = d.bankFilter && bad.length && c.bank?.length ? button('Show missing in bank', bankAction(c.bank), 'Your open bank shows only what this check says to take') : null;
   const okFold: Node | null = good.length
     ? {
         t: 'toggle',
@@ -156,7 +169,7 @@ function checkCard(d: TripPanelData, c: TripCheck): Node {
     : null;
   const unknown = c.unknown.length ? small(`Not checked: ${c.unknown.join(', ')}. The newest plugin reads them; a rune pouch only counts when it is in your inventory.`, FAINT, { wrap: W }) : null;
   return section(
-    [top, source, ...bad.map(failRow), okFold, ...c.info.map((s) => small(s, SOFT, { wrap: W })), unknown],
+    [top, source, ...bad.map((r) => failRow(r, !!d.bankFilter)), showAll, okFold, ...c.info.map((s) => small(s, SOFT, { wrap: W })), unknown],
     { gap: 6, edge: bad.length ? CORAL : GREEN },
   );
 }
@@ -167,6 +180,8 @@ function why(d: TripPanelData): Node {
       return section([text('Sign in with the plugin to check your trips.', 'white', { wrap: W })]);
     case 'off':
       return section([text('Turn on Share my bank to check your trips', 'white', { font: 'bold', wrap: W }), small('It is in the Anvil plugin’s settings. Your bank stays private to you: nobody else, clan staff included, ever sees it.', FAINT, { wrap: W })]);
+    case 'behind':
+      return section([text('Checking what you carry…', 'white', { wrap: W }), small(`Anvil last saw your items at ${d.checkedAt ?? 'an earlier bank'}. Check again in a moment.`, FAINT, { wrap: W })]);
     case 'stale':
       return section([text(`Your items were read ${d.age ?? 'a while'} ago`, 'white', { wrap: W }), small('Open your bank and close it again, then check.', FAINT, { wrap: W })]);
     case 'no-targets':
@@ -183,11 +198,14 @@ export function tripPanelUi(d: TripPanelData): Node {
   else parts.push(why(d));
   if (d.status === 'ready' || d.status === 'none' || d.status === 'no-targets') {
     if (d.status === 'ready') parts.push(button('Check again', again(d), 'With what you wear and carry now'));
+  }
+  if (d.status === 'behind') parts.push(button('Check again', again(d), 'With what you wear and carry now'));
+  if (d.status === 'ready' || d.status === 'none' || d.status === 'no-targets') {
     if (d.canSave && d.content) {
       parts.push(
         col([
-          button(`${d.hasOwn ? 'Replace' : 'Save as'} my ${d.content.short} setup`, { a: 'post', act: 'trip-save', args: regionArgs(d, { content: d.content.key }) }, 'Your worn gear and inventory become the setup this check uses for this trip. Only you see it.'),
-          small(`What you wear and carry now becomes the setup ${d.content.short} trips are checked against. Only you see it.`, FAINT, { wrap: W + 10, align: 'c' }),
+          button(`${d.hasOwn ? 'Replace my' : 'Save as my'} setup`, { a: 'post', act: 'trip-save', args: regionArgs(d, { content: d.content.key }) }, 'Your worn gear and inventory become the setup this check uses for this trip. Only you see it.'),
+          small(`What you wear and carry now becomes your ${d.content.name} setup. Only you see it.`, FAINT, { wrap: W + 10, align: 'c' }),
         ], { gap: 3 }),
       );
     }
@@ -196,6 +214,22 @@ export function tripPanelUi(d: TripPanelData): Node {
     }
   }
   if (d.guide) parts.push(row(undefined, small(`Open the ${d.guide.title} guide ›`, GOLD, { align: 'c' }), undefined, { pad: 2, on: { a: 'load', v: 'guide', args: regionArgs(d, { id: String(d.guide.id) }) }, tip: 'The written guide and its setups' }));
-  if (d.status === 'ready') parts.push(small(`From what you wear and carry${d.checkedAt ? ` · ${d.checkedAt}` : ''}. Only you see this.`, FAINT, { wrap: W + 20, align: 'c' }));
   return col(parts, { gap: 8 });
+}
+
+/**
+ * The way in by hand, at the top of Lookup's Guides mode and on the You tab: "Next trip: Doom (last
+ * trip) ›" while a target is set, else "Pre-trip check ›". Both open the check (why 'manual').
+ */
+export function tripEntryUi(target: { short: string; why: string } | null, region?: string): Node {
+  const label = target ? `Next trip: ${target.short} (${target.why})` : 'Pre-trip check';
+  return row(text(label, 'white', { font: 'bold', wrap: W - 30 }), undefined, small('›', GOLD), {
+    bg: 'card',
+    edge: GOLD,
+    pad: 7,
+    inset: 8,
+    gap: 8,
+    on: { a: 'load', v: 'trip', args: { ...(region ? { region } : {}), why: 'manual' } },
+    tip: 'Check what you carry for your next trip',
+  });
 }

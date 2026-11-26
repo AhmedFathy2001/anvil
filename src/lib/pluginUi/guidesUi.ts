@@ -27,6 +27,7 @@ import { button, card, col, gap, icon, muted, row, text, type Action, type Color
 import { backHeader } from './playerCardUi';
 import { CARD_W, CORAL, FAINT, GOLD, GREEN, LINE, PROGRESS, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BodySection } from './guideBody';
+import { tripEntryUi } from './tripUi';
 import { SLOT_NAME } from '@/lib/slotNames';
 
 /** A row's picture: an item, a boss (hiscores key or name) or a skill. */
@@ -48,6 +49,8 @@ export interface GuidesSearchData {
   here: { id: number; title: string; where: string; pic: GuidePic } | null;
   /** The map region the plugin said it stands in, carried on every action so "You're at" stays. */
   region?: string;
+  /** The pre-trip check's way in (pluginUi/tripUi tripEntryUi): the target, null for none; absent when signed out. */
+  trip?: { short: string; why: string } | null;
 }
 
 /** Filter options: `label` on the chip (short, fits a third of the panel), `long` in its list. */
@@ -167,6 +170,7 @@ function filterChips(d: GuidesSearchData): Node {
 /** The Guides search (the Lookup tab's Guides mode): "You're at", the search, filters, the lists. */
 export function guidesSearchUi(d: GuidesSearchData): Node {
   const parts: Node[] = [];
+  if (d.trip !== undefined) parts.push(tripEntryUi(d.trip, d.region));
   if (d.here) {
     parts.push(
       row(

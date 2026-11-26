@@ -12,7 +12,8 @@ import { firstGearBlock } from '@/lib/guideTiers';
 import { kcKeyOf } from '@/lib/guideViewer';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { ownsAccount } from '@/lib/playerItems';
-import { guideTarget, isTargetKey, resolveTarget, type Target, type TargetState } from '@/lib/tripTarget';
+import { contentFromKey } from '@/lib/tripContent';
+import { guideTarget, isTargetKey, resolveTarget, SOURCE_LABEL, type Target, type TargetState } from '@/lib/tripTarget';
 import { ttlMemo } from '@/lib/ttlMemo';
 
 /** The container key the target is stored under (never one of CONTAINER_KINDS, nor 'state'). */
@@ -98,6 +99,12 @@ export async function currentTarget(userId: number, accountId: number): Promise<
   const guide = await lastGuide(userId, ownKeys);
   const target = resolveTarget({ state, guide, kcTimes: parseStatKeyTimes(acct[0]?.times), ownKeys, now: Date.now() });
   return { target, ownKeys, state };
+}
+
+/** The target as the pre-trip check's way in says it ("Doom", "last trip"), or null when none is set. */
+export async function targetLabel(userId: number, accountId: number): Promise<{ short: string; why: string } | null> {
+  const t = (await currentTarget(userId, accountId)).target;
+  return t ? { short: contentFromKey(t.key)?.short ?? t.key, why: SOURCE_LABEL[t.source] } : null;
 }
 
 /** The player picked a target (a known trip or one of their saved setups); false when it can't be one. */

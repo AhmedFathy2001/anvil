@@ -40,6 +40,12 @@ type Args = Record<string, string>;
 
 /** Items read longer ago than this aren't checked: the trip has moved on. */
 const STALE_MS = 30 * 60_000;
+/**
+ * A plugin that filters its bank (X-Anvil-Bank-Filter) also pushes what is worn and carried just before
+ * every trip check, so items older than this mean that push hasn't landed: never claim Ready off them.
+ */
+const BEHIND_MS = 20_000;
+const freshPush = (request: Request) => request.headers.get('X-Anvil-Bank-Filter') === '1';
 
 const regionOf = (args: Args): number | null => {
   const r = Number(args.region);
@@ -131,6 +137,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     note,
     options: TRIP_CONTENT.map((c) => ({ key: c.key, short: c.short, name: c.name })),
     monsters: [],
+    bankFilter: freshPush(request),
   };
   if (!viewer.userId) return { data: { ...base, status: 'signed-out' }, warn: null, armed: false };
   const [idx, tgt] = await Promise.all([effectiveGearIndex(), targetFor(viewer, args)]);
@@ -159,6 +166,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const readAt = [snap.equipment?.readAt, snap.inventory?.readAt].filter((x): x is string => !!x).sort().pop() ?? '';
   const age = Date.now() - Date.parse(readAt);
   if (!Number.isFinite(age) || age > STALE_MS) return { data: { ...withContent, status: 'stale', age: Number.isFinite(age) ? ago(age) : undefined }, warn: null, armed };
+  if (content && freshPush(request) && age > BEHIND_MS) return { data: { ...withContent, status: 'behind', checkedAt: readAt.slice(11, 16) }, warn: null, armed };
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
   const [state, own, nm] = await Promise.all([tripStateForViewer(viewer.userId, viewer.accountId), ownTripSetup(viewer.userId, viewer.accountId, content.key), itemNames()]);
@@ -184,7 +192,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
       }
     }
   }
-  if (source === 'calc') sourceLine = `Worked out from your bank against ${content.targets.length > 1 ? `${content.name}'s bosses` : content.name}`;
+  if (source === 'calc') sourceLine = `No setup saved for ${content.name}: compared with the best your bank can make`;
   const monsters = targets.map((t) => idx.monster(t)).filter((m): m is Monster => !!m);
   if (!monsters.length && source === 'calc') return { data: { ...withContent, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
 

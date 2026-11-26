@@ -60,7 +60,12 @@ export type Action =
    * PHASE 2 (guides, sent only past GUIDES_PANEL_MIN_PLUGIN): fetch `path` (a path on this site,
    * /api/plugin/guide-export?…) with the account token and put the answer's `text` on the clipboard.
    */
-  | { a: 'copy'; path: string };
+  | { a: 'copy'; path: string }
+  /**
+   * The pre-trip check's "show in bank" (sent only to a plugin with X-Anvil-Bank-Filter): the open bank
+   * shows only these item ids (comma-separated), display only. Nothing is moved or withdrawn.
+   */
+  | { a: 'bank'; ids: string };
 
 interface Common {
   /** Tooltip, plain text. */
