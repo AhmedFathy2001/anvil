@@ -1604,6 +1604,13 @@
       "when": 1795600000000,
       "tag": "0291_trip_check",
       "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1795672498952,
+      "tag": "0292_guide_pieces",
+      "breakpoints": true
     }
   ]
 }

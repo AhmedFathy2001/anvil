@@ -25,7 +25,8 @@ import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { tripStateForViewer } from '@/lib/playerItems';
 import { rateLimit } from '@/lib/rate-limit';
 import { checkTrip, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
-import { contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
+import { contentForRegion, contentFromKey, TRIP_CONTENT, type TripContent } from '@/lib/tripContent';
+import { tripRegions } from '@/lib/guideAreas';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
 import type { GuideViewer } from '@/lib/guideViewer';
 import { verifyPluginTokenUser } from '@/lib/auth';
@@ -92,7 +93,8 @@ interface Built {
 
 async function build(request: Request, args: Args, viewer: GuideViewer, note: string | null): Promise<Built> {
   const region = regionOf(args);
-  const regionName = region != null ? TRIP_REGIONS[region]?.name ?? null : null;
+  const regions = await tripRegions();
+  const regionName = region != null ? regions[region]?.name ?? null : null;
   const base: TripPanelData = {
     region: region != null ? String(region) : '',
     regionName,
@@ -117,7 +119,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const worn: InvItem[] = snap?.equipment?.items ?? [];
   const inventory: InvItem[] = snap?.inventory?.items ?? [];
   const picked = contentFromKey(args.content);
-  const content: TripContent | null = picked ?? (region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id))) : null);
+  const content: TripContent | null = picked ?? (region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id)), regions) : null);
   const withContent = { ...base, content: content ? { key: content.key, name: content.name, short: content.short } : null, fromRegion: !picked && !!content };
   if (!viewer.accountId || (!snap?.equipment && !snap?.inventory)) return { data: { ...withContent, status: 'off' }, warn: null };
   const readAt = [snap.equipment?.readAt, snap.inventory?.readAt].filter((x): x is string => !!x).sort().pop() ?? '';
@@ -221,7 +223,7 @@ export async function tripAct(request: Request, act: string, args: Args): Promis
   if (!content) return tripView(request, args);
   // Back to the check as it was asked for: the region's own trip stays "picked from" the region.
   const region = regionOf(args);
-  const again: Args = { ...(region != null ? { region: String(region) } : {}), why: 'manual', ...(region != null && TRIP_REGIONS[region]?.content === content.key ? {} : { content: content.key }) };
+  const again: Args = { ...(region != null ? { region: String(region) } : {}), why: 'manual', ...(region != null && (await tripRegions())[region]?.content === content.key ? {} : { content: content.key }) };
   if (act === 'trip-forget') {
     await forgetOwnTripSetup(viewer.userId, viewer.accountId, content.key);
     return tripView(request, again, `Forgot your ${content.short} setup.`);

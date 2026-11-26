@@ -1,6 +1,8 @@
 // The content the pre-trip check knows (lib/tripCheck), and the map regions that are its banks or
-// lobbies. PURE. The plugin is handed TRIP_REGION_IDS on /api/plugin/config (`tripRegions`) and asks
-// for the 'trip' view when the bank closes in one of them (pluginUi/tripView).
+// lobbies. PURE. The regions live in the guide_areas table (lib/guideAreas reads them, cached);
+// TRIP_REGIONS below is what that table was seeded with and what is used if it can't be read. The
+// plugin is handed the region ids on /api/plugin/config (`tripRegions`) and asks for the 'trip' view
+// when the bank closes in one of them (pluginUi/tripView).
 //
 // Region ids are the game's (x >> 6) << 8 | (y >> 6), compared by the plugin against
 // WorldPoint.fromLocalInstance(...).getRegionID(), so an instanced area would need its template
@@ -51,6 +53,7 @@ export interface TripRegion {
 /** Spade: the one thing every Barrows trip carries. */
 export const SPADE = 952;
 
+/** The seed of guide_areas (migration 0292) and the fallback when it can't be read. */
 export const TRIP_REGIONS: Record<number, TripRegion> = {
   // Jaltevas: the lobby's rewards niche and cavity are at 3370,9114 / 3367,9114.
   13454: { name: 'the ToA lobby', content: 'toa' },
@@ -70,8 +73,23 @@ export const TRIP_REGIONS: Record<number, TripRegion> = {
   11601: { name: 'the Nex bank', content: 'nex' },
 };
 
-/** Every trip region id, for the plugin config's `tripRegions`. */
-export const TRIP_REGION_IDS: number[] = Object.keys(TRIP_REGIONS).map(Number).sort((a, b) => a - b);
+export type TripRegions = Record<number, TripRegion>;
+
+/** Every trip region id, sorted, for the plugin config's `tripRegions`. */
+export const regionIds = (regions: TripRegions): number[] => Object.keys(regions).map(Number).sort((a, b) => a - b);
+/** The seed's ids (lib/guideAreas tripRegionIds is the live list). */
+export const TRIP_REGION_IDS: number[] = regionIds(TRIP_REGIONS);
+
+/** guide_areas rows (trip_check on) as the check's regions. A cue list that isn't whole ids is dropped. */
+export function regionsFromAreas(rows: { regionId: number; contentKey: string; label: string; cues?: unknown; noBank?: boolean | null; tripCheck?: boolean | null }[]): TripRegions {
+  const out: TripRegions = {};
+  for (const r of rows) {
+    if (r.tripCheck === false || !Number.isInteger(r.regionId) || r.regionId <= 0 || r.regionId >= 1 << 16) continue;
+    const cues = Array.isArray(r.cues) ? r.cues.filter((c): c is number => Number.isInteger(c) && c > 0) : [];
+    out[r.regionId] = { name: r.label, content: r.contentKey, ...(cues.length ? { cues } : {}), ...(r.noBank ? { noBank: true as const } : {}) };
+  }
+  return out;
+}
 
 export const tripContent = (key: string | null | undefined): TripContent | null => TRIP_CONTENT.find((c) => c.key === key) ?? null;
 
@@ -79,8 +97,8 @@ export const tripContent = (key: string | null | undefined): TripContent | null 
  * The content a region picks, or null. A shared bank (cues) picks it only when `held` (inventory and
  * worn ids) has a cue item.
  */
-export function contentForRegion(region: number, held: ReadonlySet<number>): TripContent | null {
-  const r = TRIP_REGIONS[region];
+export function contentForRegion(region: number, held: ReadonlySet<number>, regions: TripRegions = TRIP_REGIONS): TripContent | null {
+  const r = regions[region];
   if (!r) return null;
   if (r.cues?.length && !r.cues.some((id) => held.has(id))) return null;
   return tripContent(r.content);

@@ -4294,6 +4294,129 @@ export const guideCategories = pgTable('guide_categories', {
 ]);
 export type GuideCategoryRow = typeof guideCategories.$inferSelect;
 
+// ── Guide pieces (lib/guidePieces) ───────────────────────────────────────────────────────────
+//
+// The guide model underneath the piece editor and panel: a library guide is made of small pieces
+// (steps, a loadout, what kills you, a kit…) placed by section → role → variant, so a clan can
+// change ONE piece and keep following the rest of Anvil's. This replaces, per piece, what a whole
+// guide copy does with follows_source: no override = the clan follows Anvil's piece; an override is
+// the clan's own, and an Anvil change to that piece afterwards is an offer (anvilChanged), never an
+// overwrite. Bodies are validated per kind before they are stored (lib/guidePieces/schema).
+
+/** A piece of an Anvil library guide. Written only by platform guide editors. */
+export const guidePieces = pgTable('guide_pieces', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  // A raid room or boss phase ("akkha", "p2"), or "tactics" for simple content.
+  sectionKey: text('section_key').notNull().default('tactics'),
+  // '*' = everyone's base; "melee", "ranged"… layer on it.
+  roleKey: text('role_key').notNull().default('*'),
+  // { level?, account?, teamSize?: {min,max}, raidLevel?: {min,max} }; {} = every player.
+  variant: jsonb('variant').$type<Record<string, unknown>>().notNull().default({}),
+  // steps | danger | loadout | fallbacks | spec | checks | technique | kit | note
+  kind: text('kind').notNull(),
+  body: jsonb('body').$type<unknown>().notNull(),
+  position: integer('position').notNull().default(0),
+  // Bumped on every change to what the piece says; overrides compare against it.
+  version: integer('version').notNull().default(1),
+  // 'draft' | 'published'
+  status: text('status').notNull().default('draft'),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByUserId: integer('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  index('guide_pieces_guide_idx').on(t.guideId, t.sectionKey, t.position),
+]);
+export type GuidePieceRow = typeof guidePieces.$inferSelect;
+
+/**
+ * A clan's own version of one Anvil piece (piece_id set: a new body, or hidden), or a piece the clan
+ * added (piece_id null: guide/section/role/kind say where it goes). If Anvil deletes a piece a clan
+ * overrode, the override keeps its body and becomes the clan's own piece (ON DELETE SET NULL).
+ */
+export const guidePieceOverrides = pgTable('guide_piece_overrides', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  pieceId: integer('piece_id').references(() => guidePieces.id, { onDelete: 'set null' }),
+  // The library guide it belongs to (copied from the piece for an override).
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  sectionKey: text('section_key').notNull().default('tactics'),
+  roleKey: text('role_key').notNull().default('*'),
+  variant: jsonb('variant').$type<Record<string, unknown>>().notNull().default({}),
+  kind: text('kind').notNull(),
+  // Null only while hidden.
+  body: jsonb('body').$type<unknown>(),
+  hidden: boolean('hidden').notNull().default(false),
+  // Null = Anvil's position.
+  position: integer('position'),
+  // The Anvil piece's version this was written against (null for a clan-added piece).
+  basedOnVersion: integer('based_on_version'),
+  version: integer('version').notNull().default(1),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByUserId: integer('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  // One override per clan per Anvil piece (clan-added rows have piece_id null and are many).
+  unique('guide_piece_overrides_clan_piece_unique').on(t.clanId, t.pieceId),
+  index('guide_piece_overrides_clan_guide_idx').on(t.clanId, t.guideId),
+  index('guide_piece_overrides_piece_idx').on(t.pieceId),
+]);
+export type GuidePieceOverrideRow = typeof guidePieceOverrides.$inferSelect;
+
+/**
+ * Every saved state of a piece or an override, for history and one-click revert. clan_id null = an
+ * Anvil piece's history. Kept when the row it describes goes (the ids are set null).
+ */
+export const guidePieceRevisions = pgTable('guide_piece_revisions', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  pieceId: integer('piece_id').references(() => guidePieces.id, { onDelete: 'set null' }),
+  overrideId: integer('override_id').references(() => guidePieceOverrides.id, { onDelete: 'set null' }),
+  version: integer('version').notNull(),
+  kind: text('kind').notNull(),
+  body: jsonb('body').$type<unknown>(),
+  hidden: boolean('hidden').notNull().default(false),
+  // section/role/variant/position/status at the time.
+  meta: jsonb('meta').$type<Record<string, unknown>>().notNull().default({}),
+  // 'create' | 'update' | 'hide' | 'show' | 'revert' | 'take-anvil' | 'keep-ours' | 'delete'
+  action: text('action').notNull(),
+  editedByUserId: integer('edited_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+}, (t) => [
+  index('guide_piece_revisions_piece_idx').on(t.pieceId, t.version),
+  index('guide_piece_revisions_override_idx').on(t.overrideId, t.version),
+  index('guide_piece_revisions_clan_guide_idx').on(t.clanId, t.guideId),
+]);
+
+/**
+ * Where a content is in the game: map region ids tied to a trip content key (lib/tripContent) and,
+ * when there is one, its library guide. trip_check = closing the bank here runs the pre-trip check
+ * (the plugin is handed these ids as `tripRegions`). Seeded with the regions the check shipped with.
+ */
+export const guideAreas = pgTable('guide_areas', {
+  id: serial('id').primaryKey(),
+  contentKey: text('content_key').notNull(),
+  guideId: integer('guide_id').references(() => guides.id, { onDelete: 'set null' }),
+  regionId: integer('region_id').notNull(),
+  // "the ToA lobby": said as "picked from the ToA lobby".
+  label: text('label').notNull(),
+  tripCheck: boolean('trip_check').notNull().default(true),
+  // A shared bank (Ferox Enclave): the content is picked only when one of these items is held.
+  cues: jsonb('cues').$type<number[]>().notNull().default([]),
+  // No bank here: the check runs only when asked for.
+  noBank: boolean('no_bank').notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  // A region picks one content for the check.
+  uniqueIndex('guide_areas_trip_region_unique').on(t.regionId).where(sql`trip_check`),
+  unique('guide_areas_content_region_unique').on(t.contentKey, t.regionId),
+]);
+export type GuideAreaRow = typeof guideAreas.$inferSelect;
+
 /**
  * Platform edits to the gear calculator's data, applied on top of the dataset (lib/dps/store):
  *   kind 'item'    — key = item id. `data` holds the fields to add or replace; `hidden` drops it from pickers.
