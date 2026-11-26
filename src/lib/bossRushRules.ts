@@ -232,33 +232,32 @@ export function raidOfTarget(target: string): string | null {
 /** Two death reports this close together are the same death sent twice. */
 export const RUSH_SAME_DEATH_MS = 20_000;
 
-/**
- * The rules as the side panel spells them out, one short sentence a line, so nobody has to open the
- * site to know what scores: kills, deaths, whose kills, Clan Synergy, drops, the floor.
- */
-export function rushRuleLines(rules: RushRules): string[] {
-  const t = rules.targets;
-  const where = t.length === 0 ? 'the targets' : t.length <= 3 ? t.join(', ') : `${t.slice(0, 3).join(', ')} and ${t.length - 3} more`;
-  const lines = [`Each kill at ${where}: +${pts(rules.kcPoints)}.`];
-  lines.push(rules.deaths && rules.deathPoints > 0 ? `Each death there: -${pts(rules.deathPoints)}, mechanics included.` : 'Deaths cost nothing.');
-  lines.push(rules.kcSource === 'plugin' ? 'Only kills with the Anvil plugin on count. Off, or another client, they do not.' : 'Every kill counts, hiscores included.');
-  if (synergyLive(rules.synergy)) {
-    lines.push(
-      `Clan Synergy: ${synergyWords(rules.synergy)} with other entrants. Raids and group bosses only (God Wars, Nex, the Nightmare…), never solo-only ones like Phosani's. All of you need the plugin on.`,
-    );
-  }
-  lines.push('Drops score the points shown beside them below.');
-  if (rules.floorZero) lines.push('A score never goes below 0.');
-  return lines;
+/** One rule as the side panel shows it: what, what it is worth, and a few words more when they help. */
+export interface RushRuleRow {
+  k: string;
+  v: string;
+  note?: string;
 }
 
-/** The rules as a few chips for the side panel: "Kill +1", "Death -1", "Synergy +1", "Plugin only". */
-export function rushChips(rules: RushRules): string[] {
-  const out = [`Kill +${rules.kcPoints}`];
-  if (rules.deaths && rules.deathPoints > 0) out.push(`Death -${rules.deathPoints}`);
-  if (synergyLive(rules.synergy)) out.push(rules.synergy.mode === 'flat' ? `Synergy +${rules.synergy.points}` : `Synergy +${rules.synergy.points}/mate`);
-  out.push(rules.kcSource === 'plugin' ? 'Plugin only' : 'Every kill');
-  return out;
+/**
+ * The rules as the side panel spells them out: one short row each, so nobody has to open the site to
+ * know what scores. Kills, deaths, Clan Synergy, drops, whose kills, the floor.
+ */
+export function rushRuleLines(rules: RushRules): RushRuleRow[] {
+  const s = rules.synergy;
+  const rows: RushRuleRow[] = [{ k: 'Kill', v: `+${pts(rules.kcPoints)}` }];
+  rows.push(rules.deaths && rules.deathPoints > 0 ? { k: 'Death', v: `-${pts(rules.deathPoints)}`, note: 'Puzzles and mechanics count too.' } : { k: 'Death', v: 'free' });
+  if (synergyLive(s)) {
+    rows.push({
+      k: 'Together',
+      v: s.mode === 'flat' ? `+${pts(s.points)}` : `+${pts(s.points)} a mate`,
+      note: `Killing with other entrants${s.mode === 'perMate' ? `, up to +${s.max}` : ''}. Raids and group bosses, everyone on the plugin.`,
+    });
+  }
+  rows.push({ k: 'Drops', v: 'listed below' });
+  rows.push(rules.kcSource === 'plugin' ? { k: 'Kills', v: 'plugin only', note: 'Plugin off, or another client: they do not count.' } : { k: 'Kills', v: 'all count', note: 'Hiscores too.' });
+  if (rules.floorZero) rows.push({ k: 'Score', v: 'never below 0' });
+  return rows;
 }
 
 /** "1/50", "1/25,000" */

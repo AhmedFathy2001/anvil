@@ -7,7 +7,7 @@ import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventPartici
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { competitionStat } from '@/lib/weeklyMetric';
 import { huntLine, huntPets, isRush, parseHunt } from '@/lib/itemHunt';
-import { rushChips, rushRuleLines } from '@/lib/bossRushRules';
+import { rushRuleLines, type RushRuleRow } from '@/lib/bossRushRules';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
@@ -89,9 +89,9 @@ export interface HuntPanelItem {
 
 /** A hunt's targets, in the order it lists them, with the first counted drop of each. */
 /** A Boss Rush's rules for the panel; nothing on any other competition. */
-function rushPanelRules(w: { type: string; hunt?: string | null }): { rushRules?: string[]; rushChips?: string[] } {
+function rushPanelRules(w: { type: string; hunt?: string | null }): { rushRules?: RushRuleRow[] } {
   const config = w.type === 'hunt' ? parseHunt(w.hunt) : null;
-  return isRush(config) ? { rushRules: rushRuleLines(config.rush), rushChips: rushChips(config.rush) } : {};
+  return isRush(config) ? { rushRules: rushRuleLines(config.rush) } : {};
 }
 
 async function huntPanelItems(w: { id: number; type: string; hunt?: string | null }): Promise<{ huntItems?: HuntPanelItem[] }> {
@@ -141,10 +141,8 @@ export interface ScheduleWeekly {
   iconItem?: number;
   /** An item hunt: everything it is after, and who got each one (the panel's targets card). */
   huntItems?: HuntPanelItem[];
-  /** A Boss Rush: its rules, one sentence a line (lib/bossRushRules rushRuleLines), for the panel's rules card. */
-  rushRules?: string[];
-  /** ...and as a few chips, shown first ("Kill +1", "Death -1"). */
-  rushChips?: string[];
+  /** A Boss Rush: its rules, one short row each (lib/bossRushRules rushRuleLines), for the panel's rules card. */
+  rushRules?: RushRuleRow[];
   /** Coffer prizes in gp, first place first (lib/weeklyPrizes). Absent when it pays nothing. */
   prizeGp?: number[];
   /** 'hcw': the prizes are paid in Hardcore Worlds gp, from the clan's Hardcore Worlds coffer. Absent = main game gp. */
