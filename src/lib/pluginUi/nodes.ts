@@ -340,6 +340,11 @@ export interface View {
    * for the plugin's overlay, or null when no trip matches. Other views leave it out.
    */
   warn?: { ok: boolean; title: string; lines: string[] } | null;
+  /**
+   * View 'trip' only (capability 'trip-target', lib/tripTarget): a next-trip target is set, so a bank
+   * closing anywhere is checked. POST /api/plugin/items answers the same flag.
+   */
+  armed?: boolean;
 }
 
 // ---- Builders: the shapes every view uses, so they read the same everywhere -------------------

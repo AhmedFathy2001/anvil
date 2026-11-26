@@ -713,6 +713,27 @@ only goes out where that is listed.
   key or `m:<monster>` from the view's own picker. Actions `trip-save` and `trip-forget` (args
   `{region, content}`) keep or drop the player's own setup for a trip.
 
+### `trip-target`
+
+The pre-trip check's next-trip target (lib/tripTarget, lib/tripTargetStore), so regearing at any bank
+(the Grand Exchange before a trip) is checked, not only in `tripRegions`. The site decides everything;
+the plugin only remembers one flag.
+
+- The target, strongest first: the player's pick (a trip chip in the view, or "Going here next" on a
+  guide), the guide they opened most recently when it maps to a trip, else the trip of their last boss
+  kc (the stat push's per-key stamps). Only a trip in `TRIP_CONTENT` or one the player saved a setup
+  for (`trip-save`) can be a target. A pick or guide gives way to a kc after it; anything older than
+  2 hours, or than the last `tripEnd` / "clear", is gone.
+- View `trip` takes `target` (a trip key, a saved setup's key, or `clear`) besides `content` (look at a
+  trip without making it the target), and answers `armed: boolean` beside `{ui, warn}`. In a trip
+  region the region's trip is checked exactly as before; elsewhere (and at a shared bank that picks
+  nothing) the target is.
+- `POST /api/plugin/items` takes `tripEnd: true` (the plugin's death, logout or hop) and answers
+  `{ok, stored, armed}`.
+- The plugin keeps `armed` from the last item push's answer and, while it is set, loads the `trip`
+  view (`why: 'bank-close'`) when a bank closes anywhere, once per trip (a kc, death, logout or hop
+  starts the next). Not armed: no request outside the trip regions.
+
 ## Checklist: shipping a new plugin-facing feature
 
 On the site:

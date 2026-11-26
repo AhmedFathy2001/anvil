@@ -271,6 +271,8 @@ export interface GuidePanelData {
   route: PanelRoute | null;
   /** "Your gear now vs this setup": owner only, from the plugin's worn-gear push. Null hides it. */
   gearNow?: PanelGearNow | null;
+  /** The trip this guide is for (lib/tripTarget guideTarget): "Going here next" makes it the next-trip target. */
+  goingNext?: { key: string; short: string } | null;
 }
 /** One side's numbers against one target, from the DPS engine's best-style result. */
 export interface GearNowStats {
@@ -886,9 +888,21 @@ const siteLink = (d: GuidePanelData, label: string): Node =>
  * and the setup picker on Setup, as the mockup has them). Without: the level chips, then the written
  * guide (or the route's chapters) as cards. A slot's alternatives are a page of their own.
  */
+/** "Going here next ›": the pre-trip check then checks this trip at whichever bank the player gears up at. */
+const goingNextRow = (d: GuidePanelData): Node | null =>
+  d.goingNext
+    ? row(undefined, small(`Going here next: check my ${d.goingNext.short} trip ›`, GOLD, { align: 'c' }), undefined, {
+        pad: 2,
+        on: { a: 'load', v: 'trip', args: { ...(d.region ? { region: d.region } : {}), why: 'manual', target: d.goingNext.key } },
+        tip: `Close a bank anywhere and Anvil checks what you carry for ${d.goingNext.short}`,
+      })
+    : null;
+
 export function guidePanelUi(d: GuidePanelData): Node {
   if (d.alternatives) return col([guideHead(d, pickSetup(d, d.current ?? '')), alternativesUi(d, d.alternatives)], { gap: 8 });
   const parts: Node[] = [guideHead(d)];
+  const going = goingNextRow(d);
+  if (going) parts.push(going);
   if (d.setups.length) {
     parts.push({ t: 'tabs', key: `guide-sections-${d.id}`, tabs: [{ label: 'Setup', c: setupTab(d) }, { label: 'How to', c: howToTab(d) }, { label: 'Upgrades', c: upgradesTab(d) }] });
     parts.push(siteLink(d, 'Open on the site ↗'));
