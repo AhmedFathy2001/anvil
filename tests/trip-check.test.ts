@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, type TripInput } from '../src/lib/tripCheck.ts';
+import { bankLayout, bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, type TripInput } from '../src/lib/tripCheck.ts';
 import { contentForRegion, contentFromKey, MOKHAIOTL_WAYSTONE, SPADE, TRIP_CONTENT, TRIP_REGION_IDS, TRIP_REGIONS, tripContent } from '../src/lib/tripContent.ts';
 import { cleanTripState, storedTripState } from '../src/lib/tripState.ts';
 import { equivalentsFor } from '../src/lib/itemFamilies.ts';
@@ -427,4 +427,24 @@ test('raid calc: ONE setup for the whole raid (worn + switches), never a line pe
   // Everything worn and packed already: one passing row.
   const worn = checkTrip(input({ setup: null, content: tob, monsters, worn: bank.filter((x) => !bh.includes(x.id)), inventory: [], bank: [] }));
   assert.ok(worn.rows.some((r) => r.ok && /^Your setup covers all 5 bosses$/.test(r.line)) || failing(worn).length > 0, worn.rows.map((r) => r.line).join(' | '));
+});
+
+test('bank layout: worn pieces as a paper doll, switches beside, each supply kind its own row by dose', () => {
+  const rows = [
+    { group: 'gear' as const, ok: false, line: '', slot: 'head', bank: [11] },
+    { group: 'gear' as const, ok: false, line: '', slot: 'weapon', bank: [12] },
+    { group: 'gear' as const, ok: false, line: '', slot: 'ring', bank: [13] },
+    { group: 'spec' as const, ok: false, line: '', bank: [14] },
+    { group: 'gear' as const, ok: false, line: '', bank: [15] },
+    { group: 'supplies' as const, ok: false, line: '', bank: [21, 24, 22] },
+  ];
+  const names: Record<number, string> = { 21: 'Prayer potion(1)', 22: 'Prayer potion(2)', 24: 'Prayer potion(4)' };
+  const l = bankLayout(rows, (x) => names[x] ?? `Item ${x}`);
+  assert.equal(l.layout[1], 11, 'head top middle');
+  assert.equal(l.layout[16], 12, 'weapon left of the body');
+  assert.equal(l.layout[34], 13, 'ring bottom right');
+  assert.equal(l.layout[24], 14, 'spec left of the legs');
+  assert.equal(l.layout[4], 15, 'switches to the right');
+  assert.deepEqual([l.layout[12], l.layout[13], l.layout[14]], [24, 22, 21], 'supplies their own row, 4 → 1');
+  assert.deepEqual(l.ids.sort((a, b) => a - b), [11, 12, 13, 14, 15, 21, 22, 24]);
 });
