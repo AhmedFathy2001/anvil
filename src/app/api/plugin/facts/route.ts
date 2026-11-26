@@ -13,6 +13,9 @@ import { newProofKey } from '@/lib/proofAfter';
 import { afterReply, sweepOverdueProofs } from '@/lib/proofFinish';
 import { rateLimit } from '@/lib/rate-limit';
 import { setProvenClan } from '@/lib/requestHeaderProof';
+import { resolvePluginMember } from '@/lib/auth';
+import { creditRushKills } from '@/lib/itemHuntDb';
+import { worldModeOf } from '@/lib/worldModeRequest';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +70,21 @@ export async function POST(request: Request) {
   const settled = owner ? await settledFactIds(owner, sentIds).catch(() => new Set<string>()) : new Set<string>();
   const { fresh: facts, duplicateIds } = splitDuplicates(sent, settled);
   const duplicate = new Set(duplicateIds);
+  // A running Boss Rush counts kill facts first, board or no board (lib/itemHuntDb creditRushKills):
+  // each fact once per rush, by its id. A failure here never stands in the way of a board's credit.
+  const rushHit = new Set<number>();
+  const kills = facts.flatMap((f, i) => (f.k === 'kill' ? [{ i, fact: { id: f.id, n: f.n } }] : []));
+  if (kills.length) {
+    const member = await resolvePluginMember(request).catch(() => null);
+    if (member) {
+      const rushOwner = owner ?? { userId: member.userId, accountId: member.accountId };
+      const done = await creditRushKills(member, rushOwner, member.clanId, kills.map((k) => k.fact), new Date(), worldModeOf(request)?.key ?? null).catch((err) => {
+        console.warn('[plugin/facts] rush credit failed', err);
+        return { credited: 0, factIndexes: [] as number[] };
+      });
+      for (const j of done.factIndexes) rushHit.add(kills[j].i);
+    }
+  }
   if (facts.length === 0) {
     return Response.json({ credits: [], notes: [], ...(overflow.length ? { retry: overflow } : {}), ...(duplicate.size ? { duplicates: duplicate.size } : {}) });
   }
@@ -81,7 +99,7 @@ export async function POST(request: Request) {
   // A fact that matched nothing on the site (the plugin thought it did): worth a trace while rules settle.
   const hit = new Set(matched.credits.flatMap((c) => c.fi ?? []));
   facts.forEach((f, i) => {
-    if (!hit.has(i)) console.warn('[plugin/facts] unmatched', { k: f.k, t: (f as { t?: number }).t ?? null });
+    if (!hit.has(i) && !rushHit.has(i)) console.warn('[plugin/facts] unmatched', { k: f.k, t: (f as { t?: number }).t ?? null });
   });
   const credits = coalesce(matched.credits);
   let img = typeof body?.img === 'string' && body.img.length <= 512 ? body.img : null;

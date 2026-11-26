@@ -14,7 +14,7 @@ import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/sche
 import { and, count, desc, eq } from 'drizzle-orm';
 import { eventShapeBadge } from '@/lib/utils';
 import { eventStage } from '@/lib/eventStage';
-import { weeklyStage, WEEKLY_BADGE } from '@/lib/weeklyStage';
+import { weeklyBadge, weeklyStage } from '@/lib/weeklyStage';
 import { listClanEvents } from '@/lib/clanEvents';
 import { takesNames } from '@/lib/clanEventModules';
 
@@ -87,7 +87,7 @@ export async function listEventIndex(clanId: number): Promise<EventIndexItem[]> 
       kind: 'weekly',
       id: w.id,
       title: w.title,
-      badge: WEEKLY_BADGE[w.type] ?? 'Weekly',
+      badge: weeklyBadge(w.type, w.hunt),
       status: stage === 'wrap' ? 'ended' : stage === 'run' ? 'running' : 'upcoming',
       startDate: w.startDate,
       endDate: w.endDate,

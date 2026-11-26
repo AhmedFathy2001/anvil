@@ -45,8 +45,9 @@ const act = (...names: ActionName[]): ActionMatch[] => names.map((name) => ({ na
 /** Event formats, one per card of the "What are you running?" picker. */
 function formatFeatures(): FeatureDef[] {
   return FORMAT_CARDS.map((c): FeatureDef => {
+    // A Boss Rush is a hunt underneath; its creation is tracked as its own type.
     const match: ActionMatch = c.choice.weekly
-      ? { name: 'weekly.created', prop: 'type', value: c.choice.weekly }
+      ? { name: 'weekly.created', prop: 'type', value: c.choice.rush ? 'rush' : c.choice.weekly }
       : { name: 'event.created', prop: 'fmt', value: c.key };
     return { key: `format.${c.key}`, label: c.name, group: 'Event formats', actions: [match] };
   });

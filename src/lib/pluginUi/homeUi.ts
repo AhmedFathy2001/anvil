@@ -1207,6 +1207,7 @@ const utcDayTime = (iso: string): string => {
  * see the list: who got it first (green), else its points on a points hunt, else "not yet".
  */
 function huntTargetsCard(w: ScheduleWeekly): Node | null {
+  if (w.rushRules) return rushDropsCard(w);
   const items = w.huntItems ?? [];
   if (!items.length) return null;
   const found = items.filter((it) => it.got).length;
@@ -1235,7 +1236,18 @@ function huntTargetsCard(w: ScheduleWeekly): Node | null {
 function rushRulesCard(w: ScheduleWeekly): Node | null {
   const lines = w.rushRules ?? [];
   if (!lines.length) return null;
-  return section([title('How it scores'), ...lines.map((l) => muted(l, { wrap: true }))], { gap: 4 });
+  return section([title('How it scores'), ...lines.map((l) => small(`• ${l}`, SOFT, { wrap: true }))], { gap: 3 });
+}
+
+/** The drops a Boss Rush scores, most points first; a drop worth nothing is not listed. Who got each, once someone has. */
+function rushDropsCard(w: ScheduleWeekly): Node | null {
+  const items = (w.huntItems ?? []).filter((it) => (it.pts ?? 0) > 0).sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0));
+  if (!items.length) return null;
+  const rows = items.map((it) => {
+    const name = text(clip(it.name, 19), it.got ? 'white' : SOFT, { icon: icon({ item: it.id, w: 24, h: 22 }), tip: it.got ? `${it.name}: first ${it.got.rsn}${it.n ? ` (${it.n} in all)` : ''}` : it.name });
+    return row(name, undefined, text(`+${it.pts}`, it.got ? GREEN : GOLD, { font: 'bold' }), { gap: 6 });
+  });
+  return section([row(title('Drops that score'), undefined, muted(`${items.length}`)), ...more(rows, 8, `rush-drops:${w.id}`, 4)], { gap: 4 });
 }
 
 function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
@@ -1243,7 +1255,7 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   const s = d.weekly.get(w.id);
   const path = `${d.clanPath}/weekly/${w.id}`;
   const headcount = s && s.total > 0 ? `${s.total} ${s.total === 1 ? 'player' : 'players'}` : null;
-  const parts: Node[] = [pageHead(home(), 'All events', weeklyKind(w.type), w.title || `${w.metricLabel} week`)];
+  const parts: Node[] = [pageHead(home(), 'All events', w.rushRules ? 'Boss Rush' : weeklyKind(w.type), w.title || `${w.metricLabel} week`)];
   const you = s?.you;
   const top: Node[] = upcoming
     ? [
@@ -1264,20 +1276,16 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   if (d.weeklyEntry) top.push(weeklyEntryRow(d.weeklyEntry, w.id, upcoming));
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
   parts.push(section(top));
+  // A rush leads with the leaderboard once it runs; its rules and drops follow (before it starts, they lead).
   const rules = rushRulesCard(w);
+  const standingsFirst = !!w.rushRules && !upcoming;
+  if (standingsFirst) parts.push(...weeklyStandingsNodes(d, w, s, headcount, path));
   if (rules) parts.push(rules);
   const targets = huntTargetsCard(w);
   if (targets) parts.push(targets);
   const prizes = weeklyPrizeCard(w);
   if (prizes) parts.push(prizes);
-  if (!upcoming) {
-    if (!s || !s.top.length) parts.push(section([title('Standings'), muted(w.type === 'hunt' ? 'No one is entered yet.' : 'No one has scored yet.')]));
-    else {
-      const rows = [...s.top, ...(s.you && !s.top.some((r) => r.self) ? [s.you] : [])];
-      const line = (r: WeeklyStanding) => standingRow(w, r);
-      parts.push(standingsCard(compactStandings(rows, (r) => r.self, line, { a: 'site', path }, `weekly:${w.id}`, Math.max(s.total, rows.length), WEEKLY_SHOWN), headcount ?? undefined));
-    }
-  }
+  if (!upcoming && !standingsFirst) parts.push(...weeklyStandingsNodes(d, w, s, headcount, path));
   // A team or clan-vs-clan weekly: where your group stands, then every group (names and totals only).
   if (!upcoming && s?.groups) {
     const mine = yourGroupCard(w.type, s.groups);
@@ -1292,6 +1300,14 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
     parts.push(col([title('Also on the schedule'), ...rest.map((x) => weeklyRow(d, x))], { gap: 5 }));
   }
   return parts;
+}
+
+/** A weekly's standings card, or the line that says there are none yet. */
+function weeklyStandingsNodes(d: HomeData, w: ScheduleWeekly, s: ReturnType<HomeData['weekly']['get']>, headcount: string | null, path: string): Node[] {
+  if (!s || !s.top.length) return [section([title('Standings'), muted(w.type === 'hunt' ? 'No one is entered yet.' : 'No one has scored yet.')])];
+  const rows = [...s.top, ...(s.you && !s.top.some((r) => r.self) ? [s.you] : [])];
+  const line = (r: WeeklyStanding) => standingRow(w, r);
+  return [standingsCard(compactStandings(rows, (r) => r.self, line, { a: 'site', path }, `weekly:${w.id}`, Math.max(s.total, rows.length), WEEKLY_SHOWN), headcount ?? undefined)];
 }
 
 function standingRow(w: ScheduleWeekly, r: WeeklyStanding): Node {

@@ -5,7 +5,7 @@ import { requireClan } from '@/lib/clanContext';
 import { notFound } from 'next/navigation';
 import EventLifecycleBar from '../../[eventId]/EventLifecycleBar';
 import { getWeeklyCounts, getWeeklyRow } from '@/lib/weeklyWorkspace';
-import { weeklyLifecycleSteps, weeklyStage, WEEKLY_BADGE } from '@/lib/weeklyStage';
+import { weeklyBadge, weeklyLifecycleSteps, weeklyStage } from '@/lib/weeklyStage';
 import { weeklyRailGroups } from '@/lib/eventRail';
 import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
@@ -64,7 +64,7 @@ export default async function WeeklyLayout({
       <AdminSidebar
         scope="event"
         groups={rail}
-        header={{ title: comp.title, subtitle: `${WEEKLY_BADGE[comp.type] ?? 'Weekly'} · ${weeklyMetricLabel(comp.type, comp.metric)}` }}
+        header={{ title: comp.title, subtitle: `${weeklyBadge(comp.type, comp.hunt)} · ${weeklyMetricLabel(comp.type, comp.metric)}` }}
       />
       <div className="flex-1 min-w-0">
       <ClanLink
@@ -81,7 +81,7 @@ export default async function WeeklyLayout({
 
       <div className="flex items-center gap-2.5 text-sm text-text-muted mb-6 flex-wrap">
         <span className="bg-purple-400/15 text-purple-300 px-2 py-0.5 rounded-full text-xs font-medium">
-          {WEEKLY_BADGE[comp.type] ?? 'Weekly'}
+          {weeklyBadge(comp.type, comp.hunt)}
         </span>
         <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
           {weeklyMetricLabel(comp.type, comp.metric)}

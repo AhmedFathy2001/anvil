@@ -48,6 +48,8 @@ export interface WeeklyRow {
   endDate: string;
   participantCount: number;
   createdAt: string;
+  /** "SOTW", "Item hunt", "Boss Rush" (lib/weeklyStage weeklyBadge). */
+  badge?: string;
 }
 
 /** A clan event (lib/clanEvents): a mass or hangout, at its occurrence on now, next, or last. */
@@ -304,7 +306,7 @@ export default function EventsClient({
                     key={`w${item.id}`}
                     href={`/admin/events/weekly/${item.id}`}
                     title={item.title}
-                    detail={`${WEEKLY_BADGE[item.type] ?? 'SOTW'} · ${
+                    detail={`${item.badge ?? WEEKLY_BADGE[item.type] ?? 'SOTW'} · ${
                       item.participantCount
                     } players`}
                     endDate={item.endDate}
@@ -602,7 +604,7 @@ function RunningEventHero({
 
 function RunningWeeklyHero({ comp }: { comp: WeeklyRow }) {
   const elapsed = timeProgress(comp.startDate, comp.endDate);
-  const badge = WEEKLY_BADGE[comp.type] ?? 'SOTW';
+  const badge = comp.badge ?? WEEKLY_BADGE[comp.type] ?? 'SOTW';
   return (
     <div className="border border-purple-400/30 rounded-xl bg-card-bg p-5 bg-gradient-to-br from-purple-400/[0.06] to-transparent">
       <div className="flex items-center gap-2 flex-wrap text-xs text-text-muted mb-1.5">
@@ -864,7 +866,7 @@ function SetupCard({
 // Read-only mirror of a weekly (SOTW/BOTW) competition. Clicking deep-links to the
 // dedicated Competitions surface — this list is for visibility, not management.
 function WeeklyCard({ comp }: { comp: WeeklyRow }) {
-  const badge = WEEKLY_BADGE[comp.type] ?? 'SOTW';
+  const badge = comp.badge ?? WEEKLY_BADGE[comp.type] ?? 'SOTW';
   return (
     <ClanLink
       href={`/admin/events/weekly/${comp.id}`}
@@ -1098,7 +1100,7 @@ function PastWeeklyRow({
   comp: WeeklyRow;
   result?: { winner: string | null; gained: number | null; players: number };
 }) {
-  const badge = WEEKLY_BADGE[comp.type] ?? 'SOTW';
+  const badge = comp.badge ?? WEEKLY_BADGE[comp.type] ?? 'SOTW';
   return (
     <tr className="border-t border-card-border/70 group hover:bg-white/[0.02]">
       <td className="px-4 py-2.5">

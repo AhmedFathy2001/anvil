@@ -42,12 +42,11 @@ export interface HuntFormValue {
   confirm: HuntConfirm;
   /** The prizes shortcut: gp for each paid place, first place first. Empty = none set here. */
   prizes: number[];
-  /** Boss Rush: the bosses (hiscores keys) and the scoring. */
-  rushBosses: string[];
+  /** Boss Rush: its targets and scoring. */
   rush: RushRules;
 }
 
-export const DEFAULT_HUNT: HuntFormValue = { items: [], rule: 'first', repeat: 'every', ends: { kind: 'date' }, confirm: 'staff', prizes: [], rushBosses: [], rush: DEFAULT_RUSH };
+export const DEFAULT_HUNT: HuntFormValue = { items: [], rule: 'first', repeat: 'every', ends: { kind: 'date' }, confirm: 'staff', prizes: [], rush: DEFAULT_RUSH };
 
 export const encodeStat = (stat: HuntRowStat | null | undefined): string => (stat ? `${stat.type}:${stat.metric}` : '');
 export function decodeStat(v: string): HuntRowStat | null {
@@ -80,8 +79,8 @@ export function huntPayload(v: HuntFormValue) {
     return {
       v: 2,
       rule: 'rush',
-      bosses: v.rushBosses,
       rush: v.rush,
+      repeat: v.repeat,
       items: v.items.map((it) => ({ id: it.id, name: it.name, sources: it.pet || it.anySource ? [] : it.sources, points: it.points })),
       confirm: v.confirm,
     };
@@ -143,7 +142,6 @@ export function huntFormFromConfig(config: HuntConfig): HuntFormValue {
     ends: config.ends,
     confirm: config.confirm,
     prizes: [],
-    rushBosses: rush ? (config.killsOf ?? '').split(',').filter(Boolean) : [],
     rush: rush || DEFAULT_RUSH,
   };
 }

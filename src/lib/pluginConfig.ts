@@ -6,7 +6,7 @@ import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, huntDrops, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { competitionStat } from '@/lib/weeklyMetric';
-import { bossNames, huntLine, huntPets, isRush, parseHunt } from '@/lib/itemHunt';
+import { huntLine, huntPets, isRush, parseHunt } from '@/lib/itemHunt';
 import { rushRuleLines } from '@/lib/bossRushRules';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
@@ -91,7 +91,7 @@ export interface HuntPanelItem {
 /** A Boss Rush's rules for the panel; nothing on any other competition. */
 function rushPanelRules(w: { type: string; hunt?: string | null }): { rushRules?: string[] } {
   const config = w.type === 'hunt' ? parseHunt(w.hunt) : null;
-  return isRush(config) ? { rushRules: rushRuleLines(config.rush, bossNames(config.killsOf ?? '')) } : {};
+  return isRush(config) ? { rushRules: rushRuleLines(config.rush) } : {};
 }
 
 async function huntPanelItems(w: { id: number; type: string; hunt?: string | null }): Promise<{ huntItems?: HuntPanelItem[] }> {
@@ -566,8 +566,6 @@ export interface ActiveWeeklyMetric {
   hunt?: string;
   /** Which game counts, when it isn't the main game alone (lib/competitionGame). */
   countsOn?: string;
-  /** A Boss Rush: its stored rules (lib/itemHunt), for the live push to credit the kills the plugin saw. */
-  rushHunt?: string;
 }
 
 // EVERY live weekly competition's tracked metric IN THIS CLAN — a SOTW and a BOTW can run at once,
@@ -590,9 +588,7 @@ export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeek
   // plugin pushes that live too; a hunt with no stat has nothing to push and is left out.
   return rows.flatMap((c) => {
     const stat = competitionStat(c);
-    // Every rush keeps its plugin-seen kills, whichever kills it counts now: the host can switch mid-way.
-    const pluginKills = c.type === 'hunt' && isRush(parseHunt(c.hunt));
-    return stat ? [{ id: c.id, type: stat.type, metric: stat.metric, startDate: c.startDate, endDate: c.endDate, ...(c.type === 'hunt' ? { hunt: c.metric } : {}), ...(c.countsOn !== 'main' ? { countsOn: c.countsOn } : {}), ...(pluginKills && c.hunt ? { rushHunt: c.hunt } : {}) }] : [];
+    return stat ? [{ id: c.id, type: stat.type, metric: stat.metric, startDate: c.startDate, endDate: c.endDate, ...(c.type === 'hunt' ? { hunt: c.metric } : {}), ...(c.countsOn !== 'main' ? { countsOn: c.countsOn } : {}) }] : [];
   });
 }
 

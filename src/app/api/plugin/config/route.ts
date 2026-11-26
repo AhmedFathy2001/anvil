@@ -20,7 +20,7 @@ import { pluginClansFor } from '@/lib/pluginClans';
 import { combatTaskVarps } from '@/lib/combatTasks';
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { h2hDropItemIdsForAccount } from '@/lib/h2h';
-import { huntReportItemIds } from '@/lib/itemHuntDb';
+import { huntReportItemIds, inRunningRush } from '@/lib/itemHuntDb';
 import { clanlessPluginConfig } from '@/lib/pluginConfigClanless';
 import { modeAwareNotifyFlags, pluginModeThresholds } from '@/lib/worldModeStore';
 import { worldModeOf } from '@/lib/worldModeRequest';
@@ -244,6 +244,11 @@ export async function GET(request: Request) {
       const myPrefs = await getNotifyPrefs(userOnly.userId);
       body.me = pluginMe(myPrefs, body.notify as never, clanDrops, body.modeThresholds as never, await dropHookFilters(userOnly.userId), await characterClanKinds(played?.accountId ?? null, clan.id, worldModeOf(request)?.key));
       withOwnAlwaysItems(body as unknown as Record<string, unknown>, myPrefs.alwaysItems);
+      // In a running Boss Rush: the plugin reports kills with no board live (its targets ride the
+      // rule table, api/plugin/rules), which is what the rush counts (lib/itemHuntDb creditRushKills).
+      if (played && played.clanId === clan.id && (await inRunningRush(clan.id, played.clanMemberId).catch(() => false))) {
+        (body as unknown as Record<string, unknown>).rush = true;
+      }
       // No board live HERE, but the character may be on boards elsewhere: a multi-board plugin
       // tracks those too (lib/pluginBoards). Keyed to the played character, so nothing at the
       // login screen beyond what the launcher hint already names.

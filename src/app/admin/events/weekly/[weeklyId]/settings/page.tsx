@@ -3,7 +3,8 @@ import WeeklyTargetPanel from '../WeeklyTargetPanel';
 import { competitionNotStarted } from '@/lib/competitionTeamsDb';
 import { huntFormFromConfig } from '@/lib/huntForm';
 import HuntSettingsPanel from '../HuntSettingsPanel';
-import { huntRows, isRush, parseHunt, rushBossKeys } from '@/lib/itemHunt';
+import { huntRows, isRush, parseHunt } from '@/lib/itemHunt';
+import { getEffectiveParticipants } from '@/lib/weekly';
 import { notFound } from 'next/navigation';
 
 import { requireClan } from '@/lib/clanContext';
@@ -66,7 +67,16 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
         initial={{ ends: hunt.ends, confirm: hunt.confirm }}
         finished={comp.status === 'completed'}
         rowCount={huntRows(hunt).length}
-        rush={isRush(hunt) ? { bosses: rushBossKeys(hunt), rules: hunt.rush, items: hunt.items.map((it) => ({ id: it.id, name: it.name, points: it.points ?? 0 })) } : null}
+        rush={
+          isRush(hunt)
+            ? {
+                rules: hunt.rush,
+                repeat: hunt.repeat === 'first' ? 'first' : 'every',
+                items: hunt.items.map((it) => ({ id: it.id, name: it.name, points: it.points ?? 0 })),
+                entrants: (await getEffectiveParticipants(comp.id)).map((p) => ({ id: p.id, rsn: p.rsn })),
+              }
+            : null
+        }
       />
     )}
     <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />

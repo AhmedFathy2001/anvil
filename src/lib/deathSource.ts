@@ -64,8 +64,8 @@ export function settleDeathSource(raw: Record<string, unknown>): void {
   // current plugin says so itself, from the game's own "in this raid" values, which also covers the
   // deaths nothing is behind (Warden skulls, Zebak's waves, Olm's crystals). An older one only names
   // a killer, so it is read off the name before anything below blanks it (lib/raidNpcs).
-  // "toa-entry": Entry Mode, which no rush over the raid counts (its kills are not the raid's either).
-  const raid = raw.raid === 'toa-entry' ? null : isRaidFamily(raw.raid) ? raw.raid : raw.sourceKind === 'player' ? null : raidOfNpc(raw.source);
+  // "toa-entry": Entry Mode Tombs, its own target (lib/bossRushRules RUSH_RAID_TARGETS).
+  const raid = raw.raid === 'toa-entry' || isRaidFamily(raw.raid) ? raw.raid : raw.sourceKind === 'player' ? null : raidOfNpc(raw.source);
   if (raid) raw.raid = raid;
   else delete raw.raid;
   if (typeof raw.source === 'string' && raw.sourceKind !== 'player' && neverKiller(raw.source)) {
