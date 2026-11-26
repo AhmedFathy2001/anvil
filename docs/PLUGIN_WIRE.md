@@ -718,8 +718,8 @@ only goes out where that is listed.
   key or `m:<monster>` from the view's own picker. Actions `trip-save` and `trip-forget` (args
   `{region, content}`) keep or drop the player's own setup for a trip.
 - **Fresh items.** A plugin sending `X-Anvil-Bank-Filter: 1` pushes what is worn and carried (and
-  `state`) on `POST /api/plugin/items` just before every `trip` load and every `trip-*` post, whether
-  or not it changed. For such a plugin the view never judges items read over 20 seconds before the
+  `state`) on `POST /api/plugin/items` just before a check the player asked for (a bank close, or a
+  click on a `trip` load), whether or not it changed, under the same guard as every item push. For such a plugin the view never judges items read over 20 seconds before the
   request: it answers status "Checking what you carry…" with `warn: null` instead of a Ready.
 - **Bank filter** (header `X-Anvil-Bank-Filter: 1`): failing rows carry the action
   `{a: 'bank', ids: '<id>,<id>'}` (the bank's own ids that count as the missing item, its forms and
