@@ -27,6 +27,7 @@ import { button, card, col, gap, icon, muted, row, text, type Action, type Color
 import { backHeader } from './playerCardUi';
 import { CARD_W, CORAL, FAINT, GOLD, GREEN, LINE, PROGRESS, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BodySection } from './guideBody';
+import { tripEntryUi } from './tripUi';
 import { SLOT_NAME } from '@/lib/slotNames';
 
 /** A row's picture: an item, a boss (hiscores key or name) or a skill. */
@@ -48,6 +49,8 @@ export interface GuidesSearchData {
   here: { id: number; title: string; where: string; pic: GuidePic } | null;
   /** The map region the plugin said it stands in, carried on every action so "You're at" stays. */
   region?: string;
+  /** The pre-trip check's way in (pluginUi/tripUi tripEntryUi): the target, null for none; absent when signed out. */
+  trip?: { short: string; why: string } | null;
 }
 
 /** Filter options: `label` on the chip (short, fits a third of the panel), `long` in its list. */
@@ -167,6 +170,7 @@ function filterChips(d: GuidesSearchData): Node {
 /** The Guides search (the Lookup tab's Guides mode): "You're at", the search, filters, the lists. */
 export function guidesSearchUi(d: GuidesSearchData): Node {
   const parts: Node[] = [];
+  if (d.trip !== undefined) parts.push(tripEntryUi(d.trip, d.region));
   if (d.here) {
     parts.push(
       row(
@@ -271,6 +275,8 @@ export interface GuidePanelData {
   route: PanelRoute | null;
   /** "Your gear now vs this setup": owner only, from the plugin's worn-gear push. Null hides it. */
   gearNow?: PanelGearNow | null;
+  /** The trip this guide is for (lib/tripTarget guideTarget): "Going here next" makes it the next-trip target. */
+  goingNext?: { key: string; short: string } | null;
 }
 /** One side's numbers against one target, from the DPS engine's best-style result. */
 export interface GearNowStats {
@@ -315,7 +321,8 @@ const SLOT_ROWS: (string | null)[][] = [
 const SLOT_SPRITE: Record<string, number> = { head: 156, cape: 157, neck: 158, weapon: 159, ring: 160, body: 161, shield: 162, legs: 163, hands: 164, feet: 165, ammo: 166 };
 /** The spellbook's tab picture (SpriteID TAB_MAGIC and TAB_MAGIC_SPELLBOOK_*). */
 const SPELLBOOK_SPRITE = [780, 1583, 1584, 1711];
-const QUEST_SPRITE = 776;
+/** A quest line's picture: the Quest point cape (the quest tab's sprite scales to an unreadable smudge). */
+const QUEST_ITEM = 9813;
 
 /** The equipment screen's wells: owned, an owned fallback, not owned. */
 /** The game's stone interface brown behind equipment, inventory and pouch (older plugins draw no fill). */
@@ -372,25 +379,33 @@ function copyButton(label: string, d: GuidePanelData, kind: 'banktag' | 'setup' 
   return button(d.phase2 ? label : `${label} (on the site)`, on, d.phase2 ? undefined : 'Copying straight from the panel comes in the next plugin update', look);
 }
 
-/** The open option's tinted ground in the setup list (the mockup's brown-gold). */
-const PICKED_BG = '#3a2a14' as const;
+/** The open option's ground in the setup list: a quiet lift, the gold tick says which one it is. */
+const PICKED_BG = '#2e2e2e' as const;
+
+/** "Ranged · " when every setup's name starts with it: said once (the tab already says it), not on every line. */
+function sharedLead(names: string[]): string {
+  const first = names[0]?.split(' · ')[0];
+  return first && names.length > 1 && names.every((n) => n.startsWith(`${first} · `)) ? `${first} · ` : '';
+}
 
 /**
- * The setup picker, as the mockup's dropdown: one gold-edged line "★ Ranged · DHCB · 1 of 3 ▾"; a click
- * (a local flip, no round trip) opens a gold-edged list under it, each option its weapon, a bold name
- * and a faint "Curator pick · 6.2 DPS", the open one on a tinted ground.
+ * The setup picker: one quiet line "★ Twisted bow · 1 of 3 ▾" (grey edge, gold only on the star); a click
+ * (a local flip, no round trip) opens the list under it, each option its weapon, the name and a faint
+ * "Curator pick · 7.9 DPS"; the open one on a lifted ground with a gold tick, not another gold box.
  */
 function setupPicker(d: GuidePanelData): Node | null {
   if (d.setups.length < 2) return null;
   const i = Math.max(0, d.setups.findIndex((s) => s.key === d.current));
   const cur = d.setups[i];
+  const lead = sharedLead(d.setups.map((s) => s.name));
+  const short = (n: string) => n.slice(lead.length);
   const key = `guide-setups:${d.id}:${d.tier}:${d.current}`;
   const flip: Action = { a: 'flip', key };
-  const lead = cur.pick || !cur.weapon ? icon({ glyph: 'star', w: 11, h: 11, color: GOLD }) : icon({ item: cur.weapon, w: 20, h: 18 });
+  const mark = cur.pick || !cur.weapon ? icon({ glyph: 'star', w: 11, h: 11, color: GOLD }) : icon({ item: cur.weapon, w: 20, h: 18 });
   const head = (open: boolean): Node =>
-    row(lead, text(cur.name, 'white', { font: 'bold' }), row(small(`${i + 1} of ${d.setups.length}`, FAINT), undefined, icon({ glyph: 'chevron-down', w: 9, h: 9, color: FAINT, alt: '▾' }), { gap: 4 }), {
+    row(mark, text(short(cur.name), 'white', { font: 'bold' }), row(small(`${i + 1} of ${d.setups.length}`, FAINT), undefined, icon({ glyph: 'chevron-down', w: 9, h: 9, color: FAINT, alt: '▾' }), { gap: 4 }), {
       bg: 'card',
-      edge: GOLD,
+      edge: LINE,
       pad: 6,
       inset: 8,
       gap: 6,
@@ -400,8 +415,9 @@ function setupPicker(d: GuidePanelData): Node | null {
   const options = d.setups.map((s) => {
     const lit = s.key === d.current;
     const sub = s.blocked ? `Not for you: ${s.blocked}` : s.sub || ' ';
-    return row(s32(s.weapon), col([text(s.name, lit ? GOLD : 'white', { font: 'bold', wrap: W_BESIDE }), small(sub, s.blocked ? CORAL : lit ? GOLD : FAINT, { wrap: W_BESIDE })], { gap: 1 }), undefined, {
-      ...(lit ? { bg: PICKED_BG, edge: GOLD } : {}),
+    const tick = lit ? icon({ glyph: 'check', w: 10, h: 10, color: GOLD, alt: '✓' }) : undefined;
+    return row(s32(s.weapon), col([text(short(s.name), 'white', { font: 'bold', wrap: W_BESIDE - 14 }), small(sub, s.blocked ? CORAL : FAINT, { wrap: W_BESIDE - 14 })], { gap: 1 }), tick, {
+      ...(lit ? { bg: PICKED_BG } : {}),
       pad: 5,
       inset: 6,
       gap: 8,
@@ -410,7 +426,7 @@ function setupPicker(d: GuidePanelData): Node | null {
       tip: lit ? 'The setup you have open' : `Open ${s.name}`,
     });
   });
-  return { t: 'toggle', key, off: head(false), lit: col([head(true), card(options, { inset: 3, gap: 2, edge: GOLD })], { gap: 2 }) };
+  return { t: 'toggle', key, off: head(false), lit: col([head(true), card(options, { inset: 3, gap: 2, edge: LINE })], { gap: 2 }) };
 }
 /** The dry tone for a lower number (the luck chips' gold ink). */
 const DRY = '#ffb54d';
@@ -612,8 +628,9 @@ function setupTab(d: GuidePanelData): Node {
   const anyMissing = d.slots.some((s) => s.missing);
   const anyFallback = d.slots.some((s) => s.fallback);
   const card1: (Node | null)[] = [
-    // Name on its own line (a long one wraps instead of cutting off), the DPS under it.
-    text(cur.name, 'white', { font: 'bold', wrap: W_CARD }),
+    // Name on its own line (a long one wraps instead of cutting off), the DPS under it. With a picker
+    // above, it already names the setup: saying it twice is noise.
+    picker ? null : text(cur.name, 'white', { font: 'bold', wrap: W_CARD }),
     small(d.dps, PROGRESS),
     d.usingFallbacks ? small(`↓ Using a fallback: ${d.usingFallbacks}`, SOFT, { wrap: W_CARD }) : null,
     equipmentGrid(d),
@@ -739,12 +756,14 @@ function beforeYouGo(d: GuidePanelData): Node | null {
       ? icon({ item: c.pic.item, w: 26, h: 23 })
       : c.pic?.skill
         ? icon({ skill: c.pic.skill })
-        : icon({ sprite: QUEST_SPRITE, w: 20, h: 20, or: icon({ glyph: 'star', w: 12, h: 12, color: GOLD }) });
+        : icon({ item: QUEST_ITEM, w: 26, h: 23, or: icon({ glyph: 'star', w: 12, h: 12, color: GOLD }) });
     const mark = c.ok === true ? icon({ glyph: 'check', w: 12, h: 12, color: GREEN }) : c.ok === false ? icon({ glyph: 'close', w: 11, h: 11, color: CORAL }) : undefined;
+    // Not known yet (no bank seen): a faint dash, so the column doesn't read as a gap.
+    const unknown = mark ? null : text('–', FAINT, { w: 12, align: 'c', tip: 'Not checked yet: open your bank once' });
     // The tick or cross first (as the mockup lists them), then the thing's picture and its words.
     return row(
-      row(text('', 'muted', { w: 12, align: 'c', ...(mark ? { icon: mark as Extract<Node, { t: 'icon' }> } : {}) }), text('', 'muted', { w: 26, align: 'c', icon: pic as Extract<Node, { t: 'icon' }> }), undefined, { gap: 4 }),
-      text(c.text, c.ok === false ? 'white' : SOFT, { wrap: 120 }),
+      row(unknown ?? text('', 'muted', { w: 12, align: 'c', icon: mark as Extract<Node, { t: 'icon' }> }), text('', 'muted', { w: 26, align: 'c', icon: pic as Extract<Node, { t: 'icon' }> }), undefined, { gap: 4 }),
+      text(c.text, c.ok === false ? 'white' : SOFT, { wrap: W_BESIDE }),
       undefined,
       { gap: 6 },
     );
@@ -886,9 +905,21 @@ const siteLink = (d: GuidePanelData, label: string): Node =>
  * and the setup picker on Setup, as the mockup has them). Without: the level chips, then the written
  * guide (or the route's chapters) as cards. A slot's alternatives are a page of their own.
  */
+/** "Going here next ›": the pre-trip check then checks this trip at whichever bank the player gears up at. */
+const goingNextRow = (d: GuidePanelData): Node | null =>
+  d.goingNext
+    ? row(undefined, small(`Going here next: check my ${d.goingNext.short} trip ›`, GOLD, { align: 'c' }), undefined, {
+        pad: 2,
+        on: { a: 'load', v: 'trip', args: { ...(d.region ? { region: d.region } : {}), why: 'manual', target: d.goingNext.key } },
+        tip: `Close a bank anywhere and Anvil checks what you carry for ${d.goingNext.short}`,
+      })
+    : null;
+
 export function guidePanelUi(d: GuidePanelData): Node {
   if (d.alternatives) return col([guideHead(d, pickSetup(d, d.current ?? '')), alternativesUi(d, d.alternatives)], { gap: 8 });
   const parts: Node[] = [guideHead(d)];
+  const going = goingNextRow(d);
+  if (going) parts.push(going);
   if (d.setups.length) {
     parts.push({ t: 'tabs', key: `guide-sections-${d.id}`, tabs: [{ label: 'Setup', c: setupTab(d) }, { label: 'How to', c: howToTab(d) }, { label: 'Upgrades', c: upgradesTab(d) }] });
     parts.push(siteLink(d, 'Open on the site ↗'));

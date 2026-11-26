@@ -3,7 +3,11 @@
 // `state` and is stored with the item snapshot (lib/playerItems), so it is owner-only and goes with
 // the items when sharing is turned off or the person is deleted. PURE.
 //
-//   "state": { "book": 0|1|2|3, "pouch": [[runeItemId, qty], ...], "pray": ["rigour", "augury"] }
+//   "state": { "book": 0|1|2|3, "pouch": [[runeItemId, qty], ...], "pray": ["rigour", "augury"],
+//              "quiver": [ammoItemId, qty] }
+//
+// `quiver` is Dizana's quiver's ammo (its varps), sent always; the check and a saved setup only read it
+// while a quiver is worn or carried. An id of 0 or -1 is an empty quiver.
 //
 // `book` uses the Inventory Setups numbering (0 standard, 1 ancient, 2 lunar, 3 arceuus), the same as
 // GearSetup.spellbook. `pray` lists only the prayers the plugin read as unlocked. The plugin can't read
@@ -17,6 +21,8 @@ export interface TripState {
   pouch: { id: number; q: number }[] | null;
   /** Unlocked prayers the plugin can read ('rigour', 'augury'); null when not sent. */
   pray: string[] | null;
+  /** Dizana's quiver's ammo; null when empty, undefined when not sent (an older plugin). */
+  quiver?: { id: number; q: number } | null;
   /** ISO time it was read. */
   readAt: string;
 }
@@ -35,7 +41,7 @@ const MAX_Q = 2_147_483_647;
  */
 export function cleanTripState(v: unknown, now = Date.now()): TripState | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
-  const o = v as { book?: unknown; pouch?: unknown; pray?: unknown; readAt?: unknown };
+  const o = v as { book?: unknown; pouch?: unknown; pray?: unknown; quiver?: unknown; readAt?: unknown };
   const book = typeof o.book === 'number' && Number.isInteger(o.book) && o.book >= 0 && o.book <= 3 ? o.book : null;
   let pouch: TripState['pouch'] = null;
   if (Array.isArray(o.pouch) && o.pouch.length <= 6) {
@@ -51,10 +57,17 @@ export function cleanTripState(v: unknown, now = Date.now()): TripState | null {
   if (Array.isArray(o.pray) && o.pray.length <= 10) {
     pray = [...new Set(o.pray.filter((x): x is string => typeof x === 'string').map((x) => x.toLowerCase()).filter((x) => (READ_PRAYERS as readonly string[]).includes(x)))];
   }
+  // [id, qty] from the plugin, {id, q} as stored, null as stored empty.
+  let quiver: TripState['quiver'];
+  if (o.quiver === null) quiver = null;
+  else if (o.quiver && typeof o.quiver === 'object') {
+    const [id, q] = Array.isArray(o.quiver) ? o.quiver : [(o.quiver as { id?: unknown }).id, (o.quiver as { q?: unknown }).q];
+    if (typeof id === 'number' && typeof q === 'number' && Number.isInteger(id) && Number.isInteger(q)) quiver = id > 0 && id <= MAX_ID && q > 0 && q <= MAX_Q ? { id, q } : null;
+  }
   if (book == null && pouch == null && pray == null) return null;
   const t = typeof o.readAt === 'string' ? Date.parse(o.readAt) : NaN;
   const readAt = Number.isFinite(t) && t <= now + 60_000 ? new Date(t).toISOString() : new Date(now).toISOString();
-  return { book, pouch, pray, readAt };
+  return { book, pouch, pray, ...(quiver !== undefined ? { quiver } : {}), readAt };
 }
 
 /** A stored state read back (jsonb, pouch as {id, q}), or null when it isn't one. */

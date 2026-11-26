@@ -9,7 +9,7 @@
 import type { FeatureKey } from '@/lib/features';
 import type { EventMode } from '@/lib/eventModes';
 
-export type FormatKey = EventMode | 'sotw' | 'botw' | 'efficiency' | 'hunt' | 'solo';
+export type FormatKey = EventMode | 'sotw' | 'botw' | 'efficiency' | 'hunt' | 'rush' | 'solo';
 
 export interface FormatCard {
   key: FormatKey;
@@ -25,7 +25,7 @@ export interface FormatCard {
    * What EventForm opens on. `placement: 'solo'` is a board format played with every player on
    * their own (lib/teamPlacement) — the same board, no teams to build.
    */
-  choice: { mode?: EventMode; weekly?: 'skill' | 'boss' | 'efficiency' | 'hunt'; placement?: 'solo' };
+  choice: { mode?: EventMode; weekly?: 'skill' | 'boss' | 'efficiency' | 'hunt'; placement?: 'solo'; rush?: true };
 }
 
 export const FORMAT_GROUP_BLURB: Record<FormatCard['group'], string> = {
@@ -47,6 +47,8 @@ export const FORMAT_CARDS: readonly FormatCard[] = [
   { key: 'botw', group: 'Solo & ongoing', name: 'Boss of the Week', how: 'Everyone on the roster is entered. Most kills on one boss wins.', goodFor: 'always having something on', sprite: 'bandos', feature: 'weekly', choice: { weekly: 'boss' } },
   { key: 'efficiency', group: 'Solo & ongoing', name: 'Efficiency race', how: 'Everyone on the roster is entered. Most efficient hours gained wins (hours played for skilling, hours bossed for bossing — how long the gains would take a fast player).', goodFor: 'fair races between mains and alts', sprite: 'dagger', feature: 'weekly', choice: { weekly: 'efficiency' } },
   { key: 'hunt', group: 'Solo & ongoing', name: 'Item hunt', how: 'Everyone on the roster is entered. Pick an item or a pet: first to get it wins, or most by the end. The standings show each drop and the kills everyone has put in.', goodFor: 'pet hunts and drop races', sprite: 'casket', feature: 'weekly', choice: { weekly: 'hunt' } },
+  // Kept as an item hunt underneath (lib/itemHunt rule 'rush': its drops, proofs and prizes), offered as its own thing.
+  { key: 'rush', group: 'Solo & ongoing', name: 'Boss Rush', how: 'Pick bosses, or every raid. Each kill scores, the drops you give points to add more, deaths take points off, and clanmates who kill together earn Clan Synergy.', goodFor: 'raid weeks and clan bossing pushes', sprite: 'bandos', feature: 'weekly', tag: 'New', choice: { weekly: 'hunt', rush: true } },
 ];
 
 export function findFormat(key: string | null | undefined): FormatCard | null {

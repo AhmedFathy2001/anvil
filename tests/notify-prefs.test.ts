@@ -15,6 +15,7 @@ import {
   storedCaTier,
   tierGates,
 } from '../src/lib/notifyPrefs';
+import { DEFAULT_ALWAYS_NOTIFY } from '../src/lib/alwaysNotify';
 import { deservesSpoonLine, dropRarity, enrichNotable, freshSiteKc, isGuaranteed, isTrollDrop, judgeDrop, judgeDropFor, rareTable, type JudgeContext } from '../src/lib/notifyDrops';
 
 const ALL_ON = {
@@ -314,4 +315,22 @@ test('a personal drop webhook keeps drops on when the clan has no drop channel',
   assert.equal(me.dropMin, 1_000_000);
   // The person's own switch still wins.
   assert.equal(pluginMe({ ...NOTIFY_DEFAULTS, drops: false }, noClanDrops, NO_CLAN_DROPS, null, [hook]).drops, false);
+});
+
+test("a repeat Dizana's quiver (uncharged) from the Colosseum chest posts to a clan on the default list, main game and Hardcore Worlds", () => {
+  const clanAlways = new Set(DEFAULT_ALWAYS_NOTIFY.map((n) => n.toLowerCase()));
+  const quiver = {
+    source: 'Fortis Colosseum', sourceKind: 'event',
+    items: [{ id: 28947, name: "Dizana's quiver (uncharged)", qty: 1, value: 0 }], notable: 'loot' as const,
+  };
+  const hcw = { dropMinValue: 5_000_000, dropRarityFloor: 2000, dropBoth: true };
+  for (const mode of [null, hcw]) {
+    const v = judgeDropFor(quiver, ctx({ mode, clanAlways }), []);
+    assert.ok(v, `posts (${mode ? 'HCW' : 'main'})`);
+    assert.equal(v.clan, true, `clan channels take it (${mode ? 'HCW' : 'main'})`);
+    assert.equal(v.facts.notable, 'loot');
+  }
+  // An item only on the person's own list still stays off the clan's channels.
+  const own = judgeDropFor({ ...quiver, items: [{ id: 1, name: 'Bronze dagger', qty: 1, value: 1 }] }, ctx({ clanAlways }), []);
+  assert.equal(own?.clan, false);
 });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { serverInfo } from '@/lib/serverInfo';
-import { tripRegionIds } from '@/lib/guideAreas';
+import { tripRegions } from '@/lib/guideAreas';
+import { regionIds, tripNamesOf } from '@/lib/tripContent';
 
 // Public deployment identity: semver, git SHA, and the plugin-API contract this instance speaks.
 // Lets self-host operators, the control plane, and support answer "what is this clan running?"
@@ -15,5 +16,6 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   // tripRegions: the pre-trip check's banks and lobbies (capability 'trip-check'), for a plugin whose
   // person is in no clan and so gets no /api/plugin/config to read them from.
-  return NextResponse.json({ name: 'anvil', ...serverInfo(), tripRegions: await tripRegionIds() });
+  const regions = await tripRegions();
+  return NextResponse.json({ name: 'anvil', ...serverInfo(), tripRegions: regionIds(regions), tripNames: tripNamesOf(regions) });
 }

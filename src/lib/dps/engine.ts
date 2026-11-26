@@ -11,6 +11,7 @@ import {
   POWERED_MAX,
   SLOTS,
   boostedLevel,
+  prayerKeys,
   prayerMultipliers,
   spellByName,
   stylesFor,
@@ -55,9 +56,17 @@ export interface Monster {
   fa?: number;
   ew?: string;
   ewp?: number;
+  /**
+   * A Tombs of Amascut raid level (set by the caller, never in the dataset): every 5 levels add 2% to
+   * the boss's defence roll (×(1 + level/250)); hitpoints are scaled by the caller.
+   */
+  raidLevel?: number;
   hid?: 1;
   ovr?: 1;
 }
+
+/** The Tombs of Amascut's bosses and what fights beside them: Tumeken's shadow is ×4 against them. */
+export const TOA_MONSTER = /^(akkha|akkha's shadow|ba-ba|kephri|zebak|tumeken's warden|elidinis' warden|obelisk|core|het's seal|baboon|.*scarab.*)$/i;
 
 export interface Stats {
   attack: number;
@@ -99,6 +108,10 @@ export interface DpsResult {
   /** Seconds to kill from full HP, ignoring downtime. */
   ttk: number;
   notes: string[];
+  /** Gear and set effects that changed the numbers, in the order applied. */
+  effects: string[];
+  /** What the numbers assume about the player: stance, prayers, boost and the boosted levels used. */
+  assumed: { stance: string; prayers: string[]; boost: string | null; levels: Partial<Record<'attack' | 'strength' | 'ranged' | 'magic', number>> };
 }
 
 export type ItemLookup = (id: number | null | undefined) => GearItem | null;
@@ -132,6 +145,14 @@ export function hitChance(attackRoll: number, defenceRoll: number): number {
   return attackRoll / (2 * (defenceRoll + 1));
 }
 
+/**
+ * Average damage of one ACCURATE hit with max hit `m`: the roll is uniform 0..m, and an accurate
+ * roll of 0 deals 1 instead, so the mean is m/2 + 1/(m+1) (the wiki's "Damage per second" pages).
+ */
+export function avgAccurateHit(m: number): number {
+  return m > 0 ? m / 2 + 1 / (m + 1) : 0;
+}
+
 function voidSet(gear: GearItem[], kind: 'melee' | 'ranged' | 'magic'): 'none' | 'void' | 'elite' {
   const helm = kind === 'melee' ? /void melee helm/i : kind === 'ranged' ? /void ranger helm/i : /void mage helm/i;
   if (!has(gear, helm) || !has(gear, /void knight gloves/i)) return 'none';
@@ -161,11 +182,16 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
   const style = styles[Math.min(Math.max(loadout.style, 0), styles.length - 1)];
   const kind: DpsResult['kind'] = style.type === 'magic' ? 'magic' : style.type === 'ranged' ? 'ranged' : 'melee';
   const notes: string[] = [];
+  const effects: string[] = [];
+  const levels: DpsResult['assumed']['levels'] = {};
   const attrs = new Set((monster.a ?? []).map(lc));
   const undead = attrs.has('undead');
   const dragon = attrs.has('dragon') || attrs.has('draconic');
   const demon = attrs.has('demon');
   const kalphite = attrs.has('kalphite');
+
+  // A ToA raid level raises the defence roll, not the Defence level (drains still hit the base).
+  const defScale = (roll: number) => (monster.raidLevel ? floor(roll * (1 + monster.raidLevel / 250)) : roll);
 
   // Summed equipment bonuses. A blowpipe's darts add their ranged strength.
   const sum = [0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -180,6 +206,18 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
   const ammo = items(loadout.gear.ammo);
   const ammoless = /crystal bow|bow of faerdhinen|craw's bow|webweaver|thrown|blowpipe/i.test(weapon?.n ?? '') || weapon?.c === 'Thrown' || weapon?.c === 'Chinchompas';
   if (ammo && ammoless && kind === 'ranged') sum[6] -= ammo.b[6];
+  // Dizana's quiver (charged or blessed): +10 ranged attack and +1 ranged strength on top of its
+  // listed bonuses, while firing arrows from a bow or bolts from a crossbow.
+  if (
+    kind === 'ranged' &&
+    has(gear, /^(blessed )?dizana's quiver$/i) &&
+    !ammoless &&
+    ((weapon?.c === 'Bow' && /arrow/i.test(ammo?.n ?? '')) || (weapon?.c === 'Crossbow' && /bolt/i.test(ammo?.n ?? '')))
+  ) {
+    sum[4] += 10;
+    sum[6] += 1;
+    effects.push("Dizana's quiver: +10 ranged attack, +1 ranged strength");
+  }
 
   const salve = slotName(loadout, items, 'neck');
   const salveE = undead && /salve amulet ?\(ei\)|salve amulet ?\(e\)/.test(salve);
@@ -219,6 +257,8 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     const pr = prayerMultipliers(loadout.prayer, 'melee');
     const att = boostedLevel(loadout.stats.attack, loadout.boost, 'attack');
     const str = boostedLevel(loadout.stats.strength, loadout.boost, 'strength');
+    levels.attack = att;
+    levels.strength = str;
     const stAtt = style.stance === 'accurate' ? 3 : style.stance === 'controlled' ? 1 : 0;
     const stStr = style.stance === 'aggressive' ? 3 : style.stance === 'controlled' ? 1 : 0;
     let effAtt = floor(att * pr.acc) + stAtt + 8;
@@ -226,50 +266,54 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     if (voidSet(gear, 'melee') !== 'none') {
       effAtt = floor(effAtt * 1.1);
       effStr = floor(effStr * 1.1);
+      effects.push('Void melee: ×1.1 effective attack and strength');
     }
     const typeIdx = style.type === 'stab' ? 0 : style.type === 'slash' ? 1 : 2;
     maxHit = floor((effStr * (sum[5] + 64) + 320) / 640);
     attackRoll = effAtt * (sum[typeIdx] + 64);
 
     // Gear multipliers, each floored in turn. Salve and slayer helm never stack; salve wins.
-    const mul = (a: number, d: number) => {
+    const mul = (a: number, d: number, label: string) => {
       attackRoll = floor(attackRoll * a);
       maxHit = floor(maxHit * d);
+      effects.push(label);
     };
-    if (salveE) mul(1.2, 1.2);
-    else if (salveI) mul(7 / 6, 7 / 6);
-    else if (slayerHelm) mul(7 / 6, 7 / 6);
+    if (salveE) mul(1.2, 1.2, 'Salve amulet (e): ×1.2 vs undead');
+    else if (salveI) mul(7 / 6, 7 / 6, 'Salve amulet: ×7/6 vs undead');
+    else if (slayerHelm) mul(7 / 6, 7 / 6, 'Slayer helm on task: ×7/6');
     const wn = weapon?.n ?? '';
-    if (dragon && /dragon hunter lance/i.test(wn)) mul(1.2, 1.2);
-    if (demon && /arclight/i.test(wn)) mul(1.7, 1.7);
-    if (kalphite && /keris/i.test(wn)) mul(1, 4 / 3);
-    if (/^tzhaar-|^toktz-xil-ak|^toktz-mej/i.test(wn) && has(gear, /obsidian helmet/i) && has(gear, /obsidian platebody/i) && has(gear, /obsidian platelegs/i)) mul(1.1, 1.1);
-    if (/^tzhaar-|^toktz-/i.test(wn) && /berserker necklace/i.test(salve)) mul(1, 1.2);
+    if (dragon && /dragon hunter lance/i.test(wn)) mul(1.2, 1.2, 'Dragon hunter lance: ×1.2 vs dragons');
+    if (demon && /arclight/i.test(wn)) mul(1.7, 1.7, 'Arclight: ×1.7 vs demons');
+    if (kalphite && /keris/i.test(wn)) mul(1, 4 / 3, 'Keris: ×4/3 damage vs kalphites');
+    if (/^tzhaar-|^toktz-xil-ak|^toktz-mej/i.test(wn) && has(gear, /obsidian helmet/i) && has(gear, /obsidian platebody/i) && has(gear, /obsidian platelegs/i)) mul(1.1, 1.1, 'Obsidian armour: ×1.1');
+    if (/^tzhaar-|^toktz-/i.test(wn) && /berserker necklace/i.test(salve)) mul(1, 1.2, 'Berserker necklace: ×1.2 damage');
     if (style.type === 'crush') {
       const pieces = [/inquisitor's great helm/i, /inquisitor's hauberk/i, /inquisitor's plateskirt/i].filter((re) => has(gear, re)).length;
       const bonus = pieces === 3 ? 0.025 : pieces * 0.005;
-      if (bonus) mul(1 + bonus, 1 + bonus);
+      if (bonus) mul(1 + bonus, 1 + bonus, `Inquisitor's (${pieces} pieces): ×${1 + bonus} crush`);
     }
 
     // Dharok's: the full set hits harder the more Hitpoints you're missing.
     if (wornSet(gear, [/^dharok's helm/i, /^dharok's platebody/i, /^dharok's platelegs/i, /^dharok's greataxe/i])) {
       const hp = loadout.stats.hitpoints ?? 99;
       const cur = Math.min(hp, Math.max(1, loadout.stats.currentHp ?? hp));
-      mul(1, 1 + ((hp - cur) / 100) * (hp / 100));
+      mul(1, 1 + ((hp - cur) / 100) * (hp / 100), "Dharok's set: damage scales with missing Hitpoints");
       if (cur === hp) notes.push("Dharok's set: at full Hitpoints it adds nothing — set your current HP.");
     }
     applyRules();
     const defType = style.type === 'stab' ? 0 : style.type === 'slash' ? 1 : 2;
-    defenceRoll = (monster.lv[0] + 9) * (monster.d[defType] + 64);
+    defenceRoll = defScale((monster.lv[0] + 9) * (monster.d[defType] + 64));
 
     if (/scythe of vitur/i.test(wn)) {
       const size = monster.sz ?? 1;
       hits = size >= 3 ? [1, 0.5, 0.25] : size === 2 ? [1, 0.5] : [1];
+      if (hits.length > 1) effects.push(`Scythe of vitur: ${hits.length} hits on a size-${size} target`);
     }
     if (/osmumten's fang/i.test(wn) && style.type === 'stab') notes.push("Osmumten's fang: its double accuracy roll is approximated.");
   } else if (kind === 'ranged') {
     const pr = prayerMultipliers(loadout.prayer, 'ranged');
     const rng = boostedLevel(loadout.stats.ranged, loadout.boost, 'ranged');
+    levels.ranged = rng;
     const st = style.stance === 'accurate' ? 3 : 0;
     let effAtt = floor(rng * pr.acc) + st + 8;
     let effStr = floor(rng * pr.str) + st + 8;
@@ -277,23 +321,31 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     if (v !== 'none') {
       effAtt = floor(effAtt * 1.1);
       effStr = floor(effStr * (v === 'elite' ? 1.125 : 1.1));
+      effects.push(`${v === 'elite' ? 'Elite void' : 'Void'} ranged: ×1.1 effective attack, ×${v === 'elite' ? 1.125 : 1.1} effective strength`);
     }
     maxHit = floor(0.5 + (effStr * (sum[6] + 64)) / 640);
     attackRoll = effAtt * (sum[4] + 64);
     if (style.stance === 'rapid') speed -= 1;
 
-    const mul = (a: number, d: number) => {
+    const mul = (a: number, d: number, label: string) => {
       attackRoll = floor(attackRoll * a);
       maxHit = floor(maxHit * d);
+      effects.push(label);
     };
     const wn = weapon?.n ?? '';
-    if (salveE && salveImbued) mul(1.2, 1.2);
-    else if (salveI && salveImbued) mul(7 / 6, 7 / 6);
-    else if (slayerImbued) mul(1.15, 1.15);
-    if (dragon && /dragon hunter crossbow/i.test(wn)) mul(1.3, 1.25);
+    if (salveE && salveImbued) mul(1.2, 1.2, 'Salve amulet (ei): ×1.2 vs undead');
+    else if (salveI && salveImbued) mul(7 / 6, 7 / 6, 'Salve amulet (i): ×7/6 vs undead');
+    else if (slayerImbued) mul(1.15, 1.15, 'Slayer helm (i) on task: ×1.15');
+    if (dragon && /dragon hunter crossbow/i.test(wn)) mul(1.3, 1.25, 'Dragon hunter crossbow: ×1.3 accuracy, ×1.25 damage vs dragons');
     if (/twisted bow/i.test(wn)) {
-      const t = twistedBow(Math.max(monster.lv[1], monster.mab ?? 0));
-      mul(t.acc, t.dmg);
+      const magic = Math.max(monster.lv[1], monster.mab ?? 0);
+      const t = twistedBow(magic);
+      // Whole percentages, as the game applies them (avoids 1.14 × n landing a hair under an integer).
+      const accPct = Math.round(t.acc * 100);
+      const dmgPct = Math.round(t.dmg * 100);
+      attackRoll = floor((attackRoll * accPct) / 100);
+      maxHit = floor((maxHit * dmgPct) / 100);
+      effects.push(`Twisted bow (target magic ${magic}): ×${t.acc} accuracy, ×${t.dmg} damage`);
     }
     if (/crystal bow|bow of faerdhinen/i.test(wn)) {
       // [piece, accuracy, damage]
@@ -305,19 +357,19 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
       const on = pieces.filter(([re]) => has(gear, re));
       const acc = on.reduce((a, [, x]) => a + x, 0);
       const dmg = on.reduce((a, [, , y]) => a + y, 0);
-      if (acc) mul(1 + acc, 1 + dmg);
+      if (acc) mul(1 + acc, 1 + dmg, `Crystal armour (${on.length} pieces): +${+(acc * 100).toFixed(1)}% accuracy, +${+(dmg * 100).toFixed(1)}% damage`);
     }
 
     applyRules();
     // Ammo-type defences: thrown/darts hit light, arrows standard, bolts heavy.
     const defIdx = weapon?.c === 'Crossbow' ? 6 : weapon?.c === 'Bow' ? 5 : 4;
-    defenceRoll = (monster.lv[0] + 9) * (monster.d[defIdx] + 64);
+    defenceRoll = defScale((monster.lv[0] + 9) * (monster.d[defIdx] + 64));
 
     // Enchanted bolt specials, as an expected value over the fight.
     const bolt = lc(ammo?.n);
     if (weapon?.c === 'Crossbow' && /\(e\)/.test(bolt)) {
       const p = hitChance(attackRoll, defenceRoll);
-      const normal = p * (maxHit / 2);
+      const normal = p * avgAccurateHit(maxHit);
       if (/ruby/.test(bolt)) {
         // 6% to hit for 20% of the target's CURRENT hitpoints (cap 100): averaged at half health.
         const proc = Math.min(100, floor(monster.hp * 0.5 * 0.2));
@@ -327,7 +379,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
       }
       if (/diamond/.test(bolt)) {
         // 10% to hit for up to 115% of max, ignoring defence.
-        const perHit = 0.1 * (floor(maxHit * 1.15) / 2) + 0.9 * normal;
+        const perHit = 0.1 * avgAccurateHit(floor(maxHit * 1.15)) + 0.9 * normal;
         return finish(perHit);
       }
     }
@@ -335,6 +387,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     // Magic: a powered staff's own spell, or the autocast spell.
     const pr = prayerMultipliers(loadout.prayer, 'magic');
     const mag = boostedLevel(loadout.stats.magic, loadout.boost, 'magic');
+    levels.magic = mag;
     const wn = weapon?.n ?? '';
     const powered = POWERED_MAX.find((p) => p.match.test(wn));
     let spell: Spell | null = null;
@@ -354,20 +407,33 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     const st = style.stance === 'accurate' ? 2 : style.stance === 'longrange' ? 1 : 0;
     const effMag = floor(mag * pr.acc) + st + 9;
 
-    // Tumeken's shadow triples the magic attack and damage bonuses of the rest of the gear.
+    // Tumeken's shadow triples the magic attack and damage bonuses of the gear (×4 inside the Tombs
+    // of Amascut); magic damage stays capped at 100%.
     const shadow = /^tumeken's shadow/i.test(wn);
-    const magicAtt = shadow ? sum[3] * 3 : sum[3];
-    let dmgPct = Math.min(shadow ? sum[7] * 3 : sum[7], 100);
+    const shadowX = shadow ? (TOA_MONSTER.test(monster.n) ? 4 : 3) : 1;
+    const magicAtt = sum[3] * shadowX;
+    let dmgPct = Math.min(sum[7] * shadowX, 100);
     const v = voidSet(gear, 'magic');
     if (v === 'elite') dmgPct += 2.5;
     if (salveE && salveImbued) dmgPct += 20;
     else if (salveI && salveImbued) dmgPct += 15;
 
+    if (shadow) effects.push(`Tumeken's shadow: ×${shadowX} magic attack and damage bonuses${shadowX === 4 ? ' (Tombs of Amascut)' : ''}`);
     attackRoll = effMag * (magicAtt + 64);
-    if (v !== 'none') attackRoll = floor(attackRoll * 1.45);
-    if (salveE && salveImbued) attackRoll = floor(attackRoll * 1.2);
-    else if (salveI && salveImbued) attackRoll = floor(attackRoll * 1.15);
-    else if (slayerImbued) attackRoll = floor(attackRoll * 1.15);
+    if (v !== 'none') {
+      attackRoll = floor(attackRoll * 1.45);
+      effects.push(`${v === 'elite' ? 'Elite void (+2.5% damage)' : 'Void'} magic: ×1.45 accuracy`);
+    }
+    if (salveE && salveImbued) {
+      attackRoll = floor(attackRoll * 1.2);
+      effects.push('Salve amulet (ei): ×1.2 accuracy, +20% damage vs undead');
+    } else if (salveI && salveImbued) {
+      attackRoll = floor(attackRoll * 1.15);
+      effects.push('Salve amulet (i): ×1.15 accuracy, +15% damage vs undead');
+    } else if (slayerImbued) {
+      attackRoll = floor(attackRoll * 1.15);
+      effects.push('Slayer helm (i) on task: ×1.15');
+    }
 
     maxHit = floor(base * (1 + dmgPct / 100));
     if (slayerImbued && !salveE && !salveI) maxHit = floor(maxHit * 1.15);
@@ -384,12 +450,12 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
       notes.push('Crumble Undead only works on undead.');
       maxHit = 0;
     }
-    defenceRoll = (monster.lv[1] + 9) * (monster.d[3] + 64);
+    defenceRoll = defScale((monster.lv[1] + 9) * (monster.d[3] + 64));
   }
 
   if (monster.fa) notes.push(`Flat armour (${monster.fa}) is not modelled.`);
   const p = hitChance(attackRoll, defenceRoll);
-  return finish(hits.reduce((acc, frac) => acc + p * (floor(maxHit * frac) / 2), 0));
+  return finish(hits.reduce((acc, frac) => acc + p * avgAccurateHit(floor(maxHit * frac)), 0));
 
   function finish(avgPerAttack: number): DpsResult {
     const acc = hitChance(attackRoll, defenceRoll);
@@ -406,6 +472,8 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
       dps,
       ttk: dps > 0 ? monster.hp / dps : Infinity,
       notes,
+      effects,
+      assumed: { stance: style.name, prayers: prayerKeys(loadout.prayer), boost: loadout.boost ?? null, levels },
     };
   }
 }

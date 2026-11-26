@@ -19,7 +19,7 @@ import { setWeeklyPool } from '@/lib/coffer';
 import { track } from '@/lib/analytics';
 import { setWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
-import { huntBountyTotal, huntFromInput, huntTargetsLabel, killsOfForItems, serializeHunt } from '@/lib/itemHunt';
+import { huntBountyTotal, huntFromInput, huntTargetsLabel, isRush, killsOfForItems, parseHunt, serializeHunt } from '@/lib/itemHunt';
 import { checkWeeklyMetric } from '@/lib/weeklyMetricInput';
 
 export async function GET() {
@@ -280,6 +280,6 @@ export async function POST(request: Request) {
     announceCompetitionStart(comp).catch(() => {});
   }
 
-  track('weekly.created', { clanId: clan.id, userId: user.userId, props: { type: comp.type } });
+  track('weekly.created', { clanId: clan.id, userId: user.userId, props: { type: comp.type === 'hunt' && isRush(parseHunt(comp.hunt)) ? 'rush' : comp.type } });
   return NextResponse.json({ ...comp, enrolled, prizesHeld, inviteErrors });
 }

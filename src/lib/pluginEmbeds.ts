@@ -11,8 +11,10 @@
 // sentence templates and the reaction-line pool — lives in this file, so a wording change is a site
 // deploy instead of a plugin-hub release. The Java side of the contract is NotifyFacts.java.
 //
-// Every builder reproduces what the plugin built itself up to plugin 1.x (tests/plugin-embeds.test.ts
-// compares against fixtures dumped from the old Java builders). `rsn` is always optional: without it
+// The builders started as what the plugin built itself up to plugin 1.x (tests/plugin-embeds.test.ts
+// compares against fixtures dumped from the old Java builders); the diary, quest, CA tier, level and
+// total-level posts have since been restyled like the drop posts (author, wiki link, fields,
+// thumbnail), and the 99 is still the legacy post. `rsn` is always optional: without it
 // the post has no author line and says "A clan member".
 //
 // Pure: no database, no network — the route validates and calls `buildPluginEmbed`.
@@ -568,36 +570,83 @@ function caTaskEmbed(f: CaTaskFacts): DiscordEmbed {
   return e;
 }
 
-// The message-only achievement posts carry no author line, as the plugin built them.
-function textEmbed(title: string, description: string): DiscordEmbed {
-  return base(null, title, description, PLUGIN_COLOR.achievement);
+// A wiki page link built from free text (an area, a quest name): spaces to underscores, then
+// everything but the path-safe characters percent-encoded ("Lumbridge & Draynor" must not become a
+// query string, and a "#" or "?" in a name must not cut the link short).
+function wikiPageUrl(page: string): string {
+  return WIKI + encodeURIComponent(page.trim().replace(/\s+/g, '_')).replace(/%2F/gi, '/');
+}
+
+const diaryIconUrl = () => discordAssetUrl(wikiImageUrl('Achievement_Diaries_icon.png'));
+/** Quest point cape: the item the wiki and the game both use for quests. */
+const QUEST_ICON_ITEM = 9813;
+
+function caTierEmbed(f: CaTierFacts): DiscordEmbed {
+  const e = base(
+    f.rsn,
+    `🏆 ${f.tier} Combat Achievements`,
+    `${who(f.rsn)} unlocked the **${f.tier}** Combat Achievements tier.`,
+    PLUGIN_COLOR.achievement,
+  );
+  e.url = caTaskWikiUrl(f.tier, '');
+  e.fields = [stat('Tier', f.tier)];
+  e.thumbnail = { url: caIconUrl() };
+  return e;
+}
+
+function diaryEmbed(f: DiaryFacts): DiscordEmbed {
+  const e = base(
+    f.rsn,
+    `📜 ${f.area} ${f.tier} diary`,
+    `${who(f.rsn)} completed the **${f.area} ${f.tier}** achievement diary.`,
+    PLUGIN_COLOR.achievement,
+  );
+  e.url = wikiPageUrl(`${f.area} Diary`);
+  e.fields = [stat('Area', f.area), stat('Tier', f.tier)];
+  e.thumbnail = { url: diaryIconUrl() };
+  return e;
+}
+
+function questEmbed(f: QuestFacts): DiscordEmbed {
+  const e = base(f.rsn, `🗺️ ${f.quest}`, `${who(f.rsn)} completed **${f.quest}**.`, PLUGIN_COLOR.achievement);
+  e.url = wikiPageUrl(f.quest);
+  if (f.difficulty) e.fields = [stat('Difficulty', f.difficulty)];
+  e.thumbnail = { url: itemIconUrl(QUEST_ICON_ITEM) };
+  return e;
 }
 
 function totalLevelEmbed(f: TotalLevelFacts): DiscordEmbed {
-  const e = textEmbed(
+  const e = base(
+    f.rsn,
     f.maxed ? '🏆 Maxed!' : '📈 Total level milestone!',
     f.maxed
       ? `${who(f.rsn)} just **maxed** with a total level of **${f.total}**!`
       : `${who(f.rsn)} just reached **${f.total} total level**!`,
+    PLUGIN_COLOR.achievement,
   );
   // From the LIVE total, not the milestone; omitted on a max and when there's nothing left.
   if (!f.maxed && f.current != null && f.max != null && f.max - f.current > 0) {
     e.fields = [plain('Progress to max', `${commas(f.current)} / ${commas(f.max)} — ${commas(f.max - f.current)} to go`, true)];
   }
+  const icon = skillIconUrl('overall');
+  if (icon) e.thumbnail = { url: icon };
   return e;
 }
 
-/** A 99 — the post the plugin has always made, kept byte-for-byte (tests pin it to the legacy fixture). */
+/**
+ * A 99 — the post the plugin has always made, kept byte-for-byte (tests pin it to the legacy
+ * fixture): no author line, no thumbnail. Not restyled with the other achievement posts yet.
+ */
 function level99Embed(f: Level99Facts): DiscordEmbed {
-  const e = textEmbed('🎉 Level 99!', `${who(f.rsn)} just reached **level 99 ${f.skill}**!`);
+  const e = base(null, '🎉 Level 99!', `${who(f.rsn)} just reached **level 99 ${f.skill}**!`, PLUGIN_COLOR.achievement);
   e.fields = [plain('Progress', `${f.at99} of ${f.skills} skills at 99`, true)];
   return e;
 }
 
-/** Any other level a clan or member chose to post: same voice as the 99, plus the skill's wiki page and icon. */
+/** Any other level a clan or member chose to post: the 99's voice, with an author line, the skill's wiki page and icon. */
 function levelEmbed(f: LevelFacts): DiscordEmbed {
   if (f.level === 99) return level99Embed({ rsn: f.rsn, skill: f.skill, at99: f.at99, skills: f.skills });
-  const e = textEmbed('⬆️ Level up!', `${who(f.rsn)} just reached **level ${f.level} ${f.skill}**!`);
+  const e = base(f.rsn, '⬆️ Level up!', `${who(f.rsn)} just reached **level ${f.level} ${f.skill}**!`, PLUGIN_COLOR.achievement);
   e.url = wikiUrl(f.skill);
   const icon = skillIconUrl(f.skill);
   if (icon) e.thumbnail = { url: icon };
@@ -615,22 +664,9 @@ export function pluginEmbed(input: PluginEmbedFacts, opts: BuildOptions = {}): D
     case 'pet': e = petEmbed(input.facts); break;
     case 'clogSlot': e = clogSlotEmbed(input.facts); break;
     case 'caTask': e = caTaskEmbed(input.facts); break;
-    case 'caTier': {
-      const f = input.facts;
-      e = textEmbed('🏆 Combat Achievement tier!', `${who(f.rsn)} unlocked the **${f.tier}** Combat Achievements tier!`);
-      break;
-    }
-    case 'diary': {
-      const f = input.facts;
-      e = textEmbed('📜 Diary completed!', `${who(f.rsn)} just completed the **${f.area} ${f.tier}** achievement diary!`);
-      break;
-    }
-    case 'quest': {
-      const f = input.facts;
-      const tag = f.difficulty ? ` (${f.difficulty})` : '';
-      e = textEmbed('🗺️ Quest complete!', `${who(f.rsn)} just completed **${f.quest}**${tag}!`);
-      break;
-    }
+    case 'caTier': e = caTierEmbed(input.facts); break;
+    case 'diary': e = diaryEmbed(input.facts); break;
+    case 'quest': e = questEmbed(input.facts); break;
     case 'level99': e = level99Embed(input.facts); break;
     case 'level': e = levelEmbed(input.facts); break;
     case 'totalLevel': e = totalLevelEmbed(input.facts); break;

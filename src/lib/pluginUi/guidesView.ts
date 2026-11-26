@@ -33,6 +33,8 @@ import { spellbookName } from '@/lib/guideSelection';
 import { clearSkip, isSkipReason, setBudgetCap, setSkip } from '@/lib/playerItems';
 import { rateLimit } from '@/lib/rate-limit';
 import { supporterForUsers } from '@/lib/supporter';
+import { contentFromKey } from '@/lib/tripContent';
+import { guideTargetFor, targetLabel } from '@/lib/tripTargetStore';
 import { hasGuidesPanel } from './load';
 import { gap, message, type Node, type View } from './nodes';
 import { plainLine, sectionsForTier, textTiers } from './guideBody';
@@ -130,7 +132,9 @@ export async function guidesSearchView(request: Request, args: Args): Promise<Vi
   const spot = region ? GUIDE_REGIONS[Number(region)] : undefined;
   const at = spot ? await publicGuideBySlug(clanId, spot.slug) : null;
   const here = at && spot ? { id: at.guide.id, title: at.guide.title.split(' — ')[0], where: spot.where, pic: guidePic(at.guide, firstGearBlock(at.guide.body)) } : null;
-  return { ui: guidesSearchUi({ recent, sections, filters, here, region }) };
+  // The pre-trip check's way in, for a signed-in player on a character of theirs.
+  const trip = viewer.userId && viewer.accountId ? await targetLabel(viewer.userId, viewer.accountId).catch(() => null) : undefined;
+  return { ui: guidesSearchUi({ recent, sections, filters, here, region, trip }) };
 }
 
 const SLOTS = ['head', 'cape', 'neck', 'ammo', 'quiver', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring'];
@@ -215,6 +219,9 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
   const ranks = await ranksFor(credits.slice(0, 1).map((c) => c.userId));
   const top = credits[0] ? ranks.get(credits[0].userId)?.rank ?? null : null;
   const supporter = credits[0] ? (await supporterForUsers([credits[0].userId]).catch(() => new Map())).has(credits[0].userId) : false;
+  // The pre-trip check's "Going here next", for a guide whose trip it knows (or the player saved a setup for).
+  const nextKey = viewer.userId && viewer.accountId ? await guideTargetFor(viewer.accountId, guide.id).catch(() => null) : null;
+  const nextTrip = nextKey ? contentFromKey(nextKey) : null;
   const phase2 = hasGuidesPanel(request);
   const slotNote = (slot: string) => current?.resolved?.slots.find((x) => x.slot === slot);
   const checklist: PanelCheck[] = [];
@@ -317,6 +324,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       alternatives,
       route: guide.kind === 'route' ? await routePanel(viewer, guide.id, guide.body) : null,
       gearNow: nowCard,
+      goingNext: nextKey && nextTrip ? { key: nextKey, short: nextTrip.short } : null,
     }),
   };
 }

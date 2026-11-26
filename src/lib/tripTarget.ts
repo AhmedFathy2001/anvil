@@ -1,0 +1,169 @@
+// The pre-trip check's "next trip" target: which trip a bank close OUTSIDE the trip regions
+// (lib/tripContent) is checked for, so regearing at the Grand Exchange before a trip is checked too.
+// PURE: lib/tripTargetStore reads the inputs, pluginUi/tripView and POST /api/plugin/items use it.
+//
+// THE TARGET, strongest first:
+//   pick    the player chose it: "Going here next" on a guide, or a trip picked in the panel
+//   carried a trip item is worn or packed (TripContent.tripItems: a Mokhaiotl waystone is a Doom trip)
+//   guide   the guide they opened most recently, when it maps to a trip
+//   last    the trip of their last kill count (the newest boss kc stamp, accounts.liveStatKeyTimes)
+//
+// A target is only ever a trip Anvil knows (TRIP_CONTENT) or one the player saved a setup for
+// ("m:<monster>", lib/tripSetups): nothing is checked against content with no definition of its own.
+//
+// IT CLEARS when the trip ends: a pick or a guide gives way to a boss kc after it (the "last trip"
+// then takes over, usually the same trip); a death, logout or hop (the plugin's `tripEnd` on its item
+// push) or "clear" in the panel set `clearedAt`, which every source must be newer than; and after
+// TARGET_IDLE_MS with no kc, pick or guide opened. No combat cues: this is read at the bank only.
+
+import { BOSSES } from './constants';
+import { bossKeyForName } from './capabilityData';
+import { MONSTER_PREFIX, TRIP_CONTENT, tripContent } from './tripContent';
+
+/** The trip a held item means (its ids and every id it counts as), or null. */
+export function carriedTrip(held: readonly number[]): string | null {
+  const set = new Set(held);
+  return TRIP_CONTENT.find((c) => c.tripItems?.ids.some((id) => set.has(id)))?.key ?? null;
+}
+
+export type TargetSource = 'pick' | 'carried' | 'guide' | 'last';
+
+/** What is stored (lib/tripTargetStore): the pick and the last clear. ISO times. */
+export interface TargetState {
+  pick?: { key: string; at: string };
+  clearedAt?: string;
+}
+
+export interface Target {
+  key: string;
+  source: TargetSource;
+}
+
+/** A target nobody touched for this long is gone. */
+export const TARGET_IDLE_MS = 2 * 60 * 60_000;
+/** A kc stamped this soon after a pick is the kill just before it (the push lands late), not a new trip. */
+const KC_GRACE_MS = 30_000;
+
+/** The boss kc keys (BOSSES) that end each trip: its modes too. */
+export const CONTENT_KC: Record<string, string[]> = {
+  toa: ['tombsOfAmascut', 'tombsOfAmascutExpertMode'],
+  tob: ['theatreOfBlood', 'theatreOfBloodHardMode'],
+  cox: ['chambersOfXeric', 'chambersOfXericChallengeMode'],
+  vorkath: ['vorkath'],
+  zulrah: ['zulrah'],
+  barrows: ['barrows'],
+  nex: ['nex'],
+  // Stamped by the plugin's "Deep delves completed" line (delve 9+); delves 1-8 print no count, so
+  // a shallow Doom trip is only the target by a pick or a guide.
+  doom: ['doomOfMokhaiotl'],
+};
+
+const BOSS_KEYS = new Set(BOSSES.map((b) => b.key));
+
+/** "m:Doom of Mokhaiotl#Normal" → the boss kc key it is counted on ("doomOfMokhaiotl"), or null. */
+export function bossOfKey(key: string): string | null {
+  if (!key.startsWith(MONSTER_PREFIX)) return null;
+  return bossKeyForName(key.slice(MONSTER_PREFIX.length).split('#')[0].trim());
+}
+
+/**
+ * The target a boss kc means: the trip it belongs to, else the player's own setup for that boss. A
+ * setup they saved for the boss picked by hand ("m:Doom of Mokhaiotl#…") wins over the trip's guide
+ * or calc, unless they saved one for the trip itself too.
+ */
+export function contentForBoss(boss: string, ownKeys: readonly string[]): string | null {
+  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return key;
+  return ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
+}
+
+/**
+ * One key per trip: "m:Doom of Mokhaiotl#…" (a boss picked by hand) is the Doom trip, so the picker
+ * has one Doom chip and a pick of it is the Doom target. A setup saved under the hand-picked key is
+ * still found for the trip (lib/pluginUi/tripView ownAlias). Anything else is itself.
+ */
+export function canonicalKey(key: string): string {
+  const boss = bossOfKey(key);
+  if (!boss) return key;
+  for (const [k, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return k;
+  return key;
+}
+
+/** The player's own setup key standing in for a trip they saved it for by hand, or null. */
+export const ownAlias = (content: string, ownKeys: readonly string[]): string | null => ownKeys.find((k) => k !== content && canonicalKey(k) === content) ?? null;
+
+/** Can this key be a target: a known trip, or one the player saved a setup for. */
+export const isTargetKey = (key: string | null | undefined, ownKeys: readonly string[]): key is string => !!key && (!!tripContent(key) || ownKeys.includes(key));
+/** A pick may be any monster too ("m:<monster>"): picked, it is checked with the calc from the bank. */
+export const isPickKey = (key: string | null | undefined, ownKeys: readonly string[]): key is string =>
+  !!key && (!!tripContent(key) || ownKeys.includes(key) || (key.startsWith(MONSTER_PREFIX) && key.length > MONSTER_PREFIX.length && key.length <= 90));
+
+/**
+ * The trip a guide is for: the trip naming it (TRIP_CONTENT.guide), else the boss its gear block
+ * counts kc on (lib/guideViewer kcKeyOf), else the player's own setup for the block's monster.
+ */
+export function guideTarget(slug: string, kcKey: string | null, monster: string | null, ownKeys: readonly string[]): string | null {
+  const named = TRIP_CONTENT.find((c) => c.guide && c.guide === slug);
+  if (named) return named.key;
+  if (kcKey) {
+    const k = contentForBoss(kcKey, ownKeys);
+    if (k) return k;
+  }
+  if (!monster) return null;
+  const exact = `${MONSTER_PREFIX}${monster}`;
+  if (ownKeys.includes(exact)) return exact;
+  const name = monster.split('#')[0].trim().toLowerCase();
+  return ownKeys.find((k) => k.startsWith(MONSTER_PREFIX) && k.slice(MONSTER_PREFIX.length).split('#')[0].trim().toLowerCase() === name) ?? null;
+}
+
+/** The newest boss kc: its key and when (liveStatKeyTimes holds skills and activities too). */
+export function lastKill(kcTimes: Record<string, string>): { boss: string; at: number } | null {
+  let best: { boss: string; at: number } | null = null;
+  for (const [k, iso] of Object.entries(kcTimes)) {
+    if (!BOSS_KEYS.has(k)) continue;
+    const at = Date.parse(iso);
+    if (Number.isFinite(at) && (!best || at > best.at)) best = { boss: k, at };
+  }
+  return best;
+}
+
+export interface TargetInputs {
+  state: TargetState | null;
+  /** The guide opened most recently, already mapped (guideTarget): null when it maps to no trip. */
+  guide: { key: string | null; at: string } | null;
+  kcTimes: Record<string, string>;
+  /** Worn and inventory ids (with what each counts as) and when they were read; null when not shared. */
+  carried?: { ids: number[]; at: string } | null;
+  /** The content keys the player saved a setup for (lib/tripSetups). */
+  ownKeys: readonly string[];
+  now: number;
+}
+
+/** The target now, or null: nothing set, it ended, or it went idle. */
+export function resolveTarget(inp: TargetInputs): Target | null {
+  const cleared = inp.state?.clearedAt ? Date.parse(inp.state.clearedAt) : NaN;
+  const kill = lastKill(inp.kcTimes);
+  const live = (iso: string | undefined): boolean => {
+    const at = iso ? Date.parse(iso) : NaN;
+    if (!Number.isFinite(at) || inp.now - at > TARGET_IDLE_MS) return false;
+    if (Number.isFinite(cleared) && at <= cleared) return false;
+    return !kill || kill.at <= at + KC_GRACE_MS;
+  };
+  const pick = inp.state?.pick;
+  if (pick && isPickKey(pick.key, inp.ownKeys) && live(pick.at)) return { key: canonicalKey(pick.key), source: 'pick' };
+  // Carried: it lasts as long as the item does, so only a clear after the reading ends it.
+  const carried = inp.carried ? carriedTrip(inp.carried.ids) : null;
+  if (carried && inp.carried && live(inp.carried.at)) return { key: carried, source: 'carried' };
+  const g = inp.guide;
+  if (g?.key && isTargetKey(g.key, inp.ownKeys) && live(g.at)) return { key: g.key, source: 'guide' };
+  if (kill && inp.now - kill.at <= TARGET_IDLE_MS && !(Number.isFinite(cleared) && kill.at <= cleared)) {
+    const key = contentForBoss(kill.boss, inp.ownKeys);
+    if (key) return { key, source: 'last' };
+  }
+  return null;
+}
+
+/** "your pick", "the guide you opened", "last trip": said as "Checking for: Doom (last trip)". */
+export const SOURCE_LABEL: Record<TargetSource, string> = { pick: 'your pick', carried: 'carrying its trip item', guide: 'guide you opened', last: 'last trip' };
+
+/** The target's reason in words: a carried trip names its item ("carrying a waystone"). */
+export const targetWhy = (t: Target): string => (t.source === 'carried' ? tripContent(t.key)?.tripItems?.carrying : null) ?? SOURCE_LABEL[t.source];

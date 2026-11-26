@@ -12,7 +12,8 @@
 //   spec       the setup's spec weapon packed (or, for bossing that wants one, any owned one)
 //   book       the spellbook the setup's spells need
 //   pouch      the runes those spells take: rune pouch, loose runes, an elemental staff or tome
-//   supplies   the setup's supplies by kind (doses and food types alike): "Brews 4 · setup has 6"
+//   supplies   the setup's supplies by kind (doses and food types alike): "Brews 4 · setup has 6";
+//              for content with `basics` (Doom), some food and a prayer restore whatever the setup
 //   prayer     Rigour / Augury the setup prays, unlocked (Piety is never read: unknown, not locked)
 //
 // Only what can be told is checked. Something it can't tell (no state from an older plugin, a rune
@@ -20,7 +21,7 @@
 // at the bank, before the trip, and says nothing about the fight itself.
 
 import type { DpsResult, GearItem, Monster } from './dps/engine';
-import { bestStyle } from './dps/engine';
+import { bestStyle, TOA_MONSTER } from './dps/engine';
 import { SLOTS, stylesFor, type Slot } from './dps/tables';
 import { setupLoadout, type GearIndex } from './dps/summary';
 import { ownStats, withSlot } from './gearNow';
@@ -41,6 +42,12 @@ export interface TripRow {
   detail?: string;
   /** The item it is about, for the panel's picture. */
   item?: number;
+  /** The items to take from the bank (the calc's swaps), drawn as pictures under the line. */
+  swaps?: number[];
+  /** The bank's own ids for what is missing (forms and upgrades included): the bank filter shows them. */
+  bank?: number[];
+  /** The equipment slot a worn piece goes in: its place in the bank layout's paper doll. */
+  slot?: string;
 }
 
 export interface TripCheck {
@@ -49,6 +56,50 @@ export interface TripCheck {
   info: string[];
   /** What couldn't be checked, and why. */
   unknown: string[];
+  /** Every bank id the failing rows name: "Show missing in bank". */
+  bank?: number[];
+  /** Bank tag layouts (positions in the 8-wide bank grid, -1 empty): what is missing, the whole setup. */
+  layouts?: { missing: BankLayout; setup: BankLayout };
+}
+
+export interface BankLayout {
+  ids: number[];
+  layout: number[];
+}
+
+/** The paper doll in the bank's first three columns (8 per row); the spec weapon left of the legs. */
+const DOLL: Record<string, number> = { head: 1, quiver: 2, cape: 8, neck: 9, ammo: 10, weapon: 16, body: 17, shield: 18, spec: 24, legs: 25, hands: 32, feet: 33, ring: 34 };
+const dose = (n: string) => Number(/\((\d)\)\s*$/.exec(n)?.[1] ?? 0);
+
+/**
+ * A bank tag layout for these rows, the way a player lays a setup out: worn pieces as a paper doll on
+ * the left, switches to its right (four a row), then each kind of supply on rows of its own, doses
+ * 4 → 1. Only what is in the bank (each row's `bank` ids). Display only: the plugin moves nothing.
+ */
+export function bankLayout(rows: readonly TripRow[], nameOf: (id: number) => string): BankLayout {
+  const place = new Map<number, number>();
+  const used = new Set<number>();
+  const side: number[][] = [];
+  const loose: number[] = [];
+  for (const r of rows) {
+    const b = (r.bank ?? []).filter((x) => !used.has(x));
+    if (!b.length) continue;
+    b.forEach((x) => used.add(x));
+    const at = r.group === 'spec' ? DOLL.spec : r.slot ? DOLL[r.slot] : undefined;
+    if (at != null && !place.has(at)) {
+      place.set(at, b[0]);
+      loose.push(...b.slice(1));
+    } else if (r.group === 'supplies') side.push([...b].sort((x, y) => dose(nameOf(y)) - dose(nameOf(x))));
+    else loose.push(...b);
+  }
+  let line = 0;
+  for (const list of [loose, ...side]) {
+    list.forEach((id, i) => place.set((line + Math.floor(i / 4)) * 8 + 4 + (i % 4), id));
+    line += Math.ceil(list.length / 4);
+  }
+  const layout = Array<number>(Math.max(-1, ...place.keys()) + 1).fill(-1);
+  place.forEach((id, pos) => (layout[pos] = id));
+  return { ids: [...used], layout };
 }
 
 export interface TripInput {
@@ -71,6 +122,8 @@ export interface TripInput {
   nameOf: (id: number) => string;
   isRunePouch: (id: number) => boolean;
   prefs?: Prefs;
+  /** The Tombs of Amascut raid level to scale its bosses by (lib/tripRaidLevel); none: unscaled. */
+  raidLevel?: number | null;
 }
 
 // ── Item kinds ───────────────────────────────────────────────────────────────────────────────
@@ -78,6 +131,16 @@ export interface TripInput {
 /** Weapons carried for their special attack, not to fight with. */
 const SPEC_RE = /^(dragon claws|burning claws|dragon warhammer|elder maul|(bandos|armadyl|saradomin|zamorak|ancient) godsword|crystal halberd|voidwaker|dragon dagger|abyssal dagger|zaryte crossbow|dawnbringer|eldritch nightmare staff|volatile nightmare staff|granite maul|tonalztics of ralos|dragon crossbow)\b/i;
 export const isSpecWeapon = (name: string | null | undefined): boolean => !!name && SPEC_RE.test(name.trim());
+const LIGHTBEARER = /^lightbearer\b/i;
+/**
+ * The spec weapons a PvM trip would rather bring, best first: defence drain, then the big hits, then
+ * the rest. The old order (whatever the bank listed first) put a Dragon dagger over an Elder maul.
+ */
+const SPEC_ORDER = [/^elder maul/i, /^dragon warhammer/i, /^bandos godsword/i, /^(burning|dragon) claws/i, /^voidwaker/i, /^zaryte crossbow/i, /^eldritch nightmare staff/i, /^volatile nightmare staff/i, /^ancient godsword/i, /^armadyl godsword/i, /^crystal halberd/i, /^tonalztics of ralos/i, /^dawnbringer/i, /^saradomin godsword/i, /^zamorak godsword/i, /^abyssal dagger/i, /^granite maul/i, /^dragon crossbow/i, /^dragon dagger/i];
+export const specRank = (name: string): number => {
+  const i = SPEC_ORDER.findIndex((re) => re.test(name.trim()));
+  return i < 0 ? SPEC_ORDER.length : i;
+};
 
 export const RUNE = { air: 556, water: 555, earth: 557, fire: 554, mind: 558, body: 559, death: 560, nature: 561, chaos: 562, law: 563, cosmic: 564, blood: 565, soul: 566, astral: 9075, wrath: 21880 } as const;
 type Rune = keyof typeof RUNE;
@@ -122,9 +185,9 @@ export function staffRunes(name: string): Rune[] {
 const SUPPLY_KIND: [RegExp, string][] = [
   [/^saradomin brew\b/i, 'Brews'],
   [/^(super restore|sanfew serum)\b/i, 'Restores'],
-  [/^prayer potion\b/i, 'Prayer pots'],
-  [/^(divine )?(ranging|bastion) potion\b/i, 'Ranging pots'],
-  [/^(divine )?super combat potion\b/i, 'Combat pots'],
+  [/^prayer potion\b/i, 'Prayer potions'],
+  [/^(divine )?(ranging|bastion) potion\b/i, 'Ranging potions'],
+  [/^(divine )?super combat potion\b/i, 'Combat potions'],
   [/^(divine )?(magic|battlemage) potion\b|^imbued heart|^saturated heart/i, 'Magic boost'],
   [/antifire/i, 'Antifires'],
   [/^(anti-venom|antidote\+\+)/i, 'Anti-venoms'],
@@ -154,6 +217,10 @@ const targetList = (ts: string[]) => (ts.length <= 2 ? ts.join(', ') : `${ts.sli
 
 export const SLOT_LABEL: Record<string, string> = { head: 'Head', cape: 'Cape', neck: 'Neck', ammo: 'Ammo', weapon: 'Weapon', body: 'Body', shield: 'Shield', legs: 'Legs', hands: 'Hands', feet: 'Feet', ring: 'Ring', quiver: 'Quiver' };
 
+/** Anything eaten or drunk for hitpoints, and anything drunk for prayer: the `basics` check. */
+const HEALS = /^(saradomin brew|shark|manta ray|anglerfish|dark crab|monkfish|sea turtle|lobster|swordfish|tuna potato|potato with |cooked |.* pie$|.*pizza$|.*cake$)/i;
+const RESTORES = /^(prayer potion|super restore|sanfew serum|blighted super restore|moonlight potion|prayer regeneration potion)\b/i;
+
 // ── Holding ──────────────────────────────────────────────────────────────────────────────────
 
 const qty = (it: InvItem) => Math.max(1, Math.floor(it.q ?? 1));
@@ -164,7 +231,10 @@ interface Held {
   carried: Map<number, number>;
   owned: Map<number, number>;
   carries: (id: number) => boolean;
+  wears: (id: number) => boolean;
   owns: (id: number) => boolean;
+  /** The bank's ids that count as `id`: what the bank filter shows for it. */
+  inBank: (id: number) => number[];
 }
 
 function held(inp: TripInput): Held {
@@ -183,16 +253,48 @@ function held(inp: TripInput): Held {
   };
   const cw = wide(carried);
   const ow = wide(owned);
+  const worn = count([inp.worn]);
+  const ww = wide(worn);
   return {
     carried,
     owned,
     carries: (id) => cw.has(id) || inp.needs(id).some((x) => carried.has(x)),
+    wears: (id) => ww.has(id) || inp.needs(id).some((x) => worn.has(x)),
     owns: (id) => ow.has(id) || inp.needs(id).some((x) => owned.has(x)),
+    inBank: (id) => [...new Set(inp.bank.map((it) => it.id).filter((b) => b === id || inp.needs(id).includes(b) || inp.holds(b).includes(id)))],
   };
 }
 
-/** The id the gear data knows `id` by: itself, or a form of it it holds (a charged form, a kit). */
-const knownAs = (id: number, inp: TripInput): number | null => (inp.idx.item(id) ? id : inp.holds(id).find((x) => inp.idx.item(x)) ?? null);
+/**
+ * Uncharged forms the item families don't tie to the charged one, → the charged id the gear data knows.
+ * A player brings these charged: the calc counts the charged form and says to charge it.
+ */
+const UNCHARGED: Record<number, number> = {
+  11908: 11905, // Uncharged trident → Trident of the seas
+  12900: 12899, // Uncharged toxic trident → Trident of the swamp
+  22294: 22292, // Uncharged toxic trident (e) → Trident of the swamp (e)
+  12902: 12904, // Toxic staff (uncharged) → Toxic staff of the dead
+  22547: 22550, // Craw's bow (u)
+  22542: 22545, // Viggora's chainmace (u)
+  22552: 22555, // Thammaron's sceptre (u)
+  27652: 27655, // Webweaver bow (u)
+  27657: 27660, // Ursine chainmace (u)
+  27662: 27665, // Accursed sceptre (u)
+};
+const UNCHARGED_NAME = /\b(uncharged|inactive|empty)\b|\(u\)\s*$/i;
+
+/**
+ * The id the gear data knows `id` by: itself, or a form of it it holds (a charged form, a kit). A
+ * form usable in the main game is preferred over a Bounty Hunter / Deadman / Leagues twin.
+ */
+const knownAs = (id: number, inp: TripInput): number | null => {
+  if (inp.idx.item(id)) return id;
+  if (UNCHARGED[id] != null && inp.idx.item(UNCHARGED[id])) return UNCHARGED[id];
+  const forms = inp.holds(id).filter((x) => inp.idx.item(x));
+  return forms.find((x) => !isRestricted(inp.idx.item(x)!.n)) ?? forms[0] ?? null;
+};
+/** Is the bank's `id` an uncharged form (charge it before the trip)? */
+const isUncharged = (id: number, inp: TripInput): boolean => !inp.idx.item(id) && (UNCHARGED[id] != null || UNCHARGED_NAME.test(inp.nameOf(id)));
 
 /** The gear data's slot for an item ('2h' is worn in the weapon slot). */
 const slotOf = (it: GearItem | null): Slot | null => {
@@ -202,6 +304,23 @@ const slotOf = (it: GearItem | null): Slot | null => {
 };
 
 // ── The best loadout from a pool of items (the calc) ─────────────────────────────────────────
+
+/**
+ * Copies of gear that work only somewhere else, never in main-game PvM: Bounty Hunter (bh) and
+ * Deadman copies, Last Man Standing, Pete Kayer's challenges, Leagues (Trailblazer) and historical
+ * copies, the Gauntlet's crystal and corrupted gear, Castle Wars ammo, Barbarian Assault's attacker
+ * arrows (Barbed arrows: +125 ranged strength, fired only in the minigame). The calc never picks or
+ * suggests them. Locked "(l)" items are the real thing and stay.
+ */
+const RESTRICTED = /\((bh|deadman|deadman mode|dmm|beta|lms|last man standing|pete kayer's challenges|the gauntlet|trailblazer reloaded|historical|basic|attuned|perfected)\)|^corrupted |^castle wars (arrow|bolts)|^(barbed|bullet|field|blunt) arrow$/i;
+export const isRestricted = (name: string): boolean => RESTRICTED.test(name);
+/**
+ * Deadman: Armageddon's "(Deadman)" copies are ornaments Nigel makes from the real item, with its
+ * stats: one the player actually holds is the real thing in the main game (a Voidwaker (Deadman),
+ * an Imbued god cape (Deadman)). Never suggested when not held.
+ */
+const DEADMAN_ORNAMENT = /\(deadman\)/i;
+export const usableHeld = (name: string): boolean => !isRestricted(name) || (DEADMAN_ORNAMENT.test(name) && !/^corrupted /i.test(name));
 
 export interface Best {
   gear: Record<string, number>;
@@ -218,39 +337,97 @@ interface CalcCtx {
 
 const kindOfType = (t: string): 'melee' | 'ranged' | 'magic' => (t === 'ranged' ? 'ranged' : t === 'magic' ? 'magic' : 'melee');
 const AMMOLESS = /crystal bow|bow of faerdhinen|craw's bow|webweaver|blowpipe/i;
+/** The bows that fire dragon arrows; the crossbows that fire dragon bolts. */
+const DRAGON_BOWS = /twisted bow|dark bow|scorching bow|venator bow|3rd age bow|zaryte bow/i;
+const DRAGON_XBOWS = /dragon crossbow|dragon hunter crossbow|armadyl crossbow|zaryte crossbow/i;
 
 /** Is `ammo` what `weapon` fires (or, for a weapon that fires nothing, a blessing that sits there)? */
-function ammoFits(weapon: GearItem, ammo: GearItem): boolean {
+export function ammoFits(weapon: GearItem, ammo: GearItem): boolean {
   const a = ammo.n.toLowerCase();
+  const w = weapon.n.toLowerCase();
   const projectile = /arrow|bolt|javelin|dart|brutal|\bshot\b|chinchompa/.test(a);
-  if (weapon.c === 'Bow' && !AMMOLESS.test(weapon.n)) return /arrow|brutal/.test(a);
-  if (weapon.c === 'Crossbow') return /ballista/i.test(weapon.n) ? /javelin/.test(a) : /bolt/.test(a);
+  if (weapon.c === 'Bow' && !AMMOLESS.test(weapon.n)) {
+    if (/ogre bow/.test(w)) return /ogre arrow|brutal/.test(a);
+    if (!/arrow/.test(a) || /ogre arrow/.test(a)) return false;
+    return /dragon (fire )?arrow/.test(a) ? DRAGON_BOWS.test(w) : true;
+  }
+  if (weapon.c === 'Crossbow') {
+    if (/ballista/.test(w)) return /javelin/.test(a);
+    // Hunters' crossbows fire their own bolts only; so do Karil's, the Dorgeshuun and Ascension crossbows.
+    if (/hunters' sunlight crossbow/.test(w)) return /antler bolts/.test(a);
+    if (/hunters' crossbow/.test(w)) return /kebbit bolts/.test(a);
+    if (/karil's crossbow/.test(w)) return /bolt rack/.test(a);
+    if (/dorgeshuun crossbow/.test(w)) return /bone bolts/.test(a);
+    if (/ascension crossbows/.test(w)) return /ascension bolts/.test(a);
+    if (!/bolt/.test(a) || /antler bolts|kebbit bolts|bolt rack|bone bolts|ascension bolts/.test(a)) return false;
+    return /dragon bolts/.test(a) ? DRAGON_XBOWS.test(w) : true;
+  }
   return !projectile;
 }
 
-/** Each slot's few likeliest items for one kind of attack, by the bonuses that kind reads. */
+/** Targets no melee reaches: Zulrah in its pool, Vespula in the air, the Great Olm's head. */
+export const meleeReaches = (m: Monster): boolean => !(/^(zulrah|vespula|kraken|cave kraken)$/i.test(m.n) || (/^great olm$/i.test(m.n) && /^head/i.test(m.v ?? '')));
+
+/** What a kind of attack reads off a piece. */
+const kindScore = (b: number[], kind: 'melee' | 'ranged' | 'magic') => (kind === 'melee' ? Math.max(b[0], b[1], b[2]) + 1.5 * b[5] : kind === 'ranged' ? b[4] + 1.5 * b[6] : b[3] + 3 * b[7]);
+
+/**
+ * Each slot's few likeliest items for one kind of attack, by the bonuses that kind reads. A piece made
+ * for another kind (a ranged body for melee) is left out even where it edges a point ahead: nobody
+ * tanks a raid in a d'hide top with a melee weapon.
+ */
 function shortlist(pool: GearItem[], kind: 'melee' | 'ranged' | 'magic'): Map<Slot, GearItem[]> {
-  const score = (b: number[]) => (kind === 'melee' ? Math.max(b[0], b[1], b[2]) + 1.5 * b[5] : kind === 'ranged' ? b[4] + 1.5 * b[6] : b[3] + 3 * b[7]);
+  const others = (['melee', 'ranged', 'magic'] as const).filter((k) => k !== kind);
   const by = new Map<Slot, GearItem[]>();
   for (const it of pool) {
     const s = slotOf(it);
     if (!s || s === 'weapon') continue;
+    const own = Math.max(0, kindScore(it.b, kind));
+    if (others.some((k) => kindScore(it.b, k) > 3 * own + 3)) continue;
     by.set(s, [...(by.get(s) ?? []), it]);
   }
-  for (const [s, list] of by) by.set(s, list.sort((a, b) => score(b.b) - score(a.b)).slice(0, 6));
+  for (const [s, list] of by) by.set(s, list.sort((a, b) => kindScore(b.b, kind) - kindScore(a.b, kind)).slice(0, 6));
   return by;
 }
 
 const tryGear = (gear: Record<string, number>, m: Monster, ctx: CalcCtx, dart: number | null): DpsResult | null =>
   bestStyle({ gear, style: 0, spell: ctx.spell, dart, stats: ctx.stats, prayer: ctx.prayer, boost: null, onTask: false }, m, ctx.idx.item, ctx.idx.rules)?.result ?? null;
 
+/** Sets whose bonus no single swap shows: tried whole, per kind, after the slot-by-slot fill. */
+const SETS: { kind: 'melee' | 'ranged' | 'magic'; pieces: [Slot, RegExp][] }[] = [
+  ...(['melee', 'ranged', 'magic'] as const).map((kind) => ({
+    kind,
+    pieces: [
+      ['head', kind === 'melee' ? /^void melee helm/i : kind === 'ranged' ? /^void ranger helm/i : /^void mage helm/i],
+      ['body', /^elite void top/i],
+      ['legs', /^elite void robe/i],
+      ['hands', /^void knight gloves/i],
+    ] as [Slot, RegExp][],
+  })),
+  ...(['melee', 'ranged', 'magic'] as const).map((kind) => ({
+    kind,
+    pieces: [
+      ['head', kind === 'melee' ? /^void melee helm/i : kind === 'ranged' ? /^void ranger helm/i : /^void mage helm/i],
+      ['body', /^void knight top/i],
+      ['legs', /^void knight robe/i],
+      ['hands', /^void knight gloves/i],
+    ] as [Slot, RegExp][],
+  })),
+  { kind: 'melee', pieces: [['head', /^inquisitor's great helm/i], ['body', /^inquisitor's hauberk/i], ['legs', /^inquisitor's plateskirt/i]] },
+  { kind: 'ranged', pieces: [['head', /^crystal helm/i], ['body', /^crystal body/i], ['legs', /^crystal legs/i]] },
+];
+
 /**
- * The best loadout `ids` can make against one monster: the likeliest weapons of each kind, then each
- * slot filled greedily (twice round) by the DPS engine. Set effects outside one slot (Void, Inquisitor)
- * are only found when a single swap shows them. Null: nothing in the pool can attack.
+ * The best loadout `ids` (what the player holds) can make against one monster: the likeliest weapons
+ * of each kind, then each slot filled greedily (twice round) by the DPS engine, then each set whose
+ * bonus needs every piece (Void, Inquisitor's, crystal) tried whole. Melee only where melee reaches.
+ * Null: nothing in the pool can attack.
  */
 export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): Best | null {
-  const pool = [...new Set(ids)].map((id) => ctx.idx.item(id)).filter((x): x is GearItem => !!x && !x.hid);
+  const memo = bestMemo(ctx.idx);
+  const key = `${m.n}#${m.v ?? ''}|${m.raidLevel ?? 0}|${m.hp}|${JSON.stringify(ctx.stats)}|${ctx.prayer.join()}|${ctx.spell ?? ''}|${[...new Set(ids)].sort((x, y) => x - y).join()}`;
+  if (memo.has(key)) return memo.get(key)!;
+  const pool = [...new Set(ids)].map((id) => ctx.idx.item(id)).filter((x): x is GearItem => !!x && !x.hid && usableHeld(x.n));
   const weapons = pool.filter((x) => slotOf(x) === 'weapon');
   const ammo = pool.filter((x) => x.s === 'ammo');
   const darts = pool.filter((x) => /dart$/i.test(x.n) && x.c === 'Thrown').sort((a, b) => b.b[6] - a.b[6]);
@@ -264,6 +441,7 @@ export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): B
     }
     return best?.id ?? null;
   };
+  const melee = meleeReaches(m);
   // A staff with no spell to autocast and no built-in one can only bash: still a melee option.
   const quick = weapons
     .map((w) => {
@@ -273,9 +451,9 @@ export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): B
       const r = tryGear(gear, m, ctx, dartFor(w));
       return r ? { w, gear, r } : null;
     })
-    .filter((x): x is { w: GearItem; gear: Record<string, number>; r: DpsResult } => !!x && x.r.dps > 0);
+    .filter((x): x is { w: GearItem; gear: Record<string, number>; r: DpsResult } => !!x && x.r.dps > 0 && (melee || x.r.kind !== 'melee'));
   const top: typeof quick = [];
-  for (const kind of ['melee', 'ranged', 'magic'] as const) top.push(...quick.filter((q) => q.r.kind === kind).sort((a, b) => b.r.dps - a.r.dps).slice(0, 2));
+  for (const kind of ['melee', 'ranged', 'magic'] as const) top.push(...quick.filter((q) => q.r.kind === kind).sort((a, b) => b.r.dps - a.r.dps).slice(0, 3));
   const lists = { melee: shortlist(pool, 'melee'), ranged: shortlist(pool, 'ranged'), magic: shortlist(pool, 'magic') };
   let best: Best | null = null;
   for (const q of top) {
@@ -283,27 +461,52 @@ export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): B
     const dart = dartFor(q.w);
     let cur = q.r;
     const kind = kindOfType(cur.style.type);
-    for (let pass = 0; pass < 2; pass++) {
-      let changed = false;
-      for (const slot of SLOTS) {
-        if (slot === 'weapon' || (slot === 'shield' && q.w.h2)) continue;
-        const cands = (lists[kind].get(slot) ?? []).filter((c) => slot !== 'ammo' || ammoFits(q.w, c));
-        for (const c of cands) {
-          if (gear[slot] === c.id) continue;
-          const r = tryGear({ ...gear, [slot]: c.id }, m, ctx, dart);
-          if (r && r.dps > cur.dps + 1e-9) {
-            gear[slot] = c.id;
-            cur = r;
-            changed = true;
+    const fill = () => {
+      for (let pass = 0; pass < 2; pass++) {
+        let changed = false;
+        for (const slot of SLOTS) {
+          if (slot === 'weapon' || (slot === 'shield' && q.w.h2)) continue;
+          const cands = (lists[kind].get(slot) ?? []).filter((c) => slot !== 'ammo' || ammoFits(q.w, c));
+          for (const c of cands) {
+            if (gear[slot] === c.id) continue;
+            const r = tryGear({ ...gear, [slot]: c.id }, m, ctx, dart);
+            if (r && r.dps > cur.dps + 1e-9) {
+              gear[slot] = c.id;
+              cur = r;
+              changed = true;
+            }
           }
         }
+        if (!changed) break;
       }
-      if (!changed) break;
+    };
+    fill();
+    for (const set of SETS.filter((x) => x.kind === kind)) {
+      const pieces = set.pieces.map(([slot, re]) => [slot, pool.find((it) => slotOf(it) === slot && re.test(it.n))] as const);
+      if (pieces.some(([, it]) => !it)) continue;
+      const trial = { ...gear, ...Object.fromEntries(pieces.map(([slot, it]) => [slot, it!.id])) };
+      const r = tryGear(trial, m, ctx, dart);
+      if (r && r.dps > cur.dps + 1e-9) {
+        Object.assign(gear, trial);
+        cur = r;
+        fill();
+      }
     }
     if (!best || cur.dps > best.result.dps) best = { gear, result: cur, weapon: q.w.id };
   }
+  memo.set(key, best);
+  if (memo.size > BEST_MAX) memo.delete(memo.keys().next().value!);
   return best;
 }
+
+/**
+ * bestLoadout's answers per gear index, by monster, stats, prayers, spell and pool: a raid's bank
+ * bests are worked out once while the bank stays the same (taking items out of it moves them into
+ * the inventory, and the owned pool is unchanged). Callers must not change what comes back.
+ */
+const BEST = new WeakMap<GearIndex, Map<string, Best | null>>();
+const BEST_MAX = 400;
+const bestMemo = (idx: GearIndex) => BEST.get(idx) ?? (BEST.set(idx, new Map()), BEST.get(idx)!);
 
 /** The spell a staff would autocast on this spellbook at this Magic level, for the calc. */
 export function calcSpell(book: number | null, magic: number, weakness?: string | null): string | null {
@@ -336,7 +539,153 @@ const CALC_FLOOR = 0.85;
 /** A missing slot that costs less than this share of DPS isn't worth a line. */
 const SLOT_FLOOR = 0.01;
 
-export function checkTrip(inp: TripInput): TripCheck {
+const KIND_LABEL = { melee: 'Melee', ranged: 'Ranged', magic: 'Magic' } as const;
+
+/** What the calc's rows need to know about one picked piece: along, where in the bank, uncharged. */
+interface CalcHeld {
+  /** Worn, packed, or (the quiver's ammo) in a quiver that is along. */
+  along: (id: number) => boolean;
+  bankOf: (id: number) => number[];
+  /** Every form of it the player holds is uncharged: the calc counted it charged. */
+  needsCharge: (id: number) => boolean;
+  /** A worn piece's row ({label, slot}) or a switch's (no slot); a quiver's names the ammo in it. */
+  row: (id: number, o: { label?: string; slot?: string; detail: string; ammo?: number }) => TripRow;
+  /** The quiver's ammo, when `id` is it. */
+  inQuiver: (id: number) => boolean;
+  isQuiver: (id: number) => boolean;
+}
+
+/** "Seeking dragon arrow" → "Seeking dragon arrows". */
+const plural = (n: string) => (/s$/i.test(n) ? n : `${n}s`);
+
+function calcHeld(inp: TripInput, h: Held, qv: { id: number; q: number } | null, quiverIn: boolean): CalcHeld {
+  const forms = new Map<number, number[]>();
+  for (const r of h.owned.keys()) {
+    const k = knownAs(r, inp);
+    if (k != null) forms.set(k, [...(forms.get(k) ?? []), r]);
+  }
+  const inQuiver = (id: number) => !!qv && qv.id === id;
+  const quivers = [...new Set(inp.bank.map((it) => it.id).filter((id) => QUIVER_RE.test(inp.nameOf(id))))];
+  const along = (id: number) => (inQuiver(id) ? quiverIn : h.carries(id));
+  const bankOf = (id: number) => (inQuiver(id) ? quivers : h.inBank(id));
+  const needsCharge = (id: number) => {
+    const f = forms.get(id);
+    return !!f?.length && f.every((r) => isUncharged(r, inp));
+  };
+  const isQuiver = (id: number) => QUIVER_RE.test(inp.nameOf(id));
+  const row = (id: number, o: { label?: string; slot?: string; detail: string; ammo?: number }): TripRow => {
+    const slot = o.slot ? { slot: o.slot } : {};
+    // A quiver and the arrows in it: one row, "Blessed Dizana's quiver with Seeking dragon arrows".
+    if (o.ammo != null) {
+      const full = `${inp.nameOf(id).replace(/\s*\((uncharged|empty)\)\s*$/i, '')} with ${plural(shortName(inp.nameOf(o.ammo)))}`;
+      const charge = needsCharge(id);
+      if (along(id)) return charge ? { group: 'gear', ok: false, line: `${full}: charge the quiver`, detail: o.detail, item: id, ...slot } : { group: 'gear', ok: true, line: `Quiver: ${full}`, item: id, ...slot };
+      return { group: 'gear', ok: false, line: `${full}: take the quiver${charge ? ' (charge it)' : ''}`, detail: charge ? `${o.detail} · uncharged in your bank: charge it before the trip` : o.detail, item: id, bank: bankOf(id), ...slot };
+    }
+    const n = shortName(inp.nameOf(id));
+    if (inQuiver(id)) {
+      return quiverIn
+        ? { group: 'gear', ok: true, line: `Quiver: ${n}`, item: id, ...slot }
+        : { group: 'gear', ok: false, line: `${n} (in your quiver): take the quiver`, detail: o.detail, item: id, bank: bankOf(id), ...slot };
+    }
+    const charge = needsCharge(id);
+    if (along(id)) {
+      return charge
+        ? { group: 'gear', ok: false, line: `${n} is uncharged: charge it`, detail: o.detail, item: id, ...slot }
+        : { group: 'gear', ok: true, line: o.label ? `${o.label}: ${n}` : `Switch: ${n}`, item: id, ...slot };
+    }
+    const take = o.label ? `${n} is in your bank: take it` : `${n} (switch): in your bank`;
+    return { group: 'gear', ok: false, line: charge ? `${take} (charge it)` : take, detail: charge ? `${o.detail} · uncharged in your bank: charge it before the trip` : o.detail, item: id, bank: bankOf(id), ...slot };
+  };
+  return { along, bankOf, needsCharge, row, inQuiver, isQuiver };
+}
+
+/**
+ * The calc for a raid: ONE setup for every boss. Each boss's best loadout from the bank names the
+ * style it wants; per style the kit that does best across that style's bosses (each boss's share of
+ * its own best, summed) is chosen; the style most bosses want is worn and the others are switches.
+ * Rows: each worn piece and each switch, carried or "in your bank: take it". When what is carried
+ * already does nearly as well against every boss, one passing row says so.
+ */
+function raidRows(inp: TripInput, c: CalcHeld & { stats: CalcCtx['stats']; prayer: string[]; ownedIds: number[]; carriedIds: number[] }, info: string[]): TripRow[] {
+  const per = inp.monsters
+    .map((m) => {
+      const ctx: CalcCtx = { idx: inp.idx, stats: c.stats, prayer: c.prayer, spell: calcSpell(inp.state?.book ?? 0, c.stats.magic, m.ew) };
+      return { m, ctx, best: bestLoadout(m, c.ownedIds, ctx), carried: bestLoadout(m, c.carriedIds, ctx) };
+    })
+    .filter((p): p is typeof p & { best: Best } => !!p.best && p.best.result.dps > 0);
+  if (!per.length) return [];
+  const bosses = per.map((p) => shortTarget(p.m.n));
+  if (per.every((p) => p.carried && p.carried.result.dps >= CALC_FLOOR * p.best.result.dps)) {
+    return [{ group: 'gear', ok: true, line: `Your setup covers all ${per.length} bosses`, detail: bosses.join(', ') }];
+  }
+  const byKind = new Map<'melee' | 'ranged' | 'magic', typeof per>();
+  for (const p of per) {
+    const k = kindOfType(p.best.result.style.type);
+    byKind.set(k, [...(byKind.get(k) ?? []), p]);
+  }
+  const kits = [...byKind.entries()]
+    .map(([kind, ps]) => {
+      let pick = ps[0].best;
+      let top = -1;
+      for (const cand of ps) {
+        const score = ps.reduce((a, q) => a + (tryGear(cand.best.gear, q.m, q.ctx, null)?.dps ?? 0) / q.best.result.dps, 0);
+        if (score > top) [top, pick] = [score, cand.best];
+      }
+      return { kind, gear: pick.gear, bosses: ps.map((q) => shortTarget(q.m.n)) };
+    })
+    .sort((a, b) => b.bosses.length - a.bosses.length);
+  const [worn, ...switches] = kits;
+  const rows: TripRow[] = [];
+  const wornIds = new Set(Object.values(worn.gear));
+  // The quiver's arrows go on the quiver's row; the quiver names them.
+  const quiverOf = (gear: Record<string, number>) => {
+    const ammo = gear.ammo != null && c.inQuiver(gear.ammo) ? gear.ammo : null;
+    return ammo != null && Object.values(gear).some(c.isQuiver) ? ammo : null;
+  };
+  const wq = quiverOf(worn.gear);
+  for (const [slot, id] of Object.entries(worn.gear)) {
+    if (id === wq) continue;
+    const label = SLOT_LABEL[slot] ?? slot;
+    rows.push(c.row(id, { label, slot, detail: `${label} · your ${worn.kind} setup, worn`, ...(wq != null && c.isQuiver(id) ? { ammo: wq } : {}) }));
+  }
+  const listed = new Set(wornIds);
+  for (const k of switches) {
+    const q = quiverOf(k.gear);
+    for (const id of new Set(Object.values(k.gear))) {
+      // One row per item: a ring both switches wear is packed once.
+      if (listed.has(id) || id === q) continue;
+      listed.add(id);
+      rows.push(c.row(id, { detail: `${KIND_LABEL[k.kind]} switch for ${targetList(k.bosses)}`, ...(q != null && c.isQuiver(id) ? { ammo: q } : {}) }));
+    }
+  }
+  info.push(`One setup for ${per.length} bosses: ${worn.kind} worn${switches.length ? `, ${switches.map((k) => k.kind).join(' and ')} switches` : ''}`);
+  return rows;
+}
+
+/** How the carried loadout's DPS compares with the bank's best, in words: "about half as strong as". */
+export function strengthWords(ratio: number): string {
+  if (ratio < 0.4) return 'less than half as strong as';
+  if (ratio < 0.6) return 'about half as strong as';
+  if (ratio < 0.75) return 'about two-thirds as strong as';
+  return 'a little weaker than';
+}
+
+/** An item with no bonuses at all (Lightbearer, Ring of shadows): worn for what it does, never "will do" without. */
+const isUtility = (it: GearItem | null): boolean => !!it && it.b.every((x) => x === 0);
+
+/**
+ * A ToA boss at a raid level: every 5 levels add 2% to its hitpoints and its defence roll (the engine
+ * scales the roll off `raidLevel`). Anything else, or no level, as it is.
+ */
+export function raidScaled(m: Monster, raidLevel: number | null | undefined): Monster {
+  // Already scaled (the view scales once, the check again): as it is.
+  if (!raidLevel || m.raidLevel != null || !TOA_MONSTER.test(m.n)) return m;
+  return { ...m, raidLevel, hp: Math.round(m.hp * (1 + raidLevel / 250)) };
+}
+
+export function checkTrip(input: TripInput): TripCheck {
+  const inp: TripInput = input.raidLevel ? { ...input, monsters: input.monsters.map((m) => raidScaled(m, input.raidLevel)) } : input;
   const rows: TripRow[] = [];
   const unknown: string[] = [];
   const h = held(inp);
@@ -350,6 +699,8 @@ export function checkTrip(inp: TripInput): TripCheck {
   const levels = inp.levels;
   const state = inp.state;
   const pouchIn = inp.inventory.some((it) => inp.isRunePouch(it.id));
+  const packedNotWorn: string[] = [];
+  const info0: string[] = [];
 
   // ── Gear ──
   const specIn = (ids: number[]) => ids.filter((id) => isSpecWeapon(inp.idx.item(id)?.n ?? name(id)));
@@ -362,11 +713,34 @@ export function checkTrip(inp: TripInput): TripCheck {
     const dpsOf = (x: GearSetup) => mean(inp.monsters.map((m) => bestStyle(setupLoadout(x), m, inp.idx.item, inp.idx.rules)?.result.dps ?? 0));
     const base = inp.monsters.length ? dpsOf(mine) : 0;
     for (const pick of resolved.slots) {
-      if (pick.slot === 'quiver' || pick.kind === 'missing' || pick.use == null) continue;
-      const use = pick.use;
+      // The quiver's own ammo: read off the quiver (state.quiver), only while a quiver is worn or
+      // carried. It is in no container, so "missing" from the snapshot says nothing about it.
+      if (pick.slot === 'quiver') {
+        const use = pick.use ?? pick.guide;
+        const qv = quiverAmmo(inp, h);
+        const fits = (q: { id: number }) => pick.options.some((o) => q.id === o || inp.needs(o).includes(q.id) || inp.holds(q.id).includes(o));
+        if (qv === 'no-quiver' || use == null) continue;
+        if (qv === undefined) unknown.push('quiver ammo');
+        else if (qv && fits(qv)) {
+          rows.push(qv.q >= QUIVER_LOW ? { group: 'gear', ok: true, line: `Quiver: ${shortName(name(qv.id))} ${qv.q}`, item: qv.id } : { group: 'gear', ok: false, line: `Quiver: only ${qv.q} ${shortName(name(qv.id))}`, detail: 'Fill your quiver before the trip', item: qv.id });
+        } else if (pick.kind !== 'missing' || h.owns(use)) {
+          rows.push({ group: 'gear', ok: false, line: `${shortName(name(use))} (quiver): not in your quiver`, detail: qv ? `Your quiver holds ${name(qv.id)}` : 'Your quiver is empty', item: use, bank: h.inBank(use) });
+        }
+        continue;
+      }
       const label = SLOT_LABEL[pick.slot] ?? pick.slot;
+      // Nowhere at all: for a guide's setup an upgrade, not a trip problem; for the player's own setup
+      // (what they wore when they saved it) it went somewhere, and the trip is short of it.
+      if (pick.kind === 'missing' || pick.use == null) {
+        const gone = pick.use ?? pick.guide;
+        if (inp.source === 'own' && gone != null) rows.push({ group: 'gear', ok: false, line: `${shortName(name(gone))}: not found`, detail: `${label} · not worn, packed or in your bank`, item: gone, slot: pick.slot });
+        continue;
+      }
+      const use = pick.use;
       if (h.carries(use)) {
-        rows.push({ group: 'gear', ok: true, line: `${label}: ${shortName(name(use))}`, item: use });
+        rows.push({ group: 'gear', ok: true, line: `${label}: ${shortName(name(use))}`, item: use, slot: pick.slot });
+        // Packed but not worn: fine, a note to put it on.
+        if (!h.wears(use)) packedNotWorn.push(shortName(name(use)));
         continue;
       }
       // Not worn or packed: what leaving it costs, with whatever is carried for that slot instead.
@@ -376,16 +750,18 @@ export function checkTrip(inp: TripInput): TripCheck {
         const swapped = alt != null ? withSlot(mine, pick.slot, alt, inp.idx) : (() => { const g = { ...mine.gear }; delete g[pick.slot]; return { ...mine, gear: g }; })();
         loss = (base - dpsOf(swapped)) / base;
       }
-      if (base > 0 && loss < SLOT_FLOOR) {
+      if (base > 0 && loss < SLOT_FLOOR && !isUtility(inp.idx.item(knownAs(use, inp) ?? use))) {
         rows.push({ group: 'gear', ok: true, line: `${label}: ${alt != null ? shortName(name(alt)) : 'empty'} will do`, detail: `No DPS lost without ${name(use)}`, item: alt ?? use });
         continue;
       }
       rows.push({
         group: 'gear',
         ok: false,
-        line: `No ${shortName(name(use))} (in bank)`,
-        detail: `${label}${base > 0 ? ` · ${Math.round(loss * 100)}% less DPS without it` : ''}`,
+        slot: pick.slot,
+        line: `${shortName(name(use))} is in your bank: take it`,
+        detail: `${label}${base > 0 && loss >= SLOT_FLOOR ? ` · ${Math.round(loss * 100)}% less damage without it` : ''}`,
         item: use,
+        bank: h.inBank(use),
       });
     }
     // The switches the setup packs: anything wearable in its inventory.
@@ -395,7 +771,7 @@ export function checkTrip(inp: TripInput): TripCheck {
       if (!h.owns(id)) continue;
       const inv = inp.idx.item(id);
       if (inv?.s === 'ammo' && Object.values(s.gear).includes(id)) continue;
-      rows.push(h.carries(id) ? { group: 'gear', ok: true, line: `Switch: ${shortName(name(id))}`, item: id } : { group: 'gear', ok: false, line: `Switch not packed: ${shortName(name(id))}`, detail: 'In your bank', item: id });
+      rows.push(h.carries(id) ? { group: 'gear', ok: true, line: `Switch: ${shortName(name(id))}`, item: id } : { group: 'gear', ok: false, line: `${shortName(name(id))} (switch): in your bank`, item: id, bank: h.inBank(id) });
     }
   } else {
     // The calc: per target, the best the bank makes against the best of what is carried.
@@ -403,10 +779,16 @@ export function checkTrip(inp: TripInput): TripCheck {
     const stats = { attack: lv('attack'), strength: lv('strength'), ranged: lv('ranged'), magic: lv('magic'), hitpoints: lv('hitpoints', 99) };
     const prayer = calcPrayers(levels, state);
     const ids = (m: Map<number, number>) => [...m.keys()].map((id) => knownAs(id, inp)).filter((x): x is number => x != null);
-    const ownedIds = ids(h.owned);
-    const carriedIds = ids(h.carried);
+    // The quiver's own ammo is the player's wherever the quiver is, and along whenever it is.
+    const qv = quiverAmmo(inp, h, true);
+    const quiverIn = quiverAmmo(inp, h) !== 'no-quiver';
+    const ownedIds = [...ids(h.owned), ...(qv && typeof qv === 'object' ? [qv.id] : [])];
+    const carriedIds = [...ids(h.carried), ...(qv && typeof qv === 'object' && quiverIn ? [qv.id] : [])];
+    const ch = calcHeld(inp, h, qv && typeof qv === 'object' ? qv : null, quiverIn);
     const short = new Map<string, { targets: string[]; row: TripRow }>();
-    for (const m of inp.monsters) {
+    // A raid (several bosses) is ONE trip with one inventory: one setup, never a list per boss.
+    if (inp.monsters.length > 1) rows.push(...raidRows(inp, { ...ch, stats, prayer, ownedIds, carriedIds }, info0));
+    else for (const m of inp.monsters) {
       const ctx: CalcCtx = { idx: inp.idx, stats, prayer, spell: calcSpell(state?.book ?? 0, stats.magic, m.ew) };
       const o = bestLoadout(m, ownedIds, ctx);
       if (!o) continue;
@@ -418,17 +800,22 @@ export function checkTrip(inp: TripInput): TripCheck {
       }
       const type = o.result.style.type;
       const w = shortName(name(o.weapon));
-      const packedWeapon = h.carries(o.weapon);
+      const packedWeapon = ch.along(o.weapon);
       const key = packedWeapon ? `gear:${target}` : `w:${o.weapon}:${type}`;
-      const pct = c ? Math.round((1 - c.result.dps / o.result.dps) * 100) : 100;
-      const row: TripRow = packedWeapon
-        ? { group: 'gear', ok: false, line: `${target}: gear in bank (-${pct}%)`, detail: `Your bank's best ${type} setup hits ${o.result.dps.toFixed(1)} DPS`, item: o.weapon }
-        : { group: 'gear', ok: false, line: `No ${type} weapon: ${target} (${w} in bank)`, detail: `${pct}% less DPS with what you carry`, item: o.weapon };
+      // What to take: the best loadout's pieces not worn or packed.
+      const swaps = [...new Set(Object.values(o.gear))].filter((id) => !ch.along(id));
+      const bank = [...new Set(swaps.flatMap((id) => ch.bankOf(id)))];
+      const charge = [...new Set(Object.values(o.gear))].filter((id) => ch.needsCharge(id)).map((id) => shortName(name(id)));
+      const many = inp.monsters.length > 1;
+      const row: TripRow = packedWeapon || !c
+        ? { group: 'gear', ok: false, line: c ? `Your gear is ${strengthWords(c.result.dps / o.result.dps)} the best ${type} setup in your bank` : `Nothing you carry can fight ${target}`, detail: `${many ? `For ${target}. ` : ''}Take from your bank:`, item: o.weapon, swaps, bank }
+        : { group: 'gear', ok: false, line: `${w} is in your bank: take it`, detail: `Your best ${type} weapon${many ? ` for ${target}` : ''}. With the rest of the setup, take:`, item: o.weapon, swaps, bank };
+      // Counted charged: say so ("Charge Tumeken's shadow first").
+      if (charge.length) row.detail = `${row.detail} Charge ${charge.join(', ')} first.`;
       const prev = short.get(key);
       if (prev) {
         if (!prev.targets.includes(target)) prev.targets.push(target);
-        prev.row.line = `No ${type} weapon: ${targetList(prev.targets)} (${w} in bank)`;
-        prev.row.detail = `For ${prev.targets.join(', ')}`;
+        prev.row.detail = `Your best ${type} weapon for ${targetList(prev.targets)}. With the rest of the setup, take:`;
       } else {
         short.set(key, { targets: [target], row });
         rows.push(row);
@@ -437,15 +824,29 @@ export function checkTrip(inp: TripInput): TripCheck {
   }
 
   // ── Spec weapon ──
-  const ownedSpecs = [...h.owned.keys()].filter((id) => isSpecWeapon(inp.idx.item(knownAs(id, inp) ?? id)?.n ?? name(id)));
+  const specName = (id: number) => inp.idx.item(knownAs(id, inp) ?? id)?.n ?? name(id);
+  const ownedSpecs = [...h.owned.keys()]
+    .filter((id) => {
+      const n = specName(id);
+      return isSpecWeapon(n) && usableHeld(n) && usableHeld(name(id));
+    })
+    .sort((a, b) => specRank(specName(a)) - specRank(specName(b)));
   if (setupSpecs.length) {
     for (const id of setupSpecs) {
       if (!h.owns(id)) continue;
-      rows.push(h.carries(id) ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(id))}`, item: id } : { group: 'spec', ok: false, line: `No spec weapon (${shortName(name(id))} in bank)`, item: id });
+      rows.push(h.carries(id) ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(id))}`, item: id } : { group: 'spec', ok: false, line: `${shortName(name(id))} (spec): in your bank`, item: id, bank: h.inBank(id) });
     }
   } else if (inp.content.spec && ownedSpecs.length) {
     const packed = ownedSpecs.find((id) => h.carried.has(id));
-    rows.push(packed ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(packed))}`, item: packed } : { group: 'spec', ok: false, line: `No spec weapon (${shortName(name(ownedSpecs[0]))} in bank)`, item: ownedSpecs[0] });
+    rows.push(packed ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(packed))}`, item: packed } : { group: 'spec', ok: false, line: `${shortName(name(ownedSpecs[0]))} (spec): in your bank`, item: ownedSpecs[0], bank: h.inBank(ownedSpecs[0]) });
+  }
+  // Lightbearer beside a spec weapon: spec energy back twice as fast, worn between specs.
+  const lightbearer = [...h.owned.keys()].find((id) => LIGHTBEARER.test(inp.idx.item(knownAs(id, inp) ?? id)?.n ?? name(id)));
+  const inSetup = !!inp.setup && [...Object.values(inp.setup.gear), ...(inp.setup.inventory ?? []).map((x) => x?.id)].some((id) => id != null && LIGHTBEARER.test(name(id)));
+  if (lightbearer != null && !inSetup && rows.some((r) => r.group === 'spec') && !rows.some((r) => r.item === lightbearer)) {
+    rows.push(h.carries(lightbearer)
+      ? { group: 'spec', ok: true, line: 'Lightbearer: spec energy back twice as fast', item: lightbearer }
+      : { group: 'spec', ok: false, line: 'Lightbearer (ring switch): in your bank', detail: 'Spec energy back twice as fast: wear it between specs', item: lightbearer, bank: h.inBank(lightbearer) });
   }
 
   // ── Spellbook and runes ──
@@ -502,8 +903,20 @@ export function checkTrip(inp: TripInput): TripCheck {
     for (const it of inp.inventory) if (isSupply(it.id)) got.set(kindOf(it.id), (got.get(kindOf(it.id)) ?? 0) + qty(it));
     for (const [k, w] of want) {
       const g = got.get(k) ?? 0;
-      rows.push(g >= w.n ? { group: 'supplies', ok: true, line: `${k} ${g}`, item: w.id } : { group: 'supplies', ok: false, line: `${k} ${g} · setup has ${w.n}`, item: w.id });
+      // Every dose of the kind in the bank, for the layout's supply rows.
+      const kindBank = [...new Set(inp.bank.map((it) => it.id).filter((id) => isSupply(id) && kindOf(id) === k))];
+      rows.push(g >= w.n ? { group: 'supplies', ok: true, line: `${k} ${g}`, item: w.id, bank: kindBank } : { group: 'supplies', ok: false, line: `${k}: have ${g}, need ${w.n}`, item: w.id, bank: kindBank });
     }
+  }
+
+  // ── Food and a prayer restore, for content that always wants them ──
+  if (inp.content.basics) {
+    const has = (re: RegExp) => inp.inventory.find((it) => re.test(name(it.id).trim()));
+    const banked = (re: RegExp) => [...new Set(inp.bank.map((it) => it.id).filter((id) => re.test(name(id).trim())))];
+    const food = has(HEALS);
+    const pots = has(RESTORES);
+    rows.push(food ? { group: 'supplies', ok: true, line: 'Food packed', item: food.id } : { group: 'supplies', ok: false, bank: banked(HEALS), line: 'No food packed', detail: `${inp.content.short} wants food or brews along` });
+    rows.push(pots ? { group: 'supplies', ok: true, line: 'Prayer restores packed', item: pots.id } : { group: 'supplies', ok: false, bank: banked(RESTORES), line: 'No prayer restore packed', detail: `${inp.content.short} wants prayer pots or restores along` });
   }
 
   // ── Prayers ──
@@ -516,17 +929,35 @@ export function checkTrip(inp: TripInput): TripCheck {
   }
 
   // ── The inventory's room ──
-  const info: string[] = [];
-  if (inp.inventory.length || s?.inventory?.length) {
+  const info: string[] = [...info0];
+  if (packedNotWorn.length) info.push(`In your inventory: equip ${packedNotWorn.join(', ')} before the fight`);
+  // Only with something packed: "0 slots · 28 free" says nothing.
+  if (inp.inventory.length) {
     const sw = inp.inventory.filter((it) => inp.idx.item(knownAs(it.id, inp) ?? it.id)).length;
     const pouch = pouchIn ? 1 : 0;
-    info.push(`Switches ${sw} slot${sw === 1 ? '' : 's'} · ${Math.max(0, 28 - sw - pouch)} free for supplies`);
+    if (sw) info.push(`Switches ${sw} slot${sw === 1 ? '' : 's'} · ${Math.max(0, 28 - sw - pouch)} free for supplies`);
   }
-  return { rows, info, unknown };
+  // The setup layout: every row's bank ids, the ones already carried looked up afresh.
+  const all = rows.filter((r) => r.item != null || r.bank?.length).map((r) => (r.bank?.length ? r : { ...r, bank: h.inBank(r.item!) }));
+  const bad = rows.filter((r) => !r.ok);
+  return { rows, info, unknown, bank: [...new Set(bad.flatMap((r) => r.bank ?? []))], layouts: { missing: bankLayout(bad, name), setup: bankLayout(all, name) } };
+}
+
+/** Below this many, the quiver's ammo is a problem. */
+const QUIVER_LOW = 50;
+const QUIVER_RE = /dizana's quiver/i;
+
+/**
+ * The quiver's ammo when a quiver is worn or carried: {id, q}, null when it is empty, undefined when a
+ * plugin that doesn't read it sent the state, 'no-quiver' with none along (the cape check says so).
+ */
+function quiverAmmo(inp: TripInput, h: Held, anywhere = false): { id: number; q: number } | null | undefined | 'no-quiver' {
+  if (![...(anywhere ? h.owned : h.carried).keys()].some((id) => QUIVER_RE.test(inp.nameOf(id)) || inp.holds(id).some((x) => QUIVER_RE.test(inp.idx.item(x)?.n ?? '')))) return 'no-quiver';
+  return inp.state?.quiver;
 }
 
 /** The overlay's answer: "ToA · 2 problems" with the first lines, or "✓ Ready for ToA". */
-export function tripWarn(short: string, check: TripCheck, max = 4): { ok: boolean; title: string; lines: string[] } {
+export function tripWarn(short: string, check: TripCheck, max = 4): { ok: boolean; title: string; lines: string[]; fight?: number[]; instance?: true } {
   const bad = check.rows.filter((r) => !r.ok);
   if (!bad.length) return { ok: true, title: `✓ Ready for ${short}`, lines: [] };
   const lines = bad.slice(0, max).map((r) => r.line);
@@ -554,5 +985,7 @@ export function setupFromHeld(nameLabel: string, worn: readonly InvItem[], inven
     inventory: inv,
     ...(pouchIn && state?.pouch?.length ? { runePouch: state.pouch.map((p) => ({ id: p.id, q: p.q })) } : {}),
     ...(state?.book != null ? { spellbook: state.book } : {}),
+    // The quiver's ammo, when a quiver is worn or packed and holds some.
+    ...(state?.quiver && [...worn, ...inventory].some((it) => [it.id, ...holds(it.id)].some((x) => QUIVER_RE.test(idx.item(x)?.n ?? ''))) ? { quiver: state.quiver.id } : {}),
   };
 }

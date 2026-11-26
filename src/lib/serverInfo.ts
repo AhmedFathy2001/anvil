@@ -229,6 +229,10 @@ export const PLUGIN_CAPABILITIES = [
   // `tripRegions`, POST /api/plugin/items takes `state` {book, pouch, pray}, and view 'trip' answers
   // {ui, warn} for the plugin's overlay when the bank closes in one of those regions.
   'trip-check',
+  // The pre-trip check's next-trip target (lib/tripTarget): view 'trip' takes `target` (a trip key,
+  // a saved setup's, or 'clear') and answers `armed`; POST /api/plugin/items takes `tripEnd` and
+  // answers `armed`. While armed, the plugin asks on a bank close at ANY bank, once per trip.
+  'trip-target',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

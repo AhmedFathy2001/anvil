@@ -1608,8 +1608,22 @@
     {
       "idx": 292,
       "version": "7",
-      "when": 1795672498952,
-      "tag": "0292_guide_pieces",
+      "when": 1795705982796,
+      "tag": "0292_boss_rush",
+      "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1795710737945,
+      "tag": "0293_rush_adjust",
+      "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1795713678830,
+      "tag": "0294_guide_pieces",
       "breakpoints": true
     }
   ]

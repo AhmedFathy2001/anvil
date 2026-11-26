@@ -71,6 +71,8 @@ import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { boardChatOn } from '@/lib/eventChat';
 import { guideAct, guideNextView, guidePanelView, guidesSearchView, guideYouCard } from './guidesView';
 import { tripAct, tripView } from './tripView';
+import { tripEntryUi } from './tripUi';
+import { targetLabel } from '@/lib/tripTargetStore';
 import { hasGuidesPanel, hasFeedTab, hasLogSearch, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -197,7 +199,13 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
         tint: (await supporterInksForRsns([me.rsn]).catch(() => null))?.get(me.rsn)?.color ?? null,
         above: ownership ? [ownership] : [],
         // The guides card (pluginUi/guidesView): the route followed, else recent guides; none when empty.
-        below: [goalsNode, ...(owner && hasGuidesPanel(request) ? [await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n) : [])],
+        // The pre-trip check's way in: the next-trip target, else "Pre-trip check ›".
+        below: [
+          goalsNode,
+          ...(owner && hasGuidesPanel(request)
+            ? [tripEntryUi(await targetLabel(owner.userId, owner.accountId).catch(() => null)), await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n)
+            : []),
+        ],
       })
     : notFoundUi(me.rsn);
   return { ui: character ? cardUi : col([...(ownership ? [ownership] : []), cardUi, goalsNode], { gap: 8 }) };

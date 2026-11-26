@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { calculate, hitChance, twistedBow, bestStyle, type GearItem, type Monster, type Loadout } from '../src/lib/dps/engine.ts';
+import { calculate, hitChance, twistedBow, bestStyle, avgAccurateHit, type GearItem, type Monster, type Loadout } from '../src/lib/dps/engine.ts';
 import itemsJson from '../src/data/gearItems.json' with { type: 'json' };
 import monstersJson from '../src/data/gearMonsters.json' with { type: 'json' };
 
@@ -184,4 +184,36 @@ test("Dharok's set hits harder at low HP; demonbane needs a demon", () => {
   const not = calculate({ gear: { weapon: staff }, style: 3, spell: 'Dark Demonbane', stats: MAXED }, DUMMY, lookup)!;
   assert.ok(dem.maxHit >= 30);
   assert.equal(not.maxHit, 0);
+});
+
+test('Vorkath (post-quest), Twisted bow + Dizana\'s quiver: matches the wiki calculator', () => {
+  // Ranging potion 99 → 112; Rigour: ⌊112·1.2⌋ + 8 = 142 attack, ⌊112·1.23⌋ + 8 = 145 strength (rapid: +0).
+  // Gear +225 ranged attack / +101 ranged strength, plus the quiver's +10 / +1 with a bow and arrows.
+  // Attack 142·(235+64) = 42458, ×1.14 Tbow = 48402. Max ⌊0.5 + 145·166/640⌋ = 38, ×1.64 = 62.
+  // Defence (214+9)·(26+64) = 20070. DPS = 0.7927 · (62/2 + 1/63) / (5 · 0.6) = 8.195.
+  const gear = {
+    weapon: item('Twisted bow'), ammo: item('Dragon arrow'), head: item('Masori mask (f)'), body: item('Masori body (f)'),
+    legs: item('Masori chaps (f)'), hands: item('Zaryte vambraces'), feet: item('Pegasian boots'), cape: item("Dizana's quiver"),
+    neck: item('Necklace of anguish'), ring: item('Venator ring'),
+  };
+  const r = calculate({ gear, style: 1, stats: MAXED, prayer: 'rigour', boost: 'ranging' }, monster('Vorkath', 'Post-quest'), lookup)!;
+  assert.equal(r.maxHit, 62);
+  assert.equal(r.attackRoll, 48402);
+  assert.equal(r.defenceRoll, 20070);
+  assert.equal(r.accuracy.toFixed(4), '0.7927');
+  assert.equal(r.speed, 5);
+  assert.ok(Math.abs(r.dps - 8.195) < 0.001, `dps ${r.dps}`);
+  assert.deepEqual(r.assumed, { stance: 'Rapid', prayers: ['rigour'], boost: 'ranging', levels: { ranged: 112 } });
+  assert.ok(r.effects.some((e) => /Dizana's quiver/.test(e)));
+  assert.ok(r.effects.some((e) => /Twisted bow/.test(e)));
+
+  // No quiver bonus without arrows (or on an ammo-less bow).
+  const noAmmo = calculate({ gear: { ...gear, ammo: undefined }, style: 1, stats: MAXED, prayer: 'rigour', boost: 'ranging' }, monster('Vorkath', 'Post-quest'), lookup)!;
+  assert.ok(!noAmmo.effects.some((e) => /Dizana's quiver/.test(e)));
+});
+
+test('an accurate hit that rolls 0 deals 1', () => {
+  assert.equal(avgAccurateHit(0), 0);
+  assert.equal(avgAccurateHit(1), 1); // rolls 0 or 1 → always 1
+  assert.equal(avgAccurateHit(62), 31 + 1 / 63);
 });

@@ -60,7 +60,13 @@ export type Action =
    * PHASE 2 (guides, sent only past GUIDES_PANEL_MIN_PLUGIN): fetch `path` (a path on this site,
    * /api/plugin/guide-export?…) with the account token and put the answer's `text` on the clipboard.
    */
-  | { a: 'copy'; path: string };
+  | { a: 'copy'; path: string }
+  /**
+   * The pre-trip check's "show in bank" (sent only to a plugin with X-Anvil-Bank-Filter): the open bank
+   * shows only these item ids (comma-separated), display only. Nothing is moved or withdrawn. With
+   * `layout` (comma-separated ids by bank position, -1 empty, 8 a row) they are laid out that way.
+   */
+  | { a: 'bank'; ids: string; layout?: string };
 
 interface Common {
   /** Tooltip, plain text. */
@@ -340,6 +346,11 @@ export interface View {
    * for the plugin's overlay, or null when no trip matches. Other views leave it out.
    */
   warn?: { ok: boolean; title: string; lines: string[] } | null;
+  /**
+   * View 'trip' only (capability 'trip-target', lib/tripTarget): a next-trip target is set, so a bank
+   * closing anywhere is checked. POST /api/plugin/items answers the same flag.
+   */
+  armed?: boolean;
 }
 
 // ---- Builders: the shapes every view uses, so they read the same everywhere -------------------

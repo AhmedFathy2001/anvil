@@ -6,7 +6,8 @@ import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, huntDrops, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { competitionStat } from '@/lib/weeklyMetric';
-import { huntLine, huntPets, parseHunt } from '@/lib/itemHunt';
+import { huntLine, huntPets, isRush, parseHunt } from '@/lib/itemHunt';
+import { rushRuleLines } from '@/lib/bossRushRules';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
@@ -87,6 +88,12 @@ export interface HuntPanelItem {
 }
 
 /** A hunt's targets, in the order it lists them, with the first counted drop of each. */
+/** A Boss Rush's rules for the panel; nothing on any other competition. */
+function rushPanelRules(w: { type: string; hunt?: string | null }): { rushRules?: string[] } {
+  const config = w.type === 'hunt' ? parseHunt(w.hunt) : null;
+  return isRush(config) ? { rushRules: rushRuleLines(config.rush) } : {};
+}
+
 async function huntPanelItems(w: { id: number; type: string; hunt?: string | null }): Promise<{ huntItems?: HuntPanelItem[] }> {
   if (w.type !== 'hunt') return {};
   const config = parseHunt(w.hunt);
@@ -106,7 +113,7 @@ async function huntPanelItems(w: { id: number; type: string; hunt?: string | nul
       return {
         id: r.id,
         name: r.name,
-        ...(config.rule === 'points' && r.points ? { pts: r.points } : {}),
+        ...((config.rule === 'points' || config.rule === 'rush') && r.points ? { pts: r.points } : {}),
         ...(mine[0] ? { got: { rsn: mine[0].rsn, at: mine[0].at } } : {}),
         ...(mine.length > 1 ? { n: mine.length } : {}),
         // The first players to get it, once each, as many as the bounty pays (lib/itemHunt huntBountyClaims).
@@ -134,6 +141,8 @@ export interface ScheduleWeekly {
   iconItem?: number;
   /** An item hunt: everything it is after, and who got each one (the panel's targets card). */
   huntItems?: HuntPanelItem[];
+  /** A Boss Rush: its rules, one sentence a line (lib/bossRushRules rushRuleLines), for the panel's rules card. */
+  rushRules?: string[];
   /** Coffer prizes in gp, first place first (lib/weeklyPrizes). Absent when it pays nothing. */
   prizeGp?: number[];
   /** 'hcw': the prizes are paid in Hardcore Worlds gp, from the clan's Hardcore Worlds coffer. Absent = main game gp. */
@@ -348,6 +357,7 @@ export async function buildSchedule(
       metricLabel: w.type === 'hunt' ? huntLine(parseHunt(w.hunt), w.metric) : weeklyMetricLabel(w.type, w.metric),
       ...huntIconItem(w),
       ...huntItems.get(w.id),
+      ...rushPanelRules(w),
       ...weeklyPrizeGp(w.prizes),
       ...(parsePrizeCurrency(w.prizeCurrency) === 'hcw' ? { prizeCurrency: 'hcw' as const } : {}),
       status: weeklyStatus(w),

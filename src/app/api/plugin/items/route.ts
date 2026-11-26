@@ -1,10 +1,13 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { CONTAINER_KINDS, type Snapshot } from '@/lib/gearOwnership';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { cleanContainer, deleteSnapshotsForUser, saveSnapshot, saveTripState } from '@/lib/playerItems';
 import { cleanTripState } from '@/lib/tripState';
+import { tripRegions } from '@/lib/guideAreas';
+import { warmTrip } from '@/lib/pluginUi/tripView';
+import { clearTarget, currentTarget } from '@/lib/tripTargetStore';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { worldModeIgnored } from '@/lib/worldModeRequest';
 
@@ -17,7 +20,14 @@ import { worldModeIgnored } from '@/lib/worldModeRequest';
 //     lootingBag?: { items: [...], readAt }               — when the plugin knows it
 //     state?:      { book, pouch: [[runeId, qty]], pray }  — spellbook, rune pouch, unlocked
 //                                                          prayers, for the pre-trip check (lib/tripState) }
+//     tripEnd?:    true                                    — the trip ended (death, logout, hop):
+//                                                          the next-trip target clears (lib/tripTarget)
+//     region?:     12345                                   — where the player stands, sent with the bank:
+//                                                          in a trip region (or with a target set) the
+//                                                          check is worked out now (tripView warmTrip)
 //   Only the containers sent are replaced; each keeps its own readAt. A body may carry only `state`.
+//   Answers { ok, stored, armed }: `armed` says a next-trip target is set (capability 'trip-target'),
+//   so the plugin asks for the 'trip' view when a bank closes anywhere, not only in a trip region.
 //
 //   DELETE /api/plugin/items  — the "Share my bank with Anvil for guides" setting was turned off:
 //   every stored container for every character of this person goes, and the plugin sends nothing more.
@@ -25,7 +35,7 @@ import { worldModeIgnored } from '@/lib/worldModeRequest';
 // Only a character that is the token owner's own (accountStanding 'yours') is stored. What is
 // stored is read back only by that person (lib/playerItems snapshotForViewer) — never clan staff.
 
-async function ownAccount(request: Request): Promise<{ accountId: number } | NextResponse> {
+async function ownAccount(request: Request): Promise<{ accountId: number; userId: number } | NextResponse> {
   const viewer = await verifyPluginTokenUser(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const character = playedCharacter(request);
@@ -33,7 +43,7 @@ async function ownAccount(request: Request): Promise<{ accountId: number } | Nex
   if ((await accountStanding(viewer.userId, character)) !== 'yours') return NextResponse.json({ error: 'Not your character' }, { status: 403 });
   const account = await accountForCharacter(character);
   if (!account) return NextResponse.json({ error: 'Unknown character' }, { status: 404 });
-  return { accountId: account.id };
+  return { accountId: account.id, userId: viewer.userId };
 }
 
 export async function POST(request: Request) {
@@ -56,7 +66,13 @@ export async function POST(request: Request) {
   const state = body.state == null ? null : cleanTripState(body.state);
   const stored = await saveSnapshot(own.accountId, snap);
   if (state) await saveTripState(own.accountId, state);
-  return NextResponse.json({ ok: true, stored: stored + (state ? 1 : 0) });
+  if (body.tripEnd === true) await clearTarget(own.accountId);
+  const armed = !!(await currentTarget(own.userId, own.accountId).catch(() => null))?.target;
+  // Banking for a trip: the bank-close ask will find the check already done.
+  const region = Number.isInteger(body.region) ? (body.region as number) : null;
+  const regions = region != null && !armed ? await tripRegions() : null;
+  if (snap.bank && (armed || (region != null && regions?.[region] && !regions[region].noBank))) after(() => warmTrip(request, region));
+  return NextResponse.json({ ok: true, stored: stored + (state ? 1 : 0), armed });
 }
 
 export async function DELETE(request: Request) {

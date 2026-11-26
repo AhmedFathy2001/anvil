@@ -101,6 +101,8 @@ export interface Observation {
   /** The NPC/chest it came from, or what killed them. */
   source?: string | null;
   sourceKind?: string | null;
+  /** 'death' only: the raid it happened in, read off the plugin's killer name (lib/raidNpcs). */
+  raid?: string | null;
   kc?: number | null;
   /** 'ca' only: the task as the completion line named it ("Vault of Death"). */
   taskName?: string | null;

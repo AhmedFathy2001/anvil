@@ -1897,6 +1897,18 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   // (lib/huntRowStats). Null on every other competition and on v1 hunts.
   huntBaseline: jsonb('hunt_baseline').$type<Record<string, number>>(),
   huntCurrent: jsonb('hunt_current').$type<Record<string, number>>(),
+  // Boss Rush (an item hunt with rule 'rush', lib/bossRushRules): kills the plugin saw during it, the last
+  // count it pushed per boss key ({key: [kc, atMs]}), and deaths at a rush boss (the last one's time
+  // so a death reported twice counts once). Zero / null on every other competition.
+  rushKc: integer('rush_kc').notNull().default(0),
+  // Kills the plugin reported per target name (lib/itemHuntDb creditRushKills).
+  rushSeen: jsonb('rush_seen').$type<Record<string, number>>(),
+  rushDeaths: integer('rush_deaths').notNull().default(0),
+  rushDeathAt: text('rush_death_at'),
+  // Points staff added or took off by hand (lib/itemHuntDb adjustRushPoints).
+  rushAdjust: integer('rush_adjust').notNull().default(0),
+  // Each raid the plugin saw them finish during the rush, [[key, atMs], ...]: Clan Synergy (lib/bossRushRules rushSynergy).
+  rushRaids: jsonb('rush_raids').$type<[string, number][]>(),
 }, (table) => [
   index('weekly_participants_team_idx').on(table.teamId),
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),

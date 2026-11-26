@@ -25,7 +25,9 @@ import {
 } from '../src/lib/startProof.ts';
 import type { StartProofConfig, StartLocation } from '../src/lib/eventRules.ts';
 
-const CFG: StartProofConfig = { onMissing: 'flag', autoAcceptPlugin: true, locations: [], pick: 'random', maxSessionMinutes: 0 };
+const CFG: StartProofConfig = {
+  onMissing: 'flag', autoAcceptPlugin: true, locations: [], pick: 'random', maxSessionMinutes: 0, autoShot: true, guide: true,
+};
 const DRAWN = '2026-08-16T18:00:00.000Z';
 // An hour into the event: inside the six-hour window where a starting shot is still asked for.
 const DURING = Date.parse('2026-08-16T19:00:00.000Z');
@@ -252,6 +254,8 @@ test('startProofState: nothing leaks before the draw', () => {
     status: null,
     imageUrl: null,
     maxSessionMinutes: 0,
+    autoShot: true,
+    guide: true,
   });
 });
 
