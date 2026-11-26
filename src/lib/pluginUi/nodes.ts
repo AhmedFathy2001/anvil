@@ -63,9 +63,10 @@ export type Action =
   | { a: 'copy'; path: string }
   /**
    * The pre-trip check's "show in bank" (sent only to a plugin with X-Anvil-Bank-Filter): the open bank
-   * shows only these item ids (comma-separated), display only. Nothing is moved or withdrawn.
+   * shows only these item ids (comma-separated), display only. Nothing is moved or withdrawn. With
+   * `layout` (comma-separated ids by bank position, -1 empty, 8 a row) they are laid out that way.
    */
-  | { a: 'bank'; ids: string };
+  | { a: 'bank'; ids: string; layout?: string };
 
 interface Common {
   /** Tooltip, plain text. */

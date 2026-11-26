@@ -121,3 +121,12 @@ export function contentFromKey(key: string | null | undefined): TripContent | nu
   }
   return tripContent(key);
 }
+
+/**
+ * What the calc's answer is worth, said on the card. A raid's (several bosses) is a rough fallback:
+ * one worn set and switches from the bank can't know the room-by-room roles a raid really needs.
+ */
+export const calcSourceLine = (content: Pick<TripContent, 'name' | 'short' | 'targets'>): string =>
+  content.targets.length > 1
+    ? `Rough: worked out from your bank. A ${content.short} guide for your role will be more accurate.`
+    : `No setup saved for ${content.name}: compared with the best your bank can make`;

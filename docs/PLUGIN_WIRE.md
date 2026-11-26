@@ -724,8 +724,12 @@ only goes out where that is listed.
 - **Bank filter** (header `X-Anvil-Bank-Filter: 1`): failing rows carry the action
   `{a: 'bank', ids: '<id>,<id>'}` (the bank's own ids that count as the missing item, its forms and
   upgrades included), and the card has a "Show missing in bank" button with every such id. The plugin
-  opens a transient Bank Tags tag holding exactly those ids (`BankTagsService.openBankTag`, no layout):
+  opens a transient Bank Tags tag holding exactly those ids (`BankTagsService.openBankTag`):
   display only, nothing is moved or withdrawn. Without the header no such action is sent.
+  "Show missing in bank" and "Show my setup in bank" add `layout`: ids by bank position (8 a row,
+  -1 empty) from lib/tripCheck `bankLayout`, the worn pieces as a paper doll in the first three
+  columns (spec left of the legs), switches to the right, then each supply kind on its own rows by
+  dose 4 → 1. The plugin saves it as the tag's Bank Tags layout; a row's own click has no layout.
 - **Re-checks.** Once asked away from the trip regions, the plugin asks again at the next bank close
   after the player has been in any trip region and left it (a new attempt), or 10 minutes after it
   asked (own setups, whose region is unknown). Location only, no combat signals. Banking again and

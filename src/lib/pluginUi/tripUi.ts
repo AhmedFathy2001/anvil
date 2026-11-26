@@ -18,7 +18,7 @@
 
 import { button, col, icon, row, text, type Action, type Node } from './nodes';
 import { CARD_W, CORAL, FAINT, GOLD, GREEN, SOFT, boxChip, chip, section, small, title } from './sections';
-import type { TripCheck, TripRow, TripSource } from '@/lib/tripCheck';
+import type { BankLayout, TripCheck, TripRow, TripSource } from '@/lib/tripCheck';
 
 export interface TripPanelData {
   /** The region the plugin sent ('' when none). */
@@ -62,7 +62,7 @@ const again = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regio
 const aim = (d: TripPanelData, key: string): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: key }) });
 const clearAim = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: 'clear' }) });
 /** The plugin's bank shows only these ids (display only: nothing is moved). */
-const bankAction = (ids: number[]): Action => ({ a: 'bank', ids: ids.join(',') });
+const bankAction = (ids: number[], layout?: BankLayout): Action => ({ a: 'bank', ids: ids.join(','), ...(layout ? { layout: layout.layout.join(',') } : {}) });
 
 function head(d: TripPanelData): Node {
   return row(title('Pre-trip check'), undefined, text('↻', GOLD, { on: again(d), tip: 'Check again with what you carry now' }), { gap: 6 });
@@ -154,7 +154,11 @@ function checkCard(d: TripPanelData, c: TripCheck): Node {
     : text(`✓ Ready for ${short}`, GREEN, { font: 'bold', wrap: W });
   // The one line saying what it was checked against, and when.
   const source = small(`${d.sourceLine}${d.checkedAt ? ` · ${d.checkedAt}` : ''}`, FAINT, { wrap: W });
-  const showAll = d.bankFilter && bad.length && c.bank?.length ? button('Show missing in bank', bankAction(c.bank), 'Your open bank shows only what this check says to take') : null;
+  // Laid out as a setup: the worn pieces as a paper doll, switches beside, supplies by kind and dose.
+  const missing = c.layouts?.missing;
+  const setup = c.layouts?.setup;
+  const showAll = d.bankFilter && bad.length && c.bank?.length ? button('Show missing in bank', bankAction(missing?.ids.length ? missing.ids : c.bank, missing), 'Your open bank shows only what this check says to take, laid out as the setup') : null;
+  const showSetup = d.bankFilter && setup?.ids.length ? row(undefined, small('Show my setup in bank', GOLD, { align: 'c' }), undefined, { pad: 2, on: bankAction(setup.ids, setup), tip: 'Your open bank shows the whole setup, laid out: worn, switches, supplies' }) : null;
   const okFold: Node | null = good.length
     ? {
         t: 'toggle',
@@ -165,7 +169,7 @@ function checkCard(d: TripPanelData, c: TripCheck): Node {
     : null;
   const unknown = c.unknown.length ? small(`Not checked: ${c.unknown.join(', ')}. The newest plugin reads them; a rune pouch only counts when it is in your inventory.`, FAINT, { wrap: W }) : null;
   return section(
-    [top, source, ...bad.map((r) => failRow(r, !!d.bankFilter)), showAll, okFold, ...c.info.map((s) => small(s, SOFT, { wrap: W })), unknown],
+    [top, source, ...bad.map((r) => failRow(r, !!d.bankFilter)), showAll, showSetup, okFold, ...c.info.map((s) => small(s, SOFT, { wrap: W })), unknown],
     { gap: 6, edge: bad.length ? CORAL : GREEN },
   );
 }
