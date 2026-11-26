@@ -65,3 +65,14 @@ export function storedAlwaysNotify(lines: string): string {
   const items = parseItemLines(lines);
   return items.length ? items.join('\n') : ALWAYS_NOTIFY_NONE;
 }
+
+/**
+ * Is this item on the list? The same rule the plugin uses to flag it: case-insensitive and partial,
+ * so "Dizana's quiver" covers "Dizana's quiver (uncharged)". Patterns are expected lower case.
+ */
+export function onAlwaysNotify(name: string, patterns: Iterable<string>): boolean {
+  const n = name.trim().toLowerCase();
+  if (!n) return false;
+  for (const p of patterns) if (p && n.includes(p)) return true;
+  return false;
+}
