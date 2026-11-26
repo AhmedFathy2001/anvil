@@ -251,10 +251,13 @@ export async function competitionBoard(
 
 /** The running hunts in a clan, with their rules. */
 async function activeHunts(clanId: number, nowMs: number): Promise<{ comp: Competition; config: HuntConfig }[]> {
+  // Running by its dates, not by the stored status: the lifecycle cron flips 'upcoming' to 'active'
+  // up to 15 minutes late (and not at all where it is not scheduled), and a hunt's first drops,
+  // kills and deaths must count from its start. A finished one never does.
   const rows = await db
     .select()
     .from(weeklyCompetitions)
-    .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.type, 'hunt'), eq(weeklyCompetitions.status, 'active')));
+    .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.type, 'hunt'), ne(weeklyCompetitions.status, 'completed')));
   return rows.flatMap((comp) => {
     const config = parseHunt(comp.hunt);
     return config && weeklyStatus(comp, nowMs) === 'active' ? [{ comp, config }] : [];
