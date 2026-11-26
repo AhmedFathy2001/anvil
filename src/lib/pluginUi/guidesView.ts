@@ -34,7 +34,7 @@ import { clearSkip, isSkipReason, setBudgetCap, setSkip } from '@/lib/playerItem
 import { rateLimit } from '@/lib/rate-limit';
 import { supporterForUsers } from '@/lib/supporter';
 import { contentFromKey } from '@/lib/tripContent';
-import { guideTargetFor } from '@/lib/tripTargetStore';
+import { guideTargetFor, targetLabel } from '@/lib/tripTargetStore';
 import { hasGuidesPanel } from './load';
 import { gap, message, type Node, type View } from './nodes';
 import { plainLine, sectionsForTier, textTiers } from './guideBody';
@@ -132,7 +132,9 @@ export async function guidesSearchView(request: Request, args: Args): Promise<Vi
   const spot = region ? GUIDE_REGIONS[Number(region)] : undefined;
   const at = spot ? await publicGuideBySlug(clanId, spot.slug) : null;
   const here = at && spot ? { id: at.guide.id, title: at.guide.title.split(' — ')[0], where: spot.where, pic: guidePic(at.guide, firstGearBlock(at.guide.body)) } : null;
-  return { ui: guidesSearchUi({ recent, sections, filters, here, region }) };
+  // The pre-trip check's way in, for a signed-in player on a character of theirs.
+  const trip = viewer.userId && viewer.accountId ? await targetLabel(viewer.userId, viewer.accountId).catch(() => null) : undefined;
+  return { ui: guidesSearchUi({ recent, sections, filters, here, region, trip }) };
 }
 
 const SLOTS = ['head', 'cape', 'neck', 'ammo', 'quiver', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring'];

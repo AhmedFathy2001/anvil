@@ -4,7 +4,7 @@
 // The other sources are read where they already are: the boss kc stamps (accounts.liveStatKeyTimes),
 // the guides opened (guide_views), the saved setups (trip_setups).
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, guides, guideViews, playerItemSnapshots, tripSetups } from '@/db/schema';
@@ -12,7 +12,9 @@ import { firstGearBlock } from '@/lib/guideTiers';
 import { kcKeyOf } from '@/lib/guideViewer';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { ownsAccount } from '@/lib/playerItems';
-import { guideTarget, isTargetKey, resolveTarget, type Target, type TargetState } from '@/lib/tripTarget';
+import { contentFromKey } from '@/lib/tripContent';
+import { equivalentsFor } from '@/lib/itemFamilies';
+import { guideTarget, isTargetKey, resolveTarget, targetWhy, type Target, type TargetState } from '@/lib/tripTarget';
 import { ttlMemo } from '@/lib/ttlMemo';
 
 /** The container key the target is stored under (never one of CONTAINER_KINDS, nor 'state'). */
@@ -80,6 +82,20 @@ export async function guideTargetFor(accountId: number | null, guideId: number):
   return f ? guideTarget(f.slug, f.kcKey, f.monster, own) : null;
 }
 
+/** What the character wears and packs now (the pushed snapshot), each id with what it counts as. */
+async function carriedNow(accountId: number): Promise<{ ids: number[]; at: string } | null> {
+  // clan-scope: global -- the character's own items, read for its own person (callers check).
+  const rows = await db
+    .select({ items: playerItemSnapshots.items, readAt: playerItemSnapshots.readAt })
+    .from(playerItemSnapshots)
+    .where(and(eq(playerItemSnapshots.accountId, accountId), inArray(playerItemSnapshots.container, ['equipment', 'inventory'])));
+  if (!rows.length) return null;
+  const raw = rows.flatMap((r) => (Array.isArray(r.items) ? (r.items as { id?: unknown }[]) : [])).map((it) => Number(it?.id)).filter((x) => Number.isInteger(x) && x > 0);
+  const holds = equivalentsFor(raw, 'holds');
+  const at = rows.map((r) => String(r.readAt)).sort().pop() ?? '';
+  return { ids: [...new Set(raw.flatMap((id) => [id, ...holds(id)]))], at };
+}
+
 export interface TargetNow {
   target: Target | null;
   ownKeys: string[];
@@ -95,9 +111,15 @@ export async function currentTarget(userId: number, accountId: number): Promise<
     // clan-scope: global -- the character's own kc stamps.
     db.select({ times: accounts.liveStatKeyTimes }).from(accounts).where(eq(accounts.id, accountId)).limit(1),
   ]);
-  const guide = await lastGuide(userId, ownKeys);
-  const target = resolveTarget({ state, guide, kcTimes: parseStatKeyTimes(acct[0]?.times), ownKeys, now: Date.now() });
+  const [guide, carried] = await Promise.all([lastGuide(userId, ownKeys), carriedNow(accountId)]);
+  const target = resolveTarget({ state, guide, carried, kcTimes: parseStatKeyTimes(acct[0]?.times), ownKeys, now: Date.now() });
   return { target, ownKeys, state };
+}
+
+/** The target as the pre-trip check's way in says it ("Doom", "last trip"), or null when none is set. */
+export async function targetLabel(userId: number, accountId: number): Promise<{ short: string; why: string } | null> {
+  const t = (await currentTarget(userId, accountId)).target;
+  return t ? { short: contentFromKey(t.key)?.short ?? t.key, why: targetWhy(t) } : null;
 }
 
 /** The player picked a target (a known trip or one of their saved setups); false when it can't be one. */

@@ -4,6 +4,7 @@
 //
 // THE TARGET, strongest first:
 //   pick    the player chose it: "Going here next" on a guide, or a trip picked in the panel
+//   carried a trip item is worn or packed (TripContent.tripItems: a Mokhaiotl waystone is a Doom trip)
 //   guide   the guide they opened most recently, when it maps to a trip
 //   last    the trip of their last kill count (the newest boss kc stamp, accounts.liveStatKeyTimes)
 //
@@ -19,7 +20,13 @@ import { BOSSES } from './constants';
 import { bossKeyForName } from './capabilityData';
 import { MONSTER_PREFIX, TRIP_CONTENT, tripContent } from './tripContent';
 
-export type TargetSource = 'pick' | 'guide' | 'last';
+/** The trip a held item means (its ids and every id it counts as), or null. */
+export function carriedTrip(held: readonly number[]): string | null {
+  const set = new Set(held);
+  return TRIP_CONTENT.find((c) => c.tripItems?.ids.some((id) => set.has(id)))?.key ?? null;
+}
+
+export type TargetSource = 'pick' | 'carried' | 'guide' | 'last';
 
 /** What is stored (lib/tripTargetStore): the pick and the last clear. ISO times. */
 export interface TargetState {
@@ -46,6 +53,9 @@ export const CONTENT_KC: Record<string, string[]> = {
   zulrah: ['zulrah'],
   barrows: ['barrows'],
   nex: ['nex'],
+  // Stamped by the plugin's "Deep delves completed" line (delve 9+); delves 1-8 print no count, so
+  // a shallow Doom trip is only the target by a pick or a guide.
+  doom: ['doomOfMokhaiotl'],
 };
 
 const BOSS_KEYS = new Set(BOSSES.map((b) => b.key));
@@ -56,10 +66,15 @@ export function bossOfKey(key: string): string | null {
   return bossKeyForName(key.slice(MONSTER_PREFIX.length).split('#')[0].trim());
 }
 
-/** The target a boss kc means: the trip it belongs to, else the player's own setup for that boss. */
+/**
+ * The target a boss kc means: the trip it belongs to, else the player's own setup for that boss. A
+ * setup they saved for the boss picked by hand ("m:Doom of Mokhaiotl#…") wins over the trip's guide
+ * or calc, unless they saved one for the trip itself too.
+ */
 export function contentForBoss(boss: string, ownKeys: readonly string[]): string | null {
-  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return key;
-  return ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
+  const own = ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
+  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return own && !ownKeys.includes(key) ? own : key;
+  return own;
 }
 
 /** Can this key be a target: a known trip, or one the player saved a setup for. */
@@ -99,6 +114,8 @@ export interface TargetInputs {
   /** The guide opened most recently, already mapped (guideTarget): null when it maps to no trip. */
   guide: { key: string | null; at: string } | null;
   kcTimes: Record<string, string>;
+  /** Worn and inventory ids (with what each counts as) and when they were read; null when not shared. */
+  carried?: { ids: number[]; at: string } | null;
   /** The content keys the player saved a setup for (lib/tripSetups). */
   ownKeys: readonly string[];
   now: number;
@@ -116,6 +133,9 @@ export function resolveTarget(inp: TargetInputs): Target | null {
   };
   const pick = inp.state?.pick;
   if (pick && isTargetKey(pick.key, inp.ownKeys) && live(pick.at)) return { key: pick.key, source: 'pick' };
+  // Carried: it lasts as long as the item does, so only a clear after the reading ends it.
+  const carried = inp.carried ? carriedTrip(inp.carried.ids) : null;
+  if (carried && inp.carried && live(inp.carried.at)) return { key: carried, source: 'carried' };
   const g = inp.guide;
   if (g?.key && isTargetKey(g.key, inp.ownKeys) && live(g.at)) return { key: g.key, source: 'guide' };
   if (kill && inp.now - kill.at <= TARGET_IDLE_MS && !(Number.isFinite(cleared) && kill.at <= cleared)) {
@@ -126,4 +146,7 @@ export function resolveTarget(inp: TargetInputs): Target | null {
 }
 
 /** "your pick", "the guide you opened", "last trip": said as "Checking for: Doom (last trip)". */
-export const SOURCE_LABEL: Record<TargetSource, string> = { pick: 'your pick', guide: 'guide you opened', last: 'last trip' };
+export const SOURCE_LABEL: Record<TargetSource, string> = { pick: 'your pick', carried: 'carrying its trip item', guide: 'guide you opened', last: 'last trip' };
+
+/** The target's reason in words: a carried trip names its item ("carrying a waystone"). */
+export const targetWhy = (t: Target): string => (t.source === 'carried' ? tripContent(t.key)?.tripItems?.carrying : null) ?? SOURCE_LABEL[t.source];

@@ -12,7 +12,8 @@
 //   spec       the setup's spec weapon packed (or, for bossing that wants one, any owned one)
 //   book       the spellbook the setup's spells need
 //   pouch      the runes those spells take: rune pouch, loose runes, an elemental staff or tome
-//   supplies   the setup's supplies by kind (doses and food types alike): "Brews 4 · setup has 6"
+//   supplies   the setup's supplies by kind (doses and food types alike): "Brews 4 · setup has 6";
+//              for content with `basics` (Doom), some food and a prayer restore whatever the setup
 //   prayer     Rigour / Augury the setup prays, unlocked (Piety is never read: unknown, not locked)
 //
 // Only what can be told is checked. Something it can't tell (no state from an older plugin, a rune
@@ -41,6 +42,10 @@ export interface TripRow {
   detail?: string;
   /** The item it is about, for the panel's picture. */
   item?: number;
+  /** The items to take from the bank (the calc's swaps), drawn as pictures under the line. */
+  swaps?: number[];
+  /** The bank's own ids for what is missing (forms and upgrades included): the bank filter shows them. */
+  bank?: number[];
 }
 
 export interface TripCheck {
@@ -49,6 +54,8 @@ export interface TripCheck {
   info: string[];
   /** What couldn't be checked, and why. */
   unknown: string[];
+  /** Every bank id the failing rows name: "Show missing in bank". */
+  bank?: number[];
 }
 
 export interface TripInput {
@@ -122,9 +129,9 @@ export function staffRunes(name: string): Rune[] {
 const SUPPLY_KIND: [RegExp, string][] = [
   [/^saradomin brew\b/i, 'Brews'],
   [/^(super restore|sanfew serum)\b/i, 'Restores'],
-  [/^prayer potion\b/i, 'Prayer pots'],
-  [/^(divine )?(ranging|bastion) potion\b/i, 'Ranging pots'],
-  [/^(divine )?super combat potion\b/i, 'Combat pots'],
+  [/^prayer potion\b/i, 'Prayer potions'],
+  [/^(divine )?(ranging|bastion) potion\b/i, 'Ranging potions'],
+  [/^(divine )?super combat potion\b/i, 'Combat potions'],
   [/^(divine )?(magic|battlemage) potion\b|^imbued heart|^saturated heart/i, 'Magic boost'],
   [/antifire/i, 'Antifires'],
   [/^(anti-venom|antidote\+\+)/i, 'Anti-venoms'],
@@ -154,6 +161,10 @@ const targetList = (ts: string[]) => (ts.length <= 2 ? ts.join(', ') : `${ts.sli
 
 export const SLOT_LABEL: Record<string, string> = { head: 'Head', cape: 'Cape', neck: 'Neck', ammo: 'Ammo', weapon: 'Weapon', body: 'Body', shield: 'Shield', legs: 'Legs', hands: 'Hands', feet: 'Feet', ring: 'Ring', quiver: 'Quiver' };
 
+/** Anything eaten or drunk for hitpoints, and anything drunk for prayer: the `basics` check. */
+const HEALS = /^(saradomin brew|shark|manta ray|anglerfish|dark crab|monkfish|sea turtle|lobster|swordfish|tuna potato|potato with |cooked |.* pie$|.*pizza$|.*cake$)/i;
+const RESTORES = /^(prayer potion|super restore|sanfew serum|blighted super restore|moonlight potion|prayer regeneration potion)\b/i;
+
 // ── Holding ──────────────────────────────────────────────────────────────────────────────────
 
 const qty = (it: InvItem) => Math.max(1, Math.floor(it.q ?? 1));
@@ -164,7 +175,10 @@ interface Held {
   carried: Map<number, number>;
   owned: Map<number, number>;
   carries: (id: number) => boolean;
+  wears: (id: number) => boolean;
   owns: (id: number) => boolean;
+  /** The bank's ids that count as `id`: what the bank filter shows for it. */
+  inBank: (id: number) => number[];
 }
 
 function held(inp: TripInput): Held {
@@ -183,11 +197,15 @@ function held(inp: TripInput): Held {
   };
   const cw = wide(carried);
   const ow = wide(owned);
+  const worn = count([inp.worn]);
+  const ww = wide(worn);
   return {
     carried,
     owned,
     carries: (id) => cw.has(id) || inp.needs(id).some((x) => carried.has(x)),
+    wears: (id) => ww.has(id) || inp.needs(id).some((x) => worn.has(x)),
     owns: (id) => ow.has(id) || inp.needs(id).some((x) => owned.has(x)),
+    inBank: (id) => [...new Set(inp.bank.map((it) => it.id).filter((b) => b === id || inp.needs(id).includes(b) || inp.holds(b).includes(id)))],
   };
 }
 
@@ -336,6 +354,17 @@ const CALC_FLOOR = 0.85;
 /** A missing slot that costs less than this share of DPS isn't worth a line. */
 const SLOT_FLOOR = 0.01;
 
+/** How the carried loadout's DPS compares with the bank's best, in words: "about half as strong as". */
+export function strengthWords(ratio: number): string {
+  if (ratio < 0.4) return 'less than half as strong as';
+  if (ratio < 0.6) return 'about half as strong as';
+  if (ratio < 0.75) return 'about two-thirds as strong as';
+  return 'a little weaker than';
+}
+
+/** An item with no bonuses at all (Lightbearer, Ring of shadows): worn for what it does, never "will do" without. */
+const isUtility = (it: GearItem | null): boolean => !!it && it.b.every((x) => x === 0);
+
 export function checkTrip(inp: TripInput): TripCheck {
   const rows: TripRow[] = [];
   const unknown: string[] = [];
@@ -350,6 +379,7 @@ export function checkTrip(inp: TripInput): TripCheck {
   const levels = inp.levels;
   const state = inp.state;
   const pouchIn = inp.inventory.some((it) => inp.isRunePouch(it.id));
+  const packedNotWorn: string[] = [];
 
   // ── Gear ──
   const specIn = (ids: number[]) => ids.filter((id) => isSpecWeapon(inp.idx.item(id)?.n ?? name(id)));
@@ -362,11 +392,28 @@ export function checkTrip(inp: TripInput): TripCheck {
     const dpsOf = (x: GearSetup) => mean(inp.monsters.map((m) => bestStyle(setupLoadout(x), m, inp.idx.item, inp.idx.rules)?.result.dps ?? 0));
     const base = inp.monsters.length ? dpsOf(mine) : 0;
     for (const pick of resolved.slots) {
-      if (pick.slot === 'quiver' || pick.kind === 'missing' || pick.use == null) continue;
+      // The quiver's own ammo: read off the quiver (state.quiver), only while a quiver is worn or
+      // carried. It is in no container, so "missing" from the snapshot says nothing about it.
+      if (pick.slot === 'quiver') {
+        const use = pick.use ?? pick.guide;
+        const qv = quiverAmmo(inp, h);
+        const fits = (q: { id: number }) => pick.options.some((o) => q.id === o || inp.needs(o).includes(q.id) || inp.holds(q.id).includes(o));
+        if (qv === 'no-quiver' || use == null) continue;
+        if (qv === undefined) unknown.push('quiver ammo');
+        else if (qv && fits(qv)) {
+          rows.push(qv.q >= QUIVER_LOW ? { group: 'gear', ok: true, line: `Quiver: ${shortName(name(qv.id))} ${qv.q}`, item: qv.id } : { group: 'gear', ok: false, line: `Quiver: only ${qv.q} ${shortName(name(qv.id))}`, detail: 'Fill your quiver before the trip', item: qv.id });
+        } else if (pick.kind !== 'missing' || h.owns(use)) {
+          rows.push({ group: 'gear', ok: false, line: `${shortName(name(use))} (quiver): not in your quiver`, detail: qv ? `Your quiver holds ${name(qv.id)}` : 'Your quiver is empty', item: use, bank: h.inBank(use) });
+        }
+        continue;
+      }
+      if (pick.kind === 'missing' || pick.use == null) continue;
       const use = pick.use;
       const label = SLOT_LABEL[pick.slot] ?? pick.slot;
       if (h.carries(use)) {
         rows.push({ group: 'gear', ok: true, line: `${label}: ${shortName(name(use))}`, item: use });
+        // Packed but not worn: fine, a note to put it on.
+        if (!h.wears(use)) packedNotWorn.push(shortName(name(use)));
         continue;
       }
       // Not worn or packed: what leaving it costs, with whatever is carried for that slot instead.
@@ -376,16 +423,17 @@ export function checkTrip(inp: TripInput): TripCheck {
         const swapped = alt != null ? withSlot(mine, pick.slot, alt, inp.idx) : (() => { const g = { ...mine.gear }; delete g[pick.slot]; return { ...mine, gear: g }; })();
         loss = (base - dpsOf(swapped)) / base;
       }
-      if (base > 0 && loss < SLOT_FLOOR) {
+      if (base > 0 && loss < SLOT_FLOOR && !isUtility(inp.idx.item(knownAs(use, inp) ?? use))) {
         rows.push({ group: 'gear', ok: true, line: `${label}: ${alt != null ? shortName(name(alt)) : 'empty'} will do`, detail: `No DPS lost without ${name(use)}`, item: alt ?? use });
         continue;
       }
       rows.push({
         group: 'gear',
         ok: false,
-        line: `No ${shortName(name(use))} (in bank)`,
-        detail: `${label}${base > 0 ? ` · ${Math.round(loss * 100)}% less DPS without it` : ''}`,
+        line: `${shortName(name(use))} is in your bank: take it`,
+        detail: `${label}${base > 0 && loss >= SLOT_FLOOR ? ` · ${Math.round(loss * 100)}% less damage without it` : ''}`,
         item: use,
+        bank: h.inBank(use),
       });
     }
     // The switches the setup packs: anything wearable in its inventory.
@@ -395,7 +443,7 @@ export function checkTrip(inp: TripInput): TripCheck {
       if (!h.owns(id)) continue;
       const inv = inp.idx.item(id);
       if (inv?.s === 'ammo' && Object.values(s.gear).includes(id)) continue;
-      rows.push(h.carries(id) ? { group: 'gear', ok: true, line: `Switch: ${shortName(name(id))}`, item: id } : { group: 'gear', ok: false, line: `Switch not packed: ${shortName(name(id))}`, detail: 'In your bank', item: id });
+      rows.push(h.carries(id) ? { group: 'gear', ok: true, line: `Switch: ${shortName(name(id))}`, item: id } : { group: 'gear', ok: false, line: `${shortName(name(id))} (switch): in your bank`, item: id, bank: h.inBank(id) });
     }
   } else {
     // The calc: per target, the best the bank makes against the best of what is carried.
@@ -420,15 +468,17 @@ export function checkTrip(inp: TripInput): TripCheck {
       const w = shortName(name(o.weapon));
       const packedWeapon = h.carries(o.weapon);
       const key = packedWeapon ? `gear:${target}` : `w:${o.weapon}:${type}`;
-      const pct = c ? Math.round((1 - c.result.dps / o.result.dps) * 100) : 100;
-      const row: TripRow = packedWeapon
-        ? { group: 'gear', ok: false, line: `${target}: gear in bank (-${pct}%)`, detail: `Your bank's best ${type} setup hits ${o.result.dps.toFixed(1)} DPS`, item: o.weapon }
-        : { group: 'gear', ok: false, line: `No ${type} weapon: ${target} (${w} in bank)`, detail: `${pct}% less DPS with what you carry`, item: o.weapon };
+      // What to take: the best loadout's pieces not worn or packed.
+      const swaps = [...new Set(Object.values(o.gear))].filter((id) => !h.carries(id));
+      const bank = [...new Set(swaps.flatMap((id) => h.inBank(id)))];
+      const many = inp.monsters.length > 1;
+      const row: TripRow = packedWeapon || !c
+        ? { group: 'gear', ok: false, line: c ? `Your gear is ${strengthWords(c.result.dps / o.result.dps)} the best ${type} setup in your bank` : `Nothing you carry can fight ${target}`, detail: `${many ? `For ${target}. ` : ''}Take from your bank:`, item: o.weapon, swaps, bank }
+        : { group: 'gear', ok: false, line: `${w} is in your bank: take it`, detail: `Your best ${type} weapon${many ? ` for ${target}` : ''}. With the rest of the setup, take:`, item: o.weapon, swaps, bank };
       const prev = short.get(key);
       if (prev) {
         if (!prev.targets.includes(target)) prev.targets.push(target);
-        prev.row.line = `No ${type} weapon: ${targetList(prev.targets)} (${w} in bank)`;
-        prev.row.detail = `For ${prev.targets.join(', ')}`;
+        prev.row.detail = `Your best ${type} weapon for ${targetList(prev.targets)}. With the rest of the setup, take:`;
       } else {
         short.set(key, { targets: [target], row });
         rows.push(row);
@@ -441,11 +491,11 @@ export function checkTrip(inp: TripInput): TripCheck {
   if (setupSpecs.length) {
     for (const id of setupSpecs) {
       if (!h.owns(id)) continue;
-      rows.push(h.carries(id) ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(id))}`, item: id } : { group: 'spec', ok: false, line: `No spec weapon (${shortName(name(id))} in bank)`, item: id });
+      rows.push(h.carries(id) ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(id))}`, item: id } : { group: 'spec', ok: false, line: `${shortName(name(id))} (spec): in your bank`, item: id, bank: h.inBank(id) });
     }
   } else if (inp.content.spec && ownedSpecs.length) {
     const packed = ownedSpecs.find((id) => h.carried.has(id));
-    rows.push(packed ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(packed))}`, item: packed } : { group: 'spec', ok: false, line: `No spec weapon (${shortName(name(ownedSpecs[0]))} in bank)`, item: ownedSpecs[0] });
+    rows.push(packed ? { group: 'spec', ok: true, line: `Spec: ${shortName(name(packed))}`, item: packed } : { group: 'spec', ok: false, line: `${shortName(name(ownedSpecs[0]))} (spec): in your bank`, item: ownedSpecs[0], bank: h.inBank(ownedSpecs[0]) });
   }
 
   // ── Spellbook and runes ──
@@ -502,8 +552,17 @@ export function checkTrip(inp: TripInput): TripCheck {
     for (const it of inp.inventory) if (isSupply(it.id)) got.set(kindOf(it.id), (got.get(kindOf(it.id)) ?? 0) + qty(it));
     for (const [k, w] of want) {
       const g = got.get(k) ?? 0;
-      rows.push(g >= w.n ? { group: 'supplies', ok: true, line: `${k} ${g}`, item: w.id } : { group: 'supplies', ok: false, line: `${k} ${g} · setup has ${w.n}`, item: w.id });
+      rows.push(g >= w.n ? { group: 'supplies', ok: true, line: `${k} ${g}`, item: w.id } : { group: 'supplies', ok: false, line: `${k}: have ${g}, need ${w.n}`, item: w.id, bank: h.inBank(w.id) });
     }
+  }
+
+  // ── Food and a prayer restore, for content that always wants them ──
+  if (inp.content.basics) {
+    const has = (re: RegExp) => inp.inventory.find((it) => re.test(name(it.id).trim()));
+    const food = has(HEALS);
+    const pots = has(RESTORES);
+    rows.push(food ? { group: 'supplies', ok: true, line: 'Food packed', item: food.id } : { group: 'supplies', ok: false, line: 'No food packed', detail: `${inp.content.short} wants food or brews along` });
+    rows.push(pots ? { group: 'supplies', ok: true, line: 'Prayer restores packed', item: pots.id } : { group: 'supplies', ok: false, line: 'No prayer restore packed', detail: `${inp.content.short} wants prayer pots or restores along` });
   }
 
   // ── Prayers ──
@@ -517,12 +576,26 @@ export function checkTrip(inp: TripInput): TripCheck {
 
   // ── The inventory's room ──
   const info: string[] = [];
+  if (packedNotWorn.length) info.push(`In your inventory: equip ${packedNotWorn.join(', ')} before the fight`);
   if (inp.inventory.length || s?.inventory?.length) {
     const sw = inp.inventory.filter((it) => inp.idx.item(knownAs(it.id, inp) ?? it.id)).length;
     const pouch = pouchIn ? 1 : 0;
     info.push(`Switches ${sw} slot${sw === 1 ? '' : 's'} · ${Math.max(0, 28 - sw - pouch)} free for supplies`);
   }
-  return { rows, info, unknown };
+  return { rows, info, unknown, bank: [...new Set(rows.filter((r) => !r.ok).flatMap((r) => r.bank ?? []))] };
+}
+
+/** Below this many, the quiver's ammo is a problem. */
+const QUIVER_LOW = 50;
+const QUIVER_RE = /dizana's quiver/i;
+
+/**
+ * The quiver's ammo when a quiver is worn or carried: {id, q}, null when it is empty, undefined when a
+ * plugin that doesn't read it sent the state, 'no-quiver' with none along (the cape check says so).
+ */
+function quiverAmmo(inp: TripInput, h: Held): { id: number; q: number } | null | undefined | 'no-quiver' {
+  if (![...h.carried.keys()].some((id) => QUIVER_RE.test(inp.nameOf(id)) || inp.holds(id).some((x) => QUIVER_RE.test(inp.idx.item(x)?.n ?? '')))) return 'no-quiver';
+  return inp.state?.quiver;
 }
 
 /** The overlay's answer: "ToA · 2 problems" with the first lines, or "✓ Ready for ToA". */
@@ -554,5 +627,7 @@ export function setupFromHeld(nameLabel: string, worn: readonly InvItem[], inven
     inventory: inv,
     ...(pouchIn && state?.pouch?.length ? { runePouch: state.pouch.map((p) => ({ id: p.id, q: p.q })) } : {}),
     ...(state?.book != null ? { spellbook: state.book } : {}),
+    // The quiver's ammo, when a quiver is worn or packed and holds some.
+    ...(state?.quiver && [...worn, ...inventory].some((it) => [it.id, ...holds(it.id)].some((x) => QUIVER_RE.test(idx.item(x)?.n ?? ''))) ? { quiver: state.quiver.id } : {}),
   };
 }

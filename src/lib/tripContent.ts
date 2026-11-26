@@ -23,7 +23,17 @@ export interface TripContent {
   targets: string[];
   /** Bossing where a spec weapon belongs in the inventory. */
   spec?: boolean;
+  /** Food and a prayer restore are checked as packed, whatever the setup (lib/tripCheck 'supplies'). */
+  basics?: boolean;
+  /**
+   * Items carried for this trip and nothing else: worn or packed, the trip is the next-trip target
+   * (lib/tripTarget 'carried'), checked at any bank. `carrying` says it: "carrying a waystone".
+   */
+  tripItems?: { ids: number[]; carrying: string };
 }
+
+/** Mokhaiotl waystone: a one-use teleport to the Doom's ruins, carried for nothing else. */
+export const MOKHAIOTL_WAYSTONE = 31099;
 
 export const TRIP_CONTENT: TripContent[] = [
   { key: 'toa', name: 'Tombs of Amascut', short: 'ToA', guide: 'tombs-of-amascut-entry', spec: true, targets: ['Akkha', 'Ba-Ba', 'Kephri#Shielded', 'Zebak#Normal', "Tumeken's Warden#Damaged"] },
@@ -33,6 +43,9 @@ export const TRIP_CONTENT: TripContent[] = [
   { key: 'zulrah', name: 'Zulrah', short: 'Zulrah', targets: ['Zulrah#Serpentine', 'Zulrah#Magma', 'Zulrah#Tanzanite'] },
   { key: 'barrows', name: 'Barrows', short: 'Barrows', guide: 'barrows-beginners', targets: ['Ahrim the Blighted', 'Dharok the Wretched', 'Karil the Tainted', 'Verac the Defiled'] },
   { key: 'nex', name: 'Nex', short: 'Nex', spec: true, targets: ['Nex'] },
+  // Every delve has the same stats but its hitpoints; delve 8 stands for the deep delves too.
+  // The waystone teleports to the ruins from anywhere: carrying one means a Doom trip, banked wherever.
+  { key: 'doom', name: 'Doom of Mokhaiotl', short: 'Doom', spec: true, basics: true, targets: ['Doom of Mokhaiotl#Delve 8'], tripItems: { ids: [MOKHAIOTL_WAYSTONE], carrying: 'carrying a waystone' } },
 ];
 
 export interface TripRegion {
@@ -68,6 +81,9 @@ export const TRIP_REGIONS: Record<number, TripRegion> = {
   14131: { name: 'the Barrows', content: 'barrows', noBank: true },
   // Ashuelot Reis, the Ancient Prison's banker, 2904,5205.
   11601: { name: 'the Nex bank', content: 'nex' },
+  // The Ruins of Mokhaiotl 1311,9520 (the waystone lands at 1311,9497), on the way to the Doom's
+  // lobby. No bank down there.
+  5268: { name: 'the Ruins of Mokhaiotl', content: 'doom', noBank: true },
 };
 
 /** Every trip region id, for the plugin config's `tripRegions`. */
@@ -90,7 +106,9 @@ export function contentForRegion(region: number, held: ReadonlySet<number>): Tri
 export const MONSTER_PREFIX = 'm:';
 export function monsterContent(monsterKey: string): TripContent {
   const name = monsterKey.split('#')[0];
-  const short = name.length > 16 ? `${name.slice(0, 15).trim()}…` : name;
+  // The overlay's title is 200px: "Doom of Mokhaiotl" → "Doom", never a name cut off mid-word.
+  const lead = name.split(/ (?:of|the) /)[0];
+  const short = name.length <= 16 ? name : lead.length <= 16 ? lead : name.split(' ')[0];
   return { key: `${MONSTER_PREFIX}${monsterKey}`, name, short, targets: [monsterKey] };
 }
 

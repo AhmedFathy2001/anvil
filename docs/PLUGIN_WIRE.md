@@ -707,11 +707,29 @@ only goes out where that is listed.
   alone or beside the containers. `pray` lists only what the plugin read as unlocked (`rigour`,
   `augury`); Piety is never sent and is treated as unknown. `pouch` is trusted only while a rune pouch
   is in the pushed inventory. Stored and deleted with the items, owner-only.
+- `state.quiver: [ammoItemId, qty]` (optional): Dizana's quiver's ammo, read off its varps
+  (`DIZANAS_QUIVER_TEMP_AMMO` / `_AMOUNT`) and sent always; an id of 0 or -1 is empty. The site reads
+  it only while a quiver is worn or carried: a saved setup puts it in the `quiver` slot, the check
+  wants the setup's quiver ammo in it (fewer than 50 is a problem). Without it (an older plugin) the
+  quiver's ammo is named in `unknown`.
 - View `trip` with args `{region, why: 'bank-close'|'manual', content?}` answers `{ui, warn}`:
   `warn` is `{ok, title, lines[]}` for the overlay (`"ToA · 2 problems"` / `"✓ Ready for ToA"`), or
   null when no trip matches, sharing is off or the items are over 30 minutes old. `content` is a trip
   key or `m:<monster>` from the view's own picker. Actions `trip-save` and `trip-forget` (args
   `{region, content}`) keep or drop the player's own setup for a trip.
+- **Fresh items.** A plugin sending `X-Anvil-Bank-Filter: 1` pushes what is worn and carried (and
+  `state`) on `POST /api/plugin/items` just before a check the player asked for (a bank close, or a
+  click on a `trip` load), whether or not it changed, under the same guard as every item push. For such a plugin the view never judges items read over 20 seconds before the
+  request: it answers status "Checking what you carry…" with `warn: null` instead of a Ready.
+- **Bank filter** (header `X-Anvil-Bank-Filter: 1`): failing rows carry the action
+  `{a: 'bank', ids: '<id>,<id>'}` (the bank's own ids that count as the missing item, its forms and
+  upgrades included), and the card has a "Show missing in bank" button with every such id. The plugin
+  opens a transient Bank Tags tag holding exactly those ids (`BankTagsService.openBankTag`, no layout):
+  display only, nothing is moved or withdrawn. Without the header no such action is sent.
+- **Re-checks.** Once asked away from the trip regions, the plugin asks again at the next bank close
+  after the player has been in any trip region and left it (a new attempt), or 10 minutes after it
+  asked (own setups, whose region is unknown). Location only, no combat signals. Banking again and
+  again while gearing (no region visit, under 10 minutes) asks once.
 
 ### `trip-target`
 
@@ -720,7 +738,8 @@ The pre-trip check's next-trip target (lib/tripTarget, lib/tripTargetStore), so 
 the plugin only remembers one flag.
 
 - The target, strongest first: the player's pick (a trip chip in the view, or "Going here next" on a
-  guide), the guide they opened most recently when it maps to a trip, else the trip of their last boss
+  guide), a trip item worn or packed in the last push (`TripContent.tripItems`: a Mokhaiotl waystone
+  is a Doom trip, "carrying a waystone"), the guide they opened most recently when it maps to a trip, else the trip of their last boss
   kc (the stat push's per-key stamps). Only a trip in `TRIP_CONTENT` or one the player saved a setup
   for (`trip-save`) can be a target. A pick or guide gives way to a kc after it; anything older than
   2 hours, or than the last `tripEnd` / "clear", is gone.
@@ -732,7 +751,9 @@ the plugin only remembers one flag.
   `{ok, stored, armed}`.
 - The plugin keeps `armed` from the last item push's answer and, while it is set, loads the `trip`
   view (`why: 'bank-close'`) when a bank closes anywhere, once per trip (a kc, death, logout or hop
-  starts the next). Not armed: no request outside the trip regions.
+  starts the next; see Re-checks above). Not armed: no request outside the trip regions.
+- Doom of Mokhaiotl's kc (`doomOfMokhaiotl`) is its deep-delve count, so only a delve 9+ makes Doom the
+  "last trip"; shallower runs reach it by a pick or a guide.
 
 ## Checklist: shipping a new plugin-facing feature
 

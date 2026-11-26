@@ -102,3 +102,15 @@ test('next-trip target: picked, owner-only, ended by a kc or a clear, beside the
   const left = await pool.query(`SELECT count(*)::int AS n FROM player_item_snapshots WHERE account_id = $1`, [me.accountId]);
   assert.equal(left.rows[0].n, 0, 'sharing off takes the target too');
 });
+
+test('carried: a waystone in the pushed inventory makes Doom the target, wherever the bank; banked, it falls back', async () => {
+  const items = await import('../src/lib/playerItems.ts');
+  const store = await import('../src/lib/tripTargetStore.ts');
+  const me = await user('CarryMe');
+  await pool.query(`UPDATE accounts SET live_stat_key_times = $1 WHERE id = $2`, [JSON.stringify({ vorkath: new Date(Date.now() - 60_000).toISOString() }), me.accountId]);
+  await items.saveSnapshot(me.accountId, { inventory: { items: [{ id: 6685 }, { id: 31099 }], readAt: new Date().toISOString() } });
+  assert.deepEqual((await store.currentTarget(me.userId, me.accountId)).target, { key: 'doom', source: 'carried' });
+  assert.deepEqual(await store.targetLabel(me.userId, me.accountId), { short: 'Doom', why: 'carrying a waystone' });
+  await items.saveSnapshot(me.accountId, { inventory: { items: [{ id: 6685 }], readAt: new Date().toISOString() } });
+  assert.deepEqual((await store.currentTarget(me.userId, me.accountId)).target, { key: 'vorkath', source: 'last' });
+});

@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { bestLoadout, calcPrayers, checkTrip, isSpecWeapon, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, type TripInput } from '../src/lib/tripCheck.ts';
-import { contentForRegion, contentFromKey, SPADE, TRIP_CONTENT, TRIP_REGION_IDS, TRIP_REGIONS, tripContent } from '../src/lib/tripContent.ts';
+import { contentForRegion, contentFromKey, MOKHAIOTL_WAYSTONE, SPADE, TRIP_CONTENT, TRIP_REGION_IDS, TRIP_REGIONS, tripContent } from '../src/lib/tripContent.ts';
 import { cleanTripState, storedTripState } from '../src/lib/tripState.ts';
 import { equivalentsFor } from '../src/lib/itemFamilies.ts';
 import { indexGear, type GearData } from '../src/lib/dps/summary.ts';
@@ -65,6 +65,22 @@ function input(over: Partial<TripInput> & { setup: GearSetup | null }): TripInpu
 
 const failing = (c: ReturnType<typeof checkTrip>) => c.rows.filter((r) => !r.ok).map((r) => r.line);
 
+// ── Doom: food and a prayer restore, whatever the setup ──────────────────────────────────
+
+test('doom: no food or restore fails; brews and a moonlight potion pass; the calc still runs', () => {
+  const doom = tripContent('doom')!;
+  assert.ok(doom.spec && doom.basics);
+  const MOON = 29080;
+  const names = (x: number) => (x === MOON ? 'Moonlight potion(4)' : nameOf(x));
+  const bare = checkTrip(input({ setup: null, content: doom, monsters: [mon('Doom of Mokhaiotl#Delve 8')], inventory: [{ id: POUCH }] }));
+  assert.ok(failing(bare).includes('No food packed'), failing(bare).join(' | '));
+  assert.ok(failing(bare).includes('No prayer restore packed'));
+  const packed = checkTrip(input({ setup: null, content: doom, monsters: [mon('Doom of Mokhaiotl#Delve 8')], inventory: [{ id: BREW }, { id: MOON }], nameOf: names }));
+  assert.ok(packed.rows.some((r) => r.ok && r.line === 'Food packed'));
+  assert.ok(packed.rows.some((r) => r.ok && r.line === 'Prayer restores packed'));
+  assert.ok(checkTrip(input({ setup: null, inventory: [] })).rows.every((r) => r.group !== 'supplies'), 'only content with basics');
+});
+
 // ── state ──────────────────────────────────────────────────────────────────────────────────
 
 test('state: book, pouch and the readable prayers only; Piety and junk are dropped', () => {
@@ -91,6 +107,12 @@ test('regions: each picks its content; Ferox only with a spade; every content is
   assert.equal(contentForRegion(11601, new Set())?.key, 'nex');
   assert.equal(contentForRegion(12344, new Set()), null);
   assert.equal(contentForRegion(12344, new Set([SPADE]))?.key, 'barrows');
+  // Doom: the ruins (the waystone's landing 1311,9497 and the ruins 1311,9520); no bank of its own.
+  const region = (x: number, y: number) => ((x >> 6) << 8) | (y >> 6);
+  assert.equal(region(1311, 9497), 5268);
+  assert.equal(contentForRegion(5268, new Set())?.key, 'doom');
+  assert.ok(TRIP_REGIONS[5268].noBank);
+  assert.deepEqual(tripContent('doom')?.tripItems?.ids, [MOKHAIOTL_WAYSTONE]);
   assert.equal(contentForRegion(1, new Set()), null);
   assert.deepEqual(TRIP_REGION_IDS, [...TRIP_REGION_IDS].sort((a, b) => a - b));
   for (const r of Object.values(TRIP_REGIONS)) assert.ok(tripContent(r.content), r.content);
@@ -140,10 +162,52 @@ const setup = (over: Partial<GearSetup> = {}): GearSetup => ({
 test('a slot in the bank that costs DPS fails; the same item worn passes', () => {
   const bank = [{ id: torvaHelm }, { id: claws }, { id: tbow }];
   const c = checkTrip(input({ setup: setup(), worn: [{ id: fang }], bank }));
-  assert.ok(failing(c).includes('No Torva full helm (in bank)'), failing(c).join(' | '));
+  assert.ok(failing(c).includes('Torva full helm is in your bank: take it'), failing(c).join(' | '));
+  assert.deepEqual(c.rows.find((r) => /Torva/.test(r.line))?.bank, [torvaHelm], 'the bank filter shows it');
+  assert.ok(c.bank?.includes(torvaHelm));
   const worn = checkTrip(input({ setup: setup(), worn: [{ id: fang }, { id: torvaHelm }], bank: [{ id: claws }, { id: tbow }] }));
   assert.ok(!failing(worn).some((l) => /Torva/.test(l)));
   assert.ok(worn.rows.some((r) => r.ok && r.line === 'Head: Torva full helm'));
+  // In the inventory, not worn: packed, with a note to put it on.
+  const packed = checkTrip(input({ setup: setup(), worn: [{ id: fang }], inventory: [{ id: torvaHelm }], bank: [{ id: claws }, { id: tbow }] }));
+  assert.ok(!failing(packed).some((l) => /Torva/.test(l)), failing(packed).join(' | '));
+  assert.ok(packed.info.includes('In your inventory: equip Torva full helm before the fight'), packed.info.join(' | '));
+});
+
+test('a zero-bonus ring (Lightbearer) is checked like any item, never "empty will do"', () => {
+  const lb = id('Lightbearer');
+  const s = setup({ gear: { weapon: fang, head: torvaHelm, ring: lb } });
+  const left = checkTrip(input({ setup: s, worn: [{ id: fang }, { id: torvaHelm }], inventory: [{ id: claws }, { id: tbow }], bank: [{ id: lb }] }));
+  assert.ok(failing(left).includes('Lightbearer is in your bank: take it'), failing(left).join(' | '));
+  assert.ok(!left.rows.some((r) => /will do/.test(r.line)));
+  const on = checkTrip(input({ setup: s, worn: [{ id: fang }, { id: torvaHelm }, { id: lb }], inventory: [{ id: claws }, { id: tbow }] }));
+  assert.ok(on.rows.some((r) => r.ok && r.line === 'Ring: Lightbearer'));
+  const saved = setupFromHeld('Mine', [{ id: fang }, { id: lb }], [], null, idx, (x) => equivalentsFor([x], 'holds')(x), LEVELS, () => false);
+  assert.equal(saved.gear.ring, lb, 'saved with the setup');
+});
+
+test('quiver: its ammo saved and checked while a quiver is along; low or other ammo fails', () => {
+  const quiver = id("Dizana's quiver");
+  const dragonArrow = id('Dragon arrow');
+  const amethyst = id('Amethyst arrow');
+  const s = setup({ gear: { weapon: fang, head: torvaHelm, cape: quiver }, quiver: dragonArrow });
+  const worn = [{ id: fang }, { id: torvaHelm }, { id: quiver }];
+  const inv = [{ id: claws }, { id: tbow }];
+  const st = (q: { id: number; q: number } | null | undefined) => ({ book: 0, pouch: null, pray: [], readAt: '', ...(q !== undefined ? { quiver: q } : {}) });
+  const full = checkTrip(input({ setup: s, worn, inventory: inv, state: st({ id: dragonArrow, q: 400 }) }));
+  assert.ok(full.rows.some((r) => r.ok && r.line === 'Quiver: Dragon arrow 400'), full.rows.map((r) => r.line).join(' | '));
+  assert.ok(failing(checkTrip(input({ setup: s, worn, inventory: inv, state: st({ id: dragonArrow, q: 12 }) }))).includes('Quiver: only 12 Dragon arrow'));
+  assert.ok(failing(checkTrip(input({ setup: s, worn, inventory: inv, bank: [{ id: dragonArrow }], state: st({ id: amethyst, q: 400 }) }))).includes('Dragon arrow (quiver): not in your quiver'));
+  assert.ok(!failing(checkTrip(input({ setup: s, worn, inventory: inv, state: st({ id: amethyst, q: 400 }) }))).some((l) => /quiver/.test(l)), 'ammo they own none of is an upgrade');
+  assert.ok(checkTrip(input({ setup: s, worn, inventory: inv, state: st(undefined) })).unknown.includes('quiver ammo'), 'an older plugin: not checked');
+  // Saving: the quiver's ammo goes in the quiver slot, only with a quiver along.
+  const holds = (x: number) => equivalentsFor([x], 'holds')(x);
+  assert.equal(setupFromHeld('Mine', worn, inv, st({ id: dragonArrow, q: 400 }), idx, holds, LEVELS, () => false).quiver, dragonArrow);
+  assert.equal(setupFromHeld('Mine', [{ id: fang }], inv, st({ id: dragonArrow, q: 400 }), idx, holds, LEVELS, () => false).quiver, undefined);
+  // The plugin's [id, qty]; an empty quiver reads -1.
+  assert.deepEqual(cleanTripState({ book: 0, quiver: [dragonArrow, 400] })?.quiver, { id: dragonArrow, q: 400 });
+  assert.equal(cleanTripState({ book: 0, quiver: [-1, 0] })?.quiver, null);
+  assert.deepEqual(storedTripState({ book: 0, quiver: { id: dragonArrow, q: 5 }, readAt: '2026-11-26T12:00:00.000Z' })?.quiver, { id: dragonArrow, q: 5 });
 });
 
 test('a slot item they do not own at all is an upgrade, not a trip problem', () => {
@@ -153,18 +217,18 @@ test('a slot item they do not own at all is an upgrade, not a trip problem', () 
 
 test('switches and the spec weapon: packed passes, left in the bank fails', () => {
   const c = checkTrip(input({ setup: setup(), worn: [{ id: fang }, { id: torvaHelm }], inventory: [{ id: tbow }], bank: [{ id: claws }] }));
-  assert.ok(failing(c).includes('No spec weapon (Dragon claws in bank)'), failing(c).join(' | '));
+  assert.ok(failing(c).includes('Dragon claws (spec): in your bank'), failing(c).join(' | '));
   assert.ok(c.rows.some((r) => r.ok && r.line === 'Switch: Twisted bow'));
   const packed = checkTrip(input({ setup: setup(), worn: [{ id: fang }, { id: torvaHelm }], inventory: [{ id: tbow }, { id: claws }] }));
   assert.ok(packed.rows.some((r) => r.ok && r.group === 'spec'));
   const left = checkTrip(input({ setup: setup(), worn: [{ id: fang }, { id: torvaHelm }], inventory: [{ id: claws }], bank: [{ id: tbow }] }));
-  assert.ok(failing(left).includes('Switch not packed: Twisted bow'));
+  assert.ok(failing(left).includes('Twisted bow (switch): in your bank'));
 });
 
 test('supplies by kind: any brew dose counts, sharks count as food', () => {
   const inv = [{ id: claws }, { id: tbow }, { id: BREW }, { id: BREW3 }, { id: SHARK }, { id: SHARK }, { id: RESTORE }];
   const c = checkTrip(input({ setup: setup(), worn: [{ id: fang }, { id: torvaHelm }], inventory: inv }));
-  assert.ok(failing(c).includes('Brews 2 · setup has 3'), failing(c).join(' | '));
+  assert.ok(failing(c).includes('Brews: have 2, need 3'), failing(c).join(' | '));
   assert.ok(c.rows.some((r) => r.ok && r.line === 'Food 2'));
   assert.ok(c.rows.some((r) => r.ok && r.line === 'Restores 1'));
   assert.deepEqual(c.info, ['Switches 2 slots · 26 free for supplies']);
@@ -207,11 +271,19 @@ test('prayers: Rigour locked fails, unlocked passes, Piety is never judged', () 
 
 // ── the calc ───────────────────────────────────────────────────────────────────────────────
 
-test('calc: Fang left in the bank for Kephri is "No stab weapon"', () => {
+test('calc: Fang left in the bank for Kephri says take it, with the swaps', () => {
   const whip = id('Abyssal whip');
   const c = checkTrip(input({ setup: null, worn: [{ id: whip }], bank: [{ id: fang }] }));
   const bad = failing(c);
-  assert.ok(bad.includes('No stab weapon: Kephri (Fang in bank)'), bad.join(' | '));
+  assert.ok(bad.includes('Fang is in your bank: take it'), bad.join(' | '));
+  const row = c.rows.find((r) => r.line === 'Fang is in your bank: take it')!;
+  assert.ok(row.swaps?.includes(fang) && row.bank?.includes(fang));
+  assert.ok(!/%|DPS/.test(`${row.line} ${row.detail}`), 'plain words');
+  // A weapon packed but weaker armour: said in words.
+  const torva = [id('Torva platebody'), id('Torva platelegs')];
+  const weak = checkTrip(input({ setup: null, worn: [{ id: fang }], bank: torva.map((x) => ({ id: x })) }));
+  const w = failing(weak);
+  assert.ok(w.length === 0 || w.some((l) => /^Your gear is .* the best stab setup in your bank$/.test(l)), w.join(' | '));
   // Packed, it passes.
   const ok = checkTrip(input({ setup: null, worn: [{ id: whip }], inventory: [{ id: fang }] }));
   assert.ok(!failing(ok).some((l) => /Kephri/.test(l)), failing(ok).join(' | '));
@@ -259,7 +331,7 @@ test('save: worn gear to slots, the inventory as laid out, the pouch only when p
 
 test('panel: failing rows open, the rest folded to "✓ N checks met", save and re-check actions', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
-  const check = { rows: [{ group: 'gear' as const, ok: false, line: 'No stab weapon: Kephri (Fang in bank)', item: fang }, { group: 'spec' as const, ok: true, line: 'Spec: Dragon claws' }, { group: 'supplies' as const, ok: true, line: 'Brews 6' }], info: ['Switches 2 slots · 24 free for supplies'], unknown: [] };
+  const check = { rows: [{ group: 'gear' as const, ok: false, line: 'No stab weapon: Kephri (Fang in bank)', item: fang, bank: [fang] }, { group: 'spec' as const, ok: true, line: 'Spec: Dragon claws' }, { group: 'supplies' as const, ok: true, line: 'Brews 6' }], info: ['Switches 2 slots · 24 free for supplies'], unknown: [], bank: [fang] };
   const ui = tripPanelUi({ region: '13454', regionName: 'the ToA lobby', content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, fromRegion: true, source: 'calc', sourceLine: 'Worked out from your bank', guide: null, check, status: 'ready', checkedAt: '18:42', hasOwn: false, canSave: true, options: [], monsters: [] });
   const json = JSON.stringify(ui);
   assert.ok(json.includes('No stab weapon: Kephri (Fang in bank)'));
@@ -280,7 +352,11 @@ test('panel: failing rows open, the rest folded to "✓ N checks met", save and 
   assert.ok(JSON.stringify(ok!.lit).includes('Brews 6'));
   assert.ok(json.includes('"act":"trip-save"'));
   assert.ok(json.includes('"v":"trip"') && json.includes('"why":"manual"'));
-  assert.ok(json.includes('"calc"'), 'the calc is tagged');
+  assert.ok(!json.includes('"calc"'), 'no unexplained calc chip');
+  assert.equal(json.match(/18:42/g)?.length, 1, 'one line says when');
+  assert.ok(!json.includes('"a":"bank"'), 'no bank filter for a plugin without it');
+  const filt = JSON.stringify(tripPanelUi({ region: '13454', regionName: 'the ToA lobby', content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, fromRegion: true, source: 'calc', sourceLine: 'x', guide: null, check, status: 'ready', checkedAt: '18:42', hasOwn: false, canSave: true, options: [], monsters: [], bankFilter: true }));
+  assert.ok(filt.includes(`{"a":"bank","ids":"${fang}"}`) && filt.includes('Show missing in bank'));
   // No combat cues: nothing tells the player what to pray or do mid-fight.
   assert.ok(!/pray \w+ now|switch now|attack now/i.test(json));
 });
@@ -289,4 +365,26 @@ test('panel: sharing off asks to turn it on', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
   const ui = tripPanelUi({ region: '13454', regionName: 'the ToA lobby', content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, fromRegion: true, source: null, sourceLine: '', guide: null, check: null, status: 'off', checkedAt: null, hasOwn: false, canSave: false, options: [], monsters: [] });
   assert.ok(JSON.stringify(ui).includes('Turn on Share my bank to check your trips'));
+});
+
+test('panel: items not pushed yet say "Checking what you carry…", never Ready', async () => {
+  const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
+  const json = JSON.stringify(tripPanelUi({ region: '', regionName: null, content: { key: 'doom', name: 'Doom of Mokhaiotl', short: 'Doom' }, fromRegion: false, source: null, sourceLine: '', guide: null, check: null, status: 'behind', checkedAt: '12:49', hasOwn: true, canSave: false, options: [], monsters: [] }));
+  assert.ok(json.includes('Checking what you carry…') && json.includes('12:49'));
+  assert.ok(!json.includes('Ready'));
+  assert.ok(json.includes('Check again'));
+});
+
+test('entry: "Next trip: Doom (last trip) ›", else "Pre-trip check ›", both open the check', async () => {
+  const { tripEntryUi } = await import('../src/lib/pluginUi/tripUi.ts');
+  const set = JSON.stringify(tripEntryUi({ short: 'Doom', why: 'last trip' }, '5268'));
+  assert.ok(set.includes('Next trip: Doom (last trip)') && set.includes('"v":"trip"') && set.includes('"why":"manual"') && set.includes('"region":"5268"'));
+  assert.ok(JSON.stringify(tripEntryUi(null)).includes('Pre-trip check'));
+  const { guidesSearchUi } = await import('../src/lib/pluginUi/guidesUi.ts');
+  const d = { recent: [], sections: [], filters: { level: '', account: '', build: 'any' }, here: null };
+  assert.ok(JSON.stringify(guidesSearchUi({ ...d, trip: null })).includes('Pre-trip check'));
+  assert.ok(!JSON.stringify(guidesSearchUi(d)).includes('Pre-trip check'), 'signed out: none');
+  // A monster picked by hand keeps a whole word for the overlay's title.
+  assert.equal(contentFromKey('m:Thermonuclear smoke devil')?.short, 'Thermonuclear');
+  assert.equal(contentFromKey('m:Doom of Mokhaiotl#Delve 1')?.short, 'Doom');
 });
