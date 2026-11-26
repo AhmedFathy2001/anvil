@@ -4,6 +4,7 @@
 //
 //   Pre-trip check                                ↻
 //   Trip: ToA · picked from the ToA lobby · change
+//   (away from a trip region: "Checking for: Doom (last trip) · change   clear", lib/tripTarget)
 //   ┌ 2 problems ─────────────────────────────────┐
 //   │ Checked against the guide's Advanced setup   │
 //   │ ▣ No stab weapon: Kephri (Fang in bank)    ✕ │
@@ -43,6 +44,10 @@ export interface TripPanelData {
   note?: string | null;
   options: { key: string; short: string; name: string }[];
   monsters: { key: string; name: string }[];
+  /** The next-trip target (lib/tripTarget), checked at any bank: "Doom", "last trip". */
+  target?: { key: string; short: string; why: string } | null;
+  /** The content shown is the target (else a region's or a hand-picked one). */
+  fromTarget?: boolean;
 }
 
 const W = CARD_W;
@@ -50,35 +55,49 @@ const PICK_KEY = 'trip-pick';
 const OK_KEY = 'trip-ok';
 
 const regionArgs = (d: TripPanelData, extra: Record<string, string> = {}): Record<string, string> => ({ ...(d.region ? { region: d.region } : {}), ...extra });
-const again = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', ...(d.content && !d.fromRegion ? { content: d.content.key } : {}) }) });
+const again = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', ...(d.content && !d.fromRegion && !d.fromTarget ? { content: d.content.key } : {}) }) });
+/** Look at a trip without making it the target (any monster: the calc). */
 const pick = (d: TripPanelData, key: string): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', content: key }) });
+/** Make it the next-trip target: checked at whichever bank the player gears up at. */
+const aim = (d: TripPanelData, key: string): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: key }) });
+const clearAim = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: 'clear' }) });
 
 function head(d: TripPanelData): Node {
   return row(title('Pre-trip check'), undefined, text('↻', GOLD, { on: again(d), tip: 'Check again with what you carry now' }), { gap: 6 });
 }
 
-/** "Trip: ToA · picked from the ToA lobby · change", opening the picker. */
+/** "Trip: ToA · picked from the ToA lobby · change" (or "Checking for: Doom (last trip) · change"), opening the picker. */
 function tripLine(d: TripPanelData): Node {
   const where = d.content ? (d.fromRegion && d.regionName ? `picked from ${d.regionName}` : 'picked by you') : null;
+  const t = d.fromTarget && d.target ? d.target : null;
   const line = (open: boolean): Node =>
     text('', SOFT, {
       font: 'small',
-      wrap: W + 20,
+      wrap: t ? W - 20 : W + 20,
       runs: [
-        ...(d.content
-          ? [{ s: 'Trip: ', color: FAINT }, { s: d.content.short, color: 'white' as const }, { s: ` · ${where} · `, color: FAINT }]
-          : [{ s: `No trip picked${d.regionName ? ` at ${d.regionName}` : ''} · `, color: FAINT }]),
+        ...(t && d.content
+          ? [{ s: 'Checking for: ', color: FAINT }, { s: d.content.short, color: 'white' as const }, { s: ` (${t.why}) · `, color: FAINT }]
+          : d.content
+            ? [{ s: 'Trip: ', color: FAINT }, { s: d.content.short, color: 'white' as const }, { s: ` · ${where} · `, color: FAINT }]
+            : [{ s: `No trip picked${d.regionName ? ` at ${d.regionName}` : ''} · `, color: FAINT }]),
         { s: open ? 'close' : d.content ? 'change' : 'pick', color: GOLD },
       ],
       on: { a: 'flip', key: PICK_KEY },
-      tip: open ? 'Close the list' : 'Pick the trip',
+      tip: open ? 'Close the list' : 'Pick the trip you go on next: it is checked at whichever bank you gear up at',
     });
+  // The target named, with a way to drop it: on its own line when the trip shown is another one.
+  const clear = d.target ? small('clear', GOLD, { on: clearAim(d), tip: 'Stop checking your next trip until your next kill' }) : undefined;
+  const lineRow = (open: boolean): Node => (t ? row(undefined, line(open), clear, { gap: 6 }) : line(open));
+  const next: Node | null =
+    d.target && !t
+      ? row(undefined, small(`Next trip: ${d.target.short} (${d.target.why})`, FAINT, { wrap: W - 20, tip: 'Checked when you close a bank away from a trip region' }), clear, { gap: 6 })
+      : null;
   const chips: Node = {
     t: 'grid',
     cols: 3,
     gap: 4,
     vgap: 4,
-    c: d.options.map((o) => boxChip(o.short, o.key === d.content?.key, pick(d, o.key), o.name)),
+    c: d.options.map((o) => boxChip(o.short, o.key === d.content?.key, aim(d, o.key), `${o.name}: check it at whichever bank you gear up at`)),
   };
   const any: Node = {
     t: 'filter',
@@ -95,11 +114,12 @@ function tripLine(d: TripPanelData): Node {
       },
     ],
   };
-  const picker = section([small('Pick the trip', FAINT), chips, any], { gap: 6 });
+  const picker = section([small('Pick your next trip', FAINT), chips, any], { gap: 6 });
   // Nothing picked: the list is open to start with.
-  const open = col([line(true), picker], { gap: 6 });
-  const shut = line(false);
-  return d.content ? { t: 'toggle', key: PICK_KEY, off: shut, lit: open } : { t: 'toggle', key: PICK_KEY, off: open, lit: shut };
+  const open = col([lineRow(true), picker], { gap: 6 });
+  const shut = lineRow(false);
+  const toggle: Node = d.content ? { t: 'toggle', key: PICK_KEY, off: shut, lit: open } : { t: 'toggle', key: PICK_KEY, off: open, lit: shut };
+  return next ? col([toggle, next], { gap: 4 }) : toggle;
 }
 
 /** A row's picture: its item, or a cross where the row is about no one item (26px either way). */

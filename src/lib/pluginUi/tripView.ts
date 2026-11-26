@@ -27,6 +27,8 @@ import { rateLimit } from '@/lib/rate-limit';
 import { checkTrip, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
 import { contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
+import { SOURCE_LABEL, type Target } from '@/lib/tripTarget';
+import { clearTarget, currentTarget, ownTripKeys, pickTarget } from '@/lib/tripTargetStore';
 import type { GuideViewer } from '@/lib/guideViewer';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { accountStanding, playedCharacter } from '@/lib/pluginAccount';
@@ -88,6 +90,26 @@ function guidePick(setups: SetupView[], defaults: Record<string, number>, openTi
 interface Built {
   data: TripPanelData;
   warn: { ok: boolean; title: string; lines: string[] } | null;
+  /** A next-trip target is set (lib/tripTarget): the plugin then asks on bank close at any bank. */
+  armed: boolean;
+}
+
+/** A saved setup's chip: "m:Doom of Mokhaiotl#Normal" → "Doom of Mokh…". */
+const optionOf = (key: string): { key: string; short: string; name: string } | null => {
+  const c = contentFromKey(key);
+  return c ? { key: c.key, short: c.short, name: `${c.name} (your setup)` } : null;
+};
+
+/**
+ * The target, after the view's own `target` arg: a trip key or saved setup picked in the panel (or
+ * "Going here next" on a guide), or 'clear'. Null when signed out or not on a character of theirs.
+ */
+async function targetFor(viewer: GuideViewer, args: Args): Promise<{ target: Target | null; ownKeys: string[] } | null> {
+  if (!viewer.userId || !viewer.accountId) return null;
+  if (args.target === 'clear') await clearTarget(viewer.accountId);
+  else if (args.target) await pickTarget(viewer.userId, viewer.accountId, args.target, await ownTripKeys(viewer.accountId));
+  const now = await currentTarget(viewer.userId, viewer.accountId);
+  return { target: now.target, ownKeys: now.ownKeys };
 }
 
 async function build(request: Request, args: Args, viewer: GuideViewer, note: string | null): Promise<Built> {
@@ -110,20 +132,34 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     options: TRIP_CONTENT.map((c) => ({ key: c.key, short: c.short, name: c.name })),
     monsters: [],
   };
-  if (!viewer.userId) return { data: { ...base, status: 'signed-out' }, warn: null };
-  const idx = await effectiveGearIndex();
+  if (!viewer.userId) return { data: { ...base, status: 'signed-out' }, warn: null, armed: false };
+  const [idx, tgt] = await Promise.all([effectiveGearIndex(), targetFor(viewer, args)]);
   base.monsters = monsterOptions(idx);
+  const target = tgt?.target ?? null;
+  const armed = !!target;
+  // The player's own setups are targets too: a chip each, beside the trips Anvil knows.
+  base.options = [...base.options, ...(tgt?.ownKeys ?? []).filter((k) => !TRIP_CONTENT.some((c) => c.key === k)).map(optionOf).filter((o): o is NonNullable<typeof o> => !!o)];
   const snap = viewer.snapshot;
   const worn: InvItem[] = snap?.equipment?.items ?? [];
   const inventory: InvItem[] = snap?.inventory?.items ?? [];
-  const picked = contentFromKey(args.content);
-  const content: TripContent | null = picked ?? (region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id))) : null);
-  const withContent = { ...base, content: content ? { key: content.key, name: content.name, short: content.short } : null, fromRegion: !picked && !!content };
-  if (!viewer.accountId || (!snap?.equipment && !snap?.inventory)) return { data: { ...withContent, status: 'off' }, warn: null };
+  // A trip region picks its own trip exactly as before; anywhere else (or a shared bank that picks
+  // nothing) the next-trip target is checked.
+  const picked = contentFromKey(args.target && args.target !== 'clear' ? args.target : args.content);
+  const fromRegion = !picked && region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id))) : null;
+  const content: TripContent | null = picked ?? fromRegion ?? contentFromKey(target?.key);
+  const isTarget = !!content && !!target && content.key === target.key && !fromRegion;
+  const withContent: TripPanelData = {
+    ...base,
+    content: content ? { key: content.key, name: content.name, short: content.short } : null,
+    fromRegion: !!fromRegion,
+    target: target ? { key: target.key, short: contentFromKey(target.key)?.short ?? target.key, why: SOURCE_LABEL[target.source] } : null,
+    fromTarget: isTarget,
+  };
+  if (!viewer.accountId || (!snap?.equipment && !snap?.inventory)) return { data: { ...withContent, status: 'off' }, warn: null, armed };
   const readAt = [snap.equipment?.readAt, snap.inventory?.readAt].filter((x): x is string => !!x).sort().pop() ?? '';
   const age = Date.now() - Date.parse(readAt);
-  if (!Number.isFinite(age) || age > STALE_MS) return { data: { ...withContent, status: 'stale', age: Number.isFinite(age) ? ago(age) : undefined }, warn: null };
-  if (!content) return { data: { ...withContent, canSave: false }, warn: null };
+  if (!Number.isFinite(age) || age > STALE_MS) return { data: { ...withContent, status: 'stale', age: Number.isFinite(age) ? ago(age) : undefined }, warn: null, armed };
+  if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
   const [state, own, nm] = await Promise.all([tripStateForViewer(viewer.userId, viewer.accountId), ownTripSetup(viewer.userId, viewer.accountId, content.key), itemNames()]);
   let setup: GearSetup | null = own;
@@ -150,7 +186,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   }
   if (source === 'calc') sourceLine = `Worked out from your bank against ${content.targets.length > 1 ? `${content.name}'s bosses` : content.name}`;
   const monsters = targets.map((t) => idx.monster(t)).filter((m): m is Monster => !!m);
-  if (!monsters.length && source === 'calc') return { data: { ...withContent, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null };
+  if (!monsters.length && source === 'calc') return { data: { ...withContent, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
 
   const bank = snap.bank?.items ?? [];
   const lootingBag = snap.lootingBag?.items;
@@ -188,7 +224,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     hasOwn: !!own,
     canSave: worn.length + inventory.length > 0,
   };
-  return { data, warn: tripWarn(content.short, check) };
+  return { data, warn: tripWarn(content.short, check), armed };
 }
 
 /**
@@ -205,9 +241,9 @@ async function tripViewer(request: Request): Promise<GuideViewer | 'not-yours'> 
 /** View 'trip': the check for the trip this region (or the player's pick) starts. */
 export async function tripView(request: Request, args: Args, note: string | null = null): Promise<View> {
   const viewer = await tripViewer(request);
-  if (viewer === 'not-yours') return { ...message('This character isn’t one of yours on Anvil, so there is nothing of yours to check.'), warn: null };
-  const { data, warn } = await build(request, args, viewer, note);
-  return { ui: tripPanelUi(data), warn };
+  if (viewer === 'not-yours') return { ...message('This character isn’t one of yours on Anvil, so there is nothing of yours to check.'), warn: null, armed: false };
+  const { data, warn, armed } = await build(request, args, viewer, note);
+  return { ui: tripPanelUi(data), warn, armed };
 }
 
 /** 'trip-save' (what they wear and carry becomes their setup for the trip) and 'trip-forget'. */
