@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { bankLayout, bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, type TripInput } from '../src/lib/tripCheck.ts';
+import { ammoFits, bankLayout, bestLoadout, calcPrayers, checkTrip, isRestricted, isSpecWeapon, meleeReaches, setupFromHeld, shortName, staffRunes, supplyKind, tripWarn, usableHeld, type TripInput } from '../src/lib/tripCheck.ts';
 import { contentForRegion, contentFromKey, MOKHAIOTL_WAYSTONE, SPADE, TRIP_CONTENT, TRIP_REGION_IDS, TRIP_REGIONS, tripContent } from '../src/lib/tripContent.ts';
 import { cleanTripState, storedTripState } from '../src/lib/tripState.ts';
 import { equivalentsFor } from '../src/lib/itemFamilies.ts';
@@ -421,9 +421,11 @@ test('raid calc: ONE setup for the whole raid (worn + switches), never a line pe
   assert.ok(c.info.some((l) => /^One setup for 5 bosses: \w+ worn/.test(l)), c.info.join(' | '));
   assert.ok(c.rows.some((r) => /is in your bank: take it/.test(r.line)), 'the worn set to take');
   assert.ok(!c.rows.some((r) => r.item != null && bh.includes(r.item)), 'no Bounty Hunter copy picked');
-  // A Deadman spec weapon is never the spec to take.
+  // A Deadman: Armageddon ornament the player holds (Nigel makes it from the real item) is the real
+  // thing in the main game: its spec counts. A Deadman Mode copy never does.
   const dmm = checkTrip(input({ setup: null, content: tob, monsters, worn: [], inventory: [], bank: [...bank, { id: id('Armadyl godsword (Deadman)') }] }));
-  assert.ok(!dmm.rows.some((r) => r.group === 'spec'), dmm.rows.filter((r) => r.group === 'spec').map((r) => r.line).join(' | '));
+  assert.deepEqual(dmm.rows.filter((r) => r.group === 'spec').map((r) => r.line), ['Armadyl godsword (spec): in your bank']);
+  assert.ok(!usableHeld("Morrigan's coif (Deadman Mode)") && !usableHeld('Corrupted Scythe of Vitur') && usableHeld('Voidwaker (Deadman)'));
   // Everything worn and packed already: one passing row.
   const worn = checkTrip(input({ setup: null, content: tob, monsters, worn: bank.filter((x) => !bh.includes(x.id)), inventory: [], bank: [] }));
   assert.ok(worn.rows.some((r) => r.ok && /^Your setup covers all 5 bosses$/.test(r.line)) || failing(worn).length > 0, worn.rows.map((r) => r.line).join(' | '));
@@ -453,4 +455,97 @@ test('raid calc says it is rough; a single boss does not', async () => {
   const { calcSourceLine } = await import('../src/lib/tripContent.ts');
   assert.equal(calcSourceLine(tripContent('tob')!), 'Rough: worked out from your bank. A ToB guide for your role will be more accurate.');
   assert.ok(!calcSourceLine(tripContent('vorkath')!).startsWith('Rough'));
+});
+
+// ── the calc on an endgame bank ──────────────────────────────────────────────────────────────
+// A synthetic maxed bank: the best of each style, uncharged forms, a Deadman ornament, the quiver's
+// arrows only in the quiver, and the traps the calc used to fall into (a Hunters' sunlight crossbow
+// with Dragonstone bolts, a Mixed hide top, a Dragon dagger listed first).
+
+const SHADOW_U = 27277; // Tumeken's shadow (uncharged)
+const SCYTHE_U = 22486; // Scythe of vitur (uncharged)
+const QUIVER_U = 28947; // Dizana's quiver (uncharged)
+const DRAGON_ARROW = 11212;
+const ENDGAME_NAMES: Record<number, string> = { [SHADOW_U]: "Tumeken's shadow (uncharged)", [SCYTHE_U]: 'Scythe of vitur (uncharged)', [QUIVER_U]: "Dizana's quiver (uncharged)" };
+const endgameName = (x: number) => ENDGAME_NAMES[x] ?? nameOf(x);
+const ENDGAME = [
+  'Dragon dagger', "Hunters' sunlight crossbow", 'Dragonstone bolts (e)', 'Mixed hide top', 'Rune arrow', 'Dragon hunter crossbow', 'Ruby dragon bolts (e)',
+  'Twisted bow', "Osmumten's fang", 'Elder maul', 'Voidwaker (Deadman)',
+  'Masori mask (f)', 'Masori body (f)', 'Masori chaps (f)', 'Necklace of anguish', 'Zaryte vambraces',
+  'Ancestral hat', 'Ancestral robe top', 'Ancestral robe bottom', 'Occult necklace', 'Imbued Zamorak cape (Deadman)', 'Confliction gauntlets', "Elidinis' ward (f)",
+  'Torva full helm', 'Torva platebody', 'Torva platelegs', 'Amulet of rancour', 'Infernal cape', 'Ferocious gloves', 'Avernic defender', 'Ultor ring',
+  'Avernic treads (max)', 'Ring of shadows', 'Lightbearer',
+].map((n) => ({ id: id(n) }));
+const ENDGAME_BANK: InvItem[] = [...ENDGAME, { id: SHADOW_U }, { id: SCYTHE_U }, { id: QUIVER_U }];
+const QUIVER_STATE = cleanTripState({ book: 0, pray: ['rigour', 'augury'], quiver: [DRAGON_ARROW, 2000] })!;
+assert.ok(QUIVER_STATE?.quiver);
+const endgame = (key: string, over: Partial<TripInput> = {}) => {
+  const content = tripContent(key)!;
+  return checkTrip(input({ setup: null, content, monsters: content.targets.map(mon), bank: ENDGAME_BANK, state: QUIVER_STATE, nameOf: endgameName, ...over }));
+};
+const gearLines = (c: ReturnType<typeof checkTrip>) => c.rows.filter((r) => r.group === 'gear').map((r) => `${r.line} ${r.detail ?? ''}`);
+
+test('ammo: each launcher fires only its own', () => {
+  const it = (n: string) => idx.item(id(n))!;
+  assert.ok(!ammoFits(it("Hunters' sunlight crossbow"), it('Dragonstone bolts (e)')), 'sunlight crossbow: antler bolts only');
+  assert.ok(ammoFits(it("Hunters' sunlight crossbow"), it('Sunlight antler bolts')));
+  assert.ok(!ammoFits(it('Magic shortbow'), it('Dragon arrow')), 'no dragon arrows from a magic shortbow');
+  assert.ok(ammoFits(it('Twisted bow'), it('Dragon arrow')));
+  assert.ok(!ammoFits(it('Rune crossbow'), it('Ruby dragon bolts (e)')) && ammoFits(it('Rune crossbow'), it('Ruby bolts (e)')));
+  assert.ok(!meleeReaches(mon('Zulrah#Magma')) && !meleeReaches(mon('Great Olm#Head (Normal)')) && meleeReaches(mon('Great Olm#Left claw (Normal)')));
+});
+
+test('endgame bank: Vorkath is the Dragon hunter crossbow in Masori with Anguish, never the sunlight crossbow', () => {
+  const c = endgame('vorkath');
+  const row = c.rows.find((r) => r.group === 'gear' && !r.ok)!;
+  assert.equal(row.item, id('Dragon hunter crossbow'), gearLines(c).join(' | '));
+  const take = (row.swaps ?? []).map(nameOf);
+  for (const n of ['Ruby dragon bolts (e)', 'Masori body (f)', 'Masori chaps (f)', 'Necklace of anguish', "Dizana's quiver"]) assert.ok(take.includes(n), `${n}: ${take.join(', ')}`);
+  assert.ok(!take.some((n) => /sunlight|dragonstone|mixed hide/i.test(n)), take.join(', '));
+  assert.ok(/Charge Dizana's quiver first/.test(row.detail ?? ''), row.detail);
+  // Without the crossbow: the Twisted bow, firing the quiver's dragon arrows.
+  const bow = endgame('vorkath', { bank: ENDGAME_BANK.filter((x) => x.id !== id('Dragon hunter crossbow')) });
+  const r2 = bow.rows.find((r) => r.group === 'gear' && !r.ok)!;
+  assert.ok([id('Twisted bow'), id("Tumeken's shadow")].includes(r2.item!), nameOf(r2.item!));
+  const b = bestLoadout(mon('Vorkath#Post-quest'), [id('Twisted bow'), DRAGON_ARROW, id('Rune arrow')], { idx, stats: STATS, prayer: calcPrayers(LEVELS, null), spell: null })!;
+  assert.equal(b.gear.ammo, DRAGON_ARROW);
+});
+
+test('endgame bank: Zulrah is Shadow worn (charge it) and a bow switch; no melee at all', () => {
+  const c = endgame('zulrah');
+  const lines = gearLines(c);
+  assert.ok(c.info.some((l) => /magic worn/.test(l)), c.info.join(' | '));
+  assert.ok(lines.some((l) => /^Shadow is in your bank: take it \(charge it\)/.test(l) && /uncharged in your bank: charge it/.test(l)), lines.join(' | '));
+  assert.ok(lines.some((l) => /^Twisted bow \(switch\)/.test(l)), lines.join(' | '));
+  for (const n of ['Ancestral hat', 'Occult necklace', 'Imbued Zamorak cape']) assert.ok(lines.some((l) => l.startsWith(`${n} is in your bank`)), `${n}: ${lines.join(' | ')}`);
+  assert.ok(!lines.some((l) => /scythe|fang|torva|rancour/i.test(l)), lines.join(' | '));
+});
+
+test('endgame bank: ToA is Shadow for Akkha, the bow for Zebak, melee for Kephri, Elder maul to spec', () => {
+  const idsOf = (key: string) => {
+    const b = bestLoadout(mon(key), [...ENDGAME.map((x) => x.id), id("Tumeken's shadow"), id('Scythe of Vitur'), id("Dizana's quiver"), DRAGON_ARROW], { idx, stats: STATS, prayer: calcPrayers(LEVELS, null), spell: null })!;
+    return { weapon: nameOf(b.weapon), gear: Object.values(b.gear).map(nameOf) };
+  };
+  assert.equal(idsOf('Akkha').weapon, "Tumeken's shadow");
+  const zebak = idsOf('Zebak#Normal');
+  assert.equal(zebak.weapon, 'Twisted bow');
+  assert.ok(zebak.gear.includes('Dragon arrow') && zebak.gear.includes('Masori body (f)'), zebak.gear.join(', '));
+  const baba = idsOf('Ba-Ba');
+  assert.ok(['Scythe of Vitur', "Osmumten's fang"].includes(baba.weapon), baba.weapon);
+  assert.ok(baba.gear.includes('Torva platebody') && !baba.gear.includes('Mixed hide top'), baba.gear.join(', '));
+  const c = endgame('toa');
+  const lines = gearLines(c);
+  assert.ok(!lines.some((l) => /sunlight|dragonstone|mixed hide|rune arrow/i.test(l)), lines.join(' | '));
+  assert.ok(lines.some((l) => /^Shadow\b/.test(l)) && lines.some((l) => /^Twisted bow\b/.test(l)), lines.join(' | '));
+  assert.deepEqual(c.rows.filter((r) => r.group === 'spec').map((r) => r.line), ['Elder maul (spec): in your bank']);
+});
+
+test('endgame bank: a ToB melee boss is the Scythe in Torva with Rancour, Ferocious and Ultor', () => {
+  const b = bestLoadout(mon('Xarpus'), [...ENDGAME.map((x) => x.id), id("Tumeken's shadow"), id('Scythe of Vitur'), id("Dizana's quiver"), DRAGON_ARROW], { idx, stats: STATS, prayer: calcPrayers(LEVELS, null), spell: null })!;
+  assert.equal(nameOf(b.weapon), 'Scythe of Vitur');
+  const gear = Object.values(b.gear).map(nameOf);
+  for (const n of ['Torva full helm', 'Torva platebody', 'Torva platelegs', 'Amulet of rancour', 'Ferocious gloves', 'Ultor ring', 'Infernal cape']) assert.ok(gear.includes(n), `${n}: ${gear.join(', ')}`);
+  const c = endgame('tob');
+  const lines = gearLines(c);
+  assert.ok(lines.some((l) => /^Scythe is in your bank: take it \(charge it\)/.test(l)), lines.join(' | '));
 });
