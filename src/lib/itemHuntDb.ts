@@ -508,20 +508,28 @@ export async function creditRushPush(input: {
   const start = input.seat.baselineParts ?? (keys.length === 1 && input.seat.baselineValue != null ? { [keys[0]]: input.seat.baselineValue } : null);
   const step = rushKcStep({ pushed: input.pushed, bossKeys: keys, seen: input.seat.rushSeen, start, startMs: window.startMs ?? input.nowMs, nowMs: input.nowMs });
   if (JSON.stringify(step.seen) === JSON.stringify(input.seat.rushSeen ?? {}) && step.credit === 0) return 0;
+  // Written only over the line it was measured from: two pushes racing (a client firing in parallel)
+  // both measure from the same last count, and only the first may credit; the other changes nothing.
+  // Clan Synergy's list is checked the same way, so neither write can drop the other's kills.
+  const raids = withGroupKills(input.seat.rushRaids, step.credited, input.nowMs);
   // clan-scope: global -- the member's own seat, found through this clan's running competitions.
-  await db
+  const written = await db
     .update(weeklyParticipants)
     .set({
       rushSeen: step.seen,
       ...(step.credit > 0 ? { rushKc: sql`${weeklyParticipants.rushKc} + ${step.credit}` } : {}),
       // A kill at a group boss: Clan Synergy pairs it with clanmates' kills of it at the same moment.
-      ...(() => {
-        const raids = withGroupKills(input.seat.rushRaids, step.credited, input.nowMs);
-        return raids ? { rushRaids: raids } : {};
-      })(),
+      ...(raids ? { rushRaids: raids } : {}),
     })
-    .where(eq(weeklyParticipants.id, input.seat.id));
-  return step.credit;
+    .where(
+      and(
+        eq(weeklyParticipants.id, input.seat.id),
+        input.seat.rushSeen == null ? isNull(weeklyParticipants.rushSeen) : sql`${weeklyParticipants.rushSeen} = ${JSON.stringify(input.seat.rushSeen)}::jsonb`,
+        input.seat.rushRaids == null ? isNull(weeklyParticipants.rushRaids) : sql`${weeklyParticipants.rushRaids} = ${JSON.stringify(input.seat.rushRaids)}::jsonb`,
+      ),
+    )
+    .returning({ id: weeklyParticipants.id });
+  return written.length > 0 ? step.credit : 0;
 }
 
 /**
