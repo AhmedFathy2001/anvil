@@ -1236,7 +1236,19 @@ function huntTargetsCard(w: ScheduleWeekly): Node | null {
 function rushRulesCard(w: ScheduleWeekly): Node | null {
   const lines = w.rushRules ?? [];
   if (!lines.length) return null;
-  return section([title('How it scores'), ...lines.map((l) => small(`• ${l}`, SOFT, { wrap: true }))], { gap: 3 });
+  const chips = (w.rushChips ?? []).map((c) => chip(c, /^Death/.test(c) ? 'coral' : /^Synergy/.test(c) ? 'purple' : /^Kill/.test(c) ? 'gold' : 'blue'));
+  // The chips say it at a glance; the sentences open in place under "Details".
+  const flip: Action = { a: 'flip', key: `rush-rules:${w.id}` };
+  const detail = lines.map((l) => small(`• ${l}`, SOFT, { wrap: true }));
+  return section(
+    [
+      title('How it scores'),
+      // Two to a line: four side by side do not fit the panel's width.
+      ...[0, 2].flatMap((i) => (chips[i] ? [row(chips[i], chips[i + 1], undefined, { gap: 4 })] : [])),
+      { t: 'toggle', key: `rush-rules:${w.id}`, off: link('Details', flip), lit: col([...detail, link('Less', flip)], { gap: 3 }) },
+    ],
+    { gap: 5 },
+  );
 }
 
 /** The drops a Boss Rush scores, most points first; a drop worth nothing is not listed. Who got each, once someone has. */
@@ -1247,7 +1259,7 @@ function rushDropsCard(w: ScheduleWeekly): Node | null {
     const name = text(clip(it.name, 19), it.got ? 'white' : SOFT, { icon: icon({ item: it.id, w: 24, h: 22 }), tip: it.got ? `${it.name}: first ${it.got.rsn}${it.n ? ` (${it.n} in all)` : ''}` : it.name });
     return row(name, undefined, text(`+${it.pts}`, it.got ? GREEN : GOLD, { font: 'bold' }), { gap: 6 });
   });
-  return section([row(title('Drops that score'), undefined, muted(`${items.length}`)), ...more(rows, 8, `rush-drops:${w.id}`, 4)], { gap: 4 });
+  return section([row(title('Drops that score'), undefined, muted(`${items.length}`)), ...more(rows, 5, `rush-drops:${w.id}`, 4)], { gap: 4 });
 }
 
 function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
@@ -1261,14 +1273,14 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
     ? [
         // Each on its own line: side by side the clock and the name clipped each other ("Starts in 4…").
         clock(w.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }),
-        text(w.metricLabel, SOFT, { icon: weeklyIcon(w), wrap: 175 }),
+        ...(w.rushRules ? [] : [text(w.metricLabel, SOFT, { icon: weeklyIcon(w), wrap: 175 })]),
         muted(`${utcDayTime(w.startDate)} to ${utcDayTime(w.endDate)} UTC`, { wrap: true }),
         muted('Standings appear here when it starts.', { wrap: true }),
       ]
     : [
         // What it is, whole, on its own line; then where you stand; then the clock. Side by side the
         // name was clipped and its picture sat in the middle of the card.
-        text(w.metricLabel, SOFT, { icon: weeklyIcon(w), wrap: 175 }),
+        ...(w.rushRules ? [] : [text(w.metricLabel, SOFT, { icon: weeklyIcon(w), wrap: 175 })]),
         withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.rushRules ? 'No points yet' : w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move),
         row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(` · ${headcount}`) : undefined, undefined, { gap: 0 }),
       ];
@@ -1305,6 +1317,10 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
 /** A weekly's standings card, or the line that says there are none yet. */
 function weeklyStandingsNodes(d: HomeData, w: ScheduleWeekly, s: ReturnType<HomeData['weekly']['get']>, headcount: string | null, path: string): Node[] {
   if (!s || !s.top.length) return [section([title('Standings'), muted(w.type === 'hunt' ? 'No one is entered yet.' : 'No one has scored yet.')])];
+  // A rush nobody has scored in yet: a list of zeros says nothing. One line, and where you are.
+  if (w.rushRules && s.top.every((r) => r.gained <= 0)) {
+    return [section([row(title('Standings'), undefined, headcount ? muted(headcount) : undefined), muted('No points yet. The first kill takes the lead.', { wrap: true }), ...(s.you ? [standingRow(w, s.you)] : []), link('View standings', { a: 'site', path })], { gap: 4 })];
+  }
   const rows = [...s.top, ...(s.you && !s.top.some((r) => r.self) ? [s.you] : [])];
   const line = (r: WeeklyStanding) => standingRow(w, r);
   return [standingsCard(compactStandings(rows, (r) => r.self, line, { a: 'site', path }, `weekly:${w.id}`, Math.max(s.total, rows.length), WEEKLY_SHOWN), headcount ?? undefined)];

@@ -106,6 +106,11 @@ test('raid modes and group targets', () => {
   assert.equal(raidOfTarget('tombs of amascut: entry mode'), 'toa-entry');
   assert.equal(raidOfTarget('Tombs of Amascut: Expert Mode'), 'toa');
   assert.equal(raidOfTarget('Vorkath'), null);
+  // A rush made before targets were named carries the hiscores' short labels.
+  assert.equal(raidOfTarget('ToA: Expert'), 'toa');
+  assert.equal(raidOfTarget('CoX: CM'), 'cox');
+  assert.equal(raidOfTarget('ToB: HM'), 'tob');
+  assert.equal(raidOfTarget('Chambers of Xeric: Challenge Mode'), 'cox');
   assert.ok(isGroupTarget('Theatre of Blood: Entry Mode', null));
   assert.ok(isGroupTarget('Nex', 'nex'));
   assert.ok(!isGroupTarget("Phosani's Nightmare", 'phosanisNightmare'));
