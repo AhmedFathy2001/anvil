@@ -58,8 +58,6 @@ const OK_KEY = 'trip-ok';
 
 const regionArgs = (d: TripPanelData, extra: Record<string, string> = {}): Record<string, string> => ({ ...(d.region ? { region: d.region } : {}), ...extra });
 const again = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', ...(d.content && !d.fromRegion && !d.fromTarget ? { content: d.content.key } : {}) }) });
-/** Look at a trip without making it the target (any monster: the calc). */
-const pick = (d: TripPanelData, key: string): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', content: key }) });
 /** Make it the next-trip target: checked at whichever bank the player gears up at. */
 const aim = (d: TripPanelData, key: string): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: key }) });
 const clearAim = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: regionArgs(d, { why: 'manual', target: 'clear' }) });
@@ -107,14 +105,14 @@ function tripLine(d: TripPanelData): Node {
     t: 'filter',
     hint: 'Any monster: a slayer task, a boss…',
     box: true,
-    none: 'No monster matches.',
+    // No `none`: the plugin would show it under the empty box before anything is typed.
     max: 12,
     more: 'Keep typing to narrow it.',
     // Search-only rows: the plugin builds a row only when it matches what's typed. Thousands of eager
     // rows took ~30 s to draw, and a col with a gap isn't searched at all (its spacers aren't rows).
     c: [],
     x: d.monsters.map((m) => [m.name, m.key]),
-    xt: row(undefined, text('{0}', 'white', { font: 'small', wrap: W - 20 }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), { bg: 'raised', pad: 3, inset: 6, on: pick(d, 'm:{1}'), tip: 'Check a trip to {0}: Anvil works a setup out from your bank' }),
+    xt: row(undefined, text('{0}', 'white', { font: 'small', wrap: W - 20 }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), { bg: 'raised', pad: 3, inset: 6, on: aim(d, 'm:{1}'), tip: 'Your next trip: {0}. Anvil works a setup out from your bank' }),
   };
   const picker = section([small('Pick your next trip', FAINT), chips, any], { gap: 6 });
   // Nothing picked: the list is open to start with.

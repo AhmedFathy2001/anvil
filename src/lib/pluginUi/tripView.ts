@@ -27,7 +27,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { checkTrip, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
 import { contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
-import { targetWhy, type Target } from '@/lib/tripTarget';
+import { canonicalKey, ownAlias, targetWhy, type Target } from '@/lib/tripTarget';
 import { clearTarget, currentTarget, ownTripKeys, pickTarget } from '@/lib/tripTargetStore';
 import type { GuideViewer } from '@/lib/guideViewer';
 import { verifyPluginTokenUser } from '@/lib/auth';
@@ -100,6 +100,13 @@ interface Built {
   armed: boolean;
 }
 
+/** The player's own setup for a trip: saved for it, else saved for its boss picked by hand. */
+async function ownSetupFor(userId: number, accountId: number, key: string, ownKeys: readonly string[]): Promise<GearSetup | null> {
+  const own = await ownTripSetup(userId, accountId, key);
+  const alias = own ? null : ownAlias(key, ownKeys);
+  return own ?? (alias ? ownTripSetup(userId, accountId, alias) : null);
+}
+
 /** A saved setup's chip: "m:Doom of Mokhaiotl#Normal" → "Doom of Mokh…". */
 const optionOf = (key: string): { key: string; short: string; name: string } | null => {
   const c = contentFromKey(key);
@@ -145,13 +152,14 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const target = tgt?.target ?? null;
   const armed = !!target;
   // The player's own setups are targets too: a chip each, beside the trips Anvil knows.
-  base.options = [...base.options, ...(tgt?.ownKeys ?? []).filter((k) => !TRIP_CONTENT.some((c) => c.key === k)).map(optionOf).filter((o): o is NonNullable<typeof o> => !!o)];
+  base.options = [...base.options, ...(tgt?.ownKeys ?? []).filter((k) => canonicalKey(k) === k && !TRIP_CONTENT.some((c) => c.key === k)).map(optionOf).filter((o): o is NonNullable<typeof o> => !!o)];
   const snap = viewer.snapshot;
   const worn: InvItem[] = snap?.equipment?.items ?? [];
   const inventory: InvItem[] = snap?.inventory?.items ?? [];
   // A trip region picks its own trip exactly as before; anywhere else (or a shared bank that picks
   // nothing) the next-trip target is checked.
-  const picked = contentFromKey(args.target && args.target !== 'clear' ? args.target : args.content);
+  const asked = args.target && args.target !== 'clear' ? args.target : args.content;
+  const picked = contentFromKey(asked ? canonicalKey(asked) : asked);
   const fromRegion = !picked && region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id))) : null;
   const content: TripContent | null = picked ?? fromRegion ?? contentFromKey(target?.key);
   const isTarget = !!content && !!target && content.key === target.key && !fromRegion;
@@ -170,7 +178,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   if (content && !note && freshPush(request) && age > BEHIND_MS) return { data: { ...withContent, status: 'behind', checkedAt: readAt.slice(11, 16) }, warn: null, armed };
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
-  const [state, own, nm] = await Promise.all([tripStateForViewer(viewer.userId, viewer.accountId), ownTripSetup(viewer.userId, viewer.accountId, content.key), itemNames()]);
+  const [state, own, nm] = await Promise.all([tripStateForViewer(viewer.userId, viewer.accountId), ownSetupFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []), itemNames()]);
   let setup: GearSetup | null = own;
   let source: TripSource = own ? 'own' : 'calc';
   let sourceLine = own ? 'Checked against your own saved setup' : '';
@@ -269,6 +277,9 @@ export async function tripAct(request: Request, act: string, args: Args): Promis
   const again: Args = { ...(region != null ? { region: String(region) } : {}), why: 'manual', ...(region != null && TRIP_REGIONS[region]?.content === content.key ? {} : { content: content.key }) };
   if (act === 'trip-forget') {
     await forgetOwnTripSetup(viewer.userId, viewer.accountId, content.key);
+    // The same trip's setup saved for the boss picked by hand goes too.
+    const alias = ownAlias(content.key, await ownTripKeys(viewer.accountId));
+    if (alias) await forgetOwnTripSetup(viewer.userId, viewer.accountId, alias);
     return tripView(request, again, `Forgot your ${content.short} setup.`);
   }
   const snap = viewer.snapshot;

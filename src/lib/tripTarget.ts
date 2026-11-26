@@ -72,13 +72,30 @@ export function bossOfKey(key: string): string | null {
  * or calc, unless they saved one for the trip itself too.
  */
 export function contentForBoss(boss: string, ownKeys: readonly string[]): string | null {
-  const own = ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
-  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return own && !ownKeys.includes(key) ? own : key;
-  return own;
+  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return key;
+  return ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
 }
+
+/**
+ * One key per trip: "m:Doom of Mokhaiotl#…" (a boss picked by hand) is the Doom trip, so the picker
+ * has one Doom chip and a pick of it is the Doom target. A setup saved under the hand-picked key is
+ * still found for the trip (lib/pluginUi/tripView ownAlias). Anything else is itself.
+ */
+export function canonicalKey(key: string): string {
+  const boss = bossOfKey(key);
+  if (!boss) return key;
+  for (const [k, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return k;
+  return key;
+}
+
+/** The player's own setup key standing in for a trip they saved it for by hand, or null. */
+export const ownAlias = (content: string, ownKeys: readonly string[]): string | null => ownKeys.find((k) => k !== content && canonicalKey(k) === content) ?? null;
 
 /** Can this key be a target: a known trip, or one the player saved a setup for. */
 export const isTargetKey = (key: string | null | undefined, ownKeys: readonly string[]): key is string => !!key && (!!tripContent(key) || ownKeys.includes(key));
+/** A pick may be any monster too ("m:<monster>"): picked, it is checked with the calc from the bank. */
+export const isPickKey = (key: string | null | undefined, ownKeys: readonly string[]): key is string =>
+  !!key && (!!tripContent(key) || ownKeys.includes(key) || (key.startsWith(MONSTER_PREFIX) && key.length > MONSTER_PREFIX.length && key.length <= 90));
 
 /**
  * The trip a guide is for: the trip naming it (TRIP_CONTENT.guide), else the boss its gear block
@@ -132,7 +149,7 @@ export function resolveTarget(inp: TargetInputs): Target | null {
     return !kill || kill.at <= at + KC_GRACE_MS;
   };
   const pick = inp.state?.pick;
-  if (pick && isTargetKey(pick.key, inp.ownKeys) && live(pick.at)) return { key: pick.key, source: 'pick' };
+  if (pick && isPickKey(pick.key, inp.ownKeys) && live(pick.at)) return { key: canonicalKey(pick.key), source: 'pick' };
   // Carried: it lasts as long as the item does, so only a clear after the reading ends it.
   const carried = inp.carried ? carriedTrip(inp.carried.ids) : null;
   if (carried && inp.carried && live(inp.carried.at)) return { key: carried, source: 'carried' };

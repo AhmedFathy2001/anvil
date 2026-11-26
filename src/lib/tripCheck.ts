@@ -407,9 +407,15 @@ export function checkTrip(inp: TripInput): TripCheck {
         }
         continue;
       }
-      if (pick.kind === 'missing' || pick.use == null) continue;
-      const use = pick.use;
       const label = SLOT_LABEL[pick.slot] ?? pick.slot;
+      // Nowhere at all: for a guide's setup an upgrade, not a trip problem; for the player's own setup
+      // (what they wore when they saved it) it went somewhere, and the trip is short of it.
+      if (pick.kind === 'missing' || pick.use == null) {
+        const gone = pick.use ?? pick.guide;
+        if (inp.source === 'own' && gone != null) rows.push({ group: 'gear', ok: false, line: `${shortName(name(gone))}: not found`, detail: `${label} · not worn, packed or in your bank`, item: gone });
+        continue;
+      }
+      const use = pick.use;
       if (h.carries(use)) {
         rows.push({ group: 'gear', ok: true, line: `${label}: ${shortName(name(use))}`, item: use });
         // Packed but not worn: fine, a note to put it on.
@@ -577,7 +583,8 @@ export function checkTrip(inp: TripInput): TripCheck {
   // ── The inventory's room ──
   const info: string[] = [];
   if (packedNotWorn.length) info.push(`In your inventory: equip ${packedNotWorn.join(', ')} before the fight`);
-  if (inp.inventory.length || s?.inventory?.length) {
+  // Only with something packed: "0 slots · 28 free" says nothing.
+  if (inp.inventory.length) {
     const sw = inp.inventory.filter((it) => inp.idx.item(knownAs(it.id, inp) ?? it.id)).length;
     const pouch = pouchIn ? 1 : 0;
     info.push(`Switches ${sw} slot${sw === 1 ? '' : 's'} · ${Math.max(0, 28 - sw - pouch)} free for supplies`);

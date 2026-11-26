@@ -14,7 +14,7 @@ import { parseStatKeyTimes } from '@/lib/liveStats';
 import { ownsAccount } from '@/lib/playerItems';
 import { contentFromKey } from '@/lib/tripContent';
 import { equivalentsFor } from '@/lib/itemFamilies';
-import { guideTarget, isTargetKey, resolveTarget, targetWhy, type Target, type TargetState } from '@/lib/tripTarget';
+import { canonicalKey, guideTarget, isPickKey, resolveTarget, targetWhy, type Target, type TargetState } from '@/lib/tripTarget';
 import { ttlMemo } from '@/lib/ttlMemo';
 
 /** The container key the target is stored under (never one of CONTAINER_KINDS, nor 'state'). */
@@ -124,7 +124,8 @@ export async function targetLabel(userId: number, accountId: number): Promise<{ 
 
 /** The player picked a target (a known trip or one of their saved setups); false when it can't be one. */
 export async function pickTarget(userId: number, accountId: number, key: string, ownKeys: readonly string[]): Promise<boolean> {
-  if (!isTargetKey(key, ownKeys) || !(await ownsAccount(userId, accountId))) return false;
+  if (!isPickKey(key, ownKeys) || !(await ownsAccount(userId, accountId))) return false;
+  key = canonicalKey(key);
   const prev = await loadState(accountId);
   await saveState(accountId, { ...prev, pick: { key, at: new Date().toISOString() } });
   return true;
