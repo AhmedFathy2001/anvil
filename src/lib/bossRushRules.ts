@@ -219,10 +219,14 @@ export function isGroupTarget(target: string, bossKey: string | null): boolean {
   return raidOfTarget(target) != null || (bossKey != null && GROUP_BOSS_KEYS.has(bossKey));
 }
 
+/** The hiscores' short labels for the raid modes (lib/constants BOSSES): a rush made before targets were named carries these. */
+const RAID_LABELS: Record<string, string> = { 'cox cm': 'cox', 'tob hm': 'tob', 'toa expert': 'toa' };
+const plain = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
 /** The raid a target is a mode of, or null. */
 export function raidOfTarget(target: string): string | null {
-  const t = target.trim().toLowerCase();
-  return RUSH_RAID_TARGETS.find((r) => r.name.toLowerCase() === t)?.raid ?? null;
+  const t = plain(target);
+  return RUSH_RAID_TARGETS.find((r) => plain(r.name) === t)?.raid ?? RAID_LABELS[t] ?? null;
 }
 
 /** Two death reports this close together are the same death sent twice. */
@@ -246,6 +250,15 @@ export function rushRuleLines(rules: RushRules): string[] {
   lines.push('Drops score the points shown beside them below.');
   if (rules.floorZero) lines.push('A score never goes below 0.');
   return lines;
+}
+
+/** The rules as a few chips for the side panel: "Kill +1", "Death -1", "Synergy +1", "Plugin only". */
+export function rushChips(rules: RushRules): string[] {
+  const out = [`Kill +${rules.kcPoints}`];
+  if (rules.deaths && rules.deathPoints > 0) out.push(`Death -${rules.deathPoints}`);
+  if (synergyLive(rules.synergy)) out.push(rules.synergy.mode === 'flat' ? `Synergy +${rules.synergy.points}` : `Synergy +${rules.synergy.points}/mate`);
+  out.push(rules.kcSource === 'plugin' ? 'Plugin only' : 'Every kill');
+  return out;
 }
 
 /** "1/50", "1/25,000" */

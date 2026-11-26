@@ -969,7 +969,12 @@ export function huntPanelLine(
   row: Pick<HuntRow, 'count' | 'held' | 'due' | 'drops'> & { rank?: number; rush?: RushTally },
   progress: HuntRowProgress[] | null,
 ): { figure: string | null; sub: string | null } {
-  if (isRush(config)) return { figure: `${row.count.toLocaleString('en-US')} pts`, sub: row.rush ? rushTallyWords(row.rush) : null };
+  // The breakdown only once there is one: "0 kc" under every name says nothing.
+  if (isRush(config)) {
+    const r = row.rush;
+    const any = !!r && (r.kc || r.bonus || r.synergy || r.adjust || r.deaths);
+    return { figure: `${row.count.toLocaleString('en-US')} pts`, sub: any && r ? rushTallyWords(r) : null };
+  }
   // "First to get it": one drop and they are finished, in their place. Progress no longer matters.
   if (config.rule === 'first' && row.count > 0 && row.rank != null) return { figure: firstDoneWords(row.rank), sub: null };
   const total = huntRows(config).length;

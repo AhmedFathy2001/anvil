@@ -589,6 +589,7 @@ test('a Boss Rush page spells out its rules and scores in points', async () => {
     startDate: '2026-11-21T20:00:00Z',
     endDate: '2026-11-28T20:00:00Z',
     rushRules,
+    rushChips: ['Kill +1', 'Death -1', 'Synergy +1', 'Plugin only'],
     huntItems: [{ id: 20997, name: 'Twisted bow', pts: 10 }, { id: 13652, name: 'Dragon claws' }],
   };
   const page = JSON.stringify(__weeklyPageForTest(w, Date.parse('2026-11-17T12:00:00Z')));
@@ -602,4 +603,16 @@ test('a Boss Rush page spells out its rules and scores in points', async () => {
   assert.match(page, /"Drops that score"/);
   assert.match(page, /"\+10"/);
   assert.ok(!page.includes('Dragon claws'), 'a drop worth nothing is not listed');
+  assert.match(page, /"Kill \+1"/);
+  assert.match(page, /"Details"/);
+  assert.ok(!page.includes('kills + rare drops'), 'the long target line is left to the title');
+
+  // Running, nobody scored: one line and your own row, not ten rows of zeros.
+  const live = { ...w, id: 5, status: 'active', startDate: '2026-11-20T00:00:00Z' };
+  const top = Array.from({ length: 10 }, (_, i) => ({ rank: i + 1, rsn: `P${i + 1}`, gained: 0, self: false }));
+  const ui = eventUi(base(liveCfg({ panel: { weeklies: [live] } }), { weekly: new Map([[5, { total: 156, top, you: { rank: 40, rsn: 'dead person', gained: 0, self: true } }]]) }), 'weekly:5')!;
+  const all = texts(ui);
+  assert.ok(all.some((t) => t.startsWith('No points yet')));
+  assert.ok(!all.includes('P2'), 'no list of zeros');
+  assert.ok(all.includes('dead person'));
 });
