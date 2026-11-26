@@ -30,22 +30,32 @@ export interface TripContent {
    * (lib/tripTarget 'carried'), checked at any bank. `carrying` says it: "carrying a waystone".
    */
   tripItems?: { ids: number[]; carrying: string };
+  /**
+   * Where the trip has begun: standing in one of these regions (template ids inside an instance) takes
+   * the overlay's warning down. Only ever used to hide our own warning, never to say anything there.
+   */
+  fightRegions?: number[];
+  /** Any instance counts as the fight area too: a raid entered from its lobby or bank. */
+  instance?: true;
 }
 
 /** Mokhaiotl waystone: a one-use teleport to the Doom's ruins, carried for nothing else. */
 export const MOKHAIOTL_WAYSTONE = 31099;
 
 export const TRIP_CONTENT: TripContent[] = [
-  { key: 'toa', name: 'Tombs of Amascut', short: 'ToA', guide: 'tombs-of-amascut-entry', spec: true, targets: ['Akkha', 'Ba-Ba', 'Kephri#Shielded', 'Zebak#Normal', "Tumeken's Warden#Damaged"] },
-  { key: 'tob', name: 'Theatre of Blood', short: 'ToB', spec: true, targets: ['The Maiden of Sugadinti#Normal', 'Pestilent Bloat#Normal', 'Sotetseg#Normal', 'Xarpus', 'Verzik Vitur#Phase 3'] },
-  { key: 'cox', name: 'Chambers of Xeric', short: 'CoX', guide: 'chambers-of-xeric-learner', spec: true, targets: ['Tekton#Normal', 'Vespula#Normal', 'Vasa Nistirio#Normal', 'Great Olm#Head (Normal)', 'Great Olm#Left claw (Normal)'] },
-  { key: 'vorkath', name: 'Vorkath', short: 'Vorkath', guide: 'vorkath-guide', targets: ['Vorkath#Post-quest'] },
-  { key: 'zulrah', name: 'Zulrah', short: 'Zulrah', targets: ['Zulrah#Serpentine', 'Zulrah#Magma', 'Zulrah#Tanzanite'] },
-  { key: 'barrows', name: 'Barrows', short: 'Barrows', guide: 'barrows-beginners', targets: ['Ahrim the Blighted', 'Dharok the Wretched', 'Karil the Tainted', 'Verac the Defiled'] },
+  { key: 'toa', name: 'Tombs of Amascut', short: 'ToA', guide: 'tombs-of-amascut-entry', spec: true, instance: true, targets: ['Akkha', 'Ba-Ba', 'Kephri#Shielded', 'Zebak#Normal', "Tumeken's Warden#Damaged"] },
+  { key: 'tob', name: 'Theatre of Blood', short: 'ToB', spec: true, instance: true, targets: ['The Maiden of Sugadinti#Normal', 'Pestilent Bloat#Normal', 'Sotetseg#Normal', 'Xarpus', 'Verzik Vitur#Phase 3'] },
+  { key: 'cox', name: 'Chambers of Xeric', short: 'CoX', guide: 'chambers-of-xeric-learner', spec: true, instance: true, targets: ['Tekton#Normal', 'Vespula#Normal', 'Vasa Nistirio#Normal', 'Great Olm#Head (Normal)', 'Great Olm#Left claw (Normal)'] },
+  // Ungael (2272,4064) and Vorkath's lair (its template, 2269,4062) are both region 9023.
+  { key: 'vorkath', name: 'Vorkath', short: 'Vorkath', guide: 'vorkath-guide', targets: ['Vorkath#Post-quest'], fightRegions: [9023] },
+  // Zulrah's shrine 2268,3070 (the instance's template); Zul-Andra itself (8751) is where players bank.
+  { key: 'zulrah', name: 'Zulrah', short: 'Zulrah', targets: ['Zulrah#Serpentine', 'Zulrah#Magma', 'Zulrah#Tanzanite'], fightRegions: [9007] },
+  // The Barrows 3565,3288 and the crypts 3551,9695.
+  { key: 'barrows', name: 'Barrows', short: 'Barrows', guide: 'barrows-beginners', targets: ['Ahrim the Blighted', 'Dharok the Wretched', 'Karil the Tainted', 'Verac the Defiled'], fightRegions: [14131, 14231] },
   { key: 'nex', name: 'Nex', short: 'Nex', spec: true, targets: ['Nex'] },
   // Every delve has the same stats but its hitpoints; delve 8 stands for the deep delves too.
   // The waystone teleports to the ruins from anywhere: carrying one means a Doom trip, banked wherever.
-  { key: 'doom', name: 'Doom of Mokhaiotl', short: 'Doom', spec: true, basics: true, targets: ['Doom of Mokhaiotl#Delve 8'], tripItems: { ids: [MOKHAIOTL_WAYSTONE], carrying: 'carrying a waystone' } },
+  { key: 'doom', name: 'Doom of Mokhaiotl', short: 'Doom', spec: true, basics: true, targets: ['Doom of Mokhaiotl#Delve 8'], tripItems: { ids: [MOKHAIOTL_WAYSTONE], carrying: 'carrying a waystone' }, fightRegions: [5268] },
 ];
 
 export interface TripRegion {
@@ -88,6 +98,9 @@ export const TRIP_REGIONS: Record<number, TripRegion> = {
 
 /** Every trip region id, for the plugin config's `tripRegions`. */
 export const TRIP_REGION_IDS: number[] = Object.keys(TRIP_REGIONS).map(Number).sort((a, b) => a - b);
+
+/** Each trip region's trip, short, for the config's `tripNames`: the overlay's "Checking ToA…" at once. */
+export const TRIP_NAMES: Record<number, string> = Object.fromEntries(TRIP_REGION_IDS.map((r) => [r, TRIP_CONTENT.find((c) => c.key === TRIP_REGIONS[r].content)?.short ?? 'your trip']));
 
 export const tripContent = (key: string | null | undefined): TripContent | null => TRIP_CONTENT.find((c) => c.key === key) ?? null;
 

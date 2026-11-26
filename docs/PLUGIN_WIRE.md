@@ -703,6 +703,8 @@ only goes out where that is listed.
 
 - `tripRegions: number[]` on every `/api/plugin/config` shape, and on `/api/version` for a person in
   no clan (lib/tripContent). Compared against `WorldPoint.fromLocalInstance(...).getRegionID()`.
+  `tripNames: {region: short}` beside it: the plugin puts "Checking ToA…" (neutral) on screen the
+  moment the bank closes there, and replaces it with the answer ("Checking your trip…" elsewhere).
 - `POST /api/plugin/items` also takes `state: {book: 0|1|2|3, pouch: [[runeId, qty]], pray: [...]}`,
   alone or beside the containers. `pray` lists only what the plugin read as unlocked (`rigour`,
   `augury`); Piety is never sent and is treated as unknown. `pouch` is trusted only while a rune pouch
@@ -713,8 +715,10 @@ only goes out where that is listed.
   wants the setup's quiver ammo in it (fewer than 50 is a problem). Without it (an older plugin) the
   quiver's ammo is named in `unknown`.
 - View `trip` with args `{region, why: 'bank-close'|'manual', content?}` answers `{ui, warn}`:
-  `warn` is `{ok, title, lines[]}` for the overlay (`"ToA · 2 problems"` / `"✓ Ready for ToA"`), or
-  null when no trip matches, sharing is off or the items are over 30 minutes old. `content` is a trip
+  `warn` is `{ok, title, lines[], fight?, instance?}` for the overlay (`"ToA · 2 problems"` /
+  `"✓ Ready for ToA"`), or null when no trip matches, sharing is off or the items are over 30 minutes
+  old. `fight: number[]` (TripContent `fightRegions`, site data) and `instance: true` (raids) say where
+  the trip has begun; see Warning lifetime. `content` is a trip
   key or `m:<monster>` from the view's own picker. Actions `trip-save` and `trip-forget` (args
   `{region, content}`) keep or drop the player's own setup for a trip.
 - **Fresh items.** A plugin sending `X-Anvil-Bank-Filter: 1` pushes what is worn and carried (and
@@ -725,7 +729,23 @@ only goes out where that is listed.
   panel's Refresh and "Check again" count as asked. Only such a load with items over 20 seconds old
   (the push hasn't landed) is held back: the card still checks the last items and says they are not
   the newest, and `warn` is null. A load without `held` (a view restored after login) is checked
-  as is: items unchanged since their push are current.
+  as is: items unchanged since their push are current. That push carries `region` too (Precomputed
+  while banking, below).
+- **Warning lifetime.** Green (Ready) stays 5 seconds. Red stays until the first of: the problems are
+  fixed (while red is up, each item push re-asks the view quietly and its answer replaces the warning,
+  green then fading after 5s), the player stands in a `fight` region or (with `instance`) in any
+  instance, combat starts (the first hitsplat the player deals or takes, or their interacting target
+  becoming an NPC with a combat level), its right-click "Dismiss" (or "Open" the panel's trip card), the
+  bank opening, or 2 minutes. The combat signals only ever take our own warning down:
+  nothing is shown, said or suggested in combat.
+- **Precomputed while banking.** An items push carrying the bank also carries `region`. In a trip
+  region with a bank (or with a next-trip target set), the site works the check out after answering
+  the push (tripView `warmTrip`) and keeps it, keyed by the person, character, trip and a hash of
+  worn, inventory, bank, looting bag, state, levels, skips and the own setup (10 minutes). The
+  bank-close ask then finds it done, or waits on the one already running; anything changed is a new
+  key. The calc's per-boss bank bests are kept by the owned pool too (lib/tripCheck bestLoadout), so
+  taking items out of the bank (same pool) doesn't redo them. Owner-only: the key starts with the
+  person and character the token proves, and nothing else reads it.
 - **Bank filter** (header `X-Anvil-Bank-Filter: 1`): failing rows carry the action
   `{a: 'bank', ids: '<id>,<id>'}` (the bank's own ids that count as the missing item, its forms and
   upgrades included), and the card has a "Show missing in bank" button with every such id. The plugin

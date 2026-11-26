@@ -10,6 +10,8 @@
 // Everything read here is the token owner's own (lib/playerItems snapshotForViewer and
 // tripStateForViewer check the account is theirs); nothing about another player's bank is ever shown.
 
+import { createHash } from 'node:crypto';
+
 import { BOSSES } from '@/lib/constants';
 import slayerMonsters from '@/data/slayerMonsters.json';
 import { effectiveGearIndex } from '@/lib/dps/store';
@@ -23,6 +25,7 @@ import { equivalentsFor } from '@/lib/itemFamilies';
 import { baseItem } from '@/lib/itemFamilies';
 import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { tripStateForViewer } from '@/lib/playerItems';
+import type { TripState } from '@/lib/tripState';
 import { rateLimit } from '@/lib/rate-limit';
 import { checkTrip, setupFromHeld, tripWarn, type TripCheck, type TripSource } from '@/lib/tripCheck';
 import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, TRIP_REGIONS, type TripContent } from '@/lib/tripContent';
@@ -32,6 +35,7 @@ import { clearTarget, currentTarget, ownTripKeys, pickTarget } from '@/lib/tripT
 import type { GuideViewer } from '@/lib/guideViewer';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { accountStanding, playedCharacter } from '@/lib/pluginAccount';
+import { log } from '@/lib/logger';
 import { message, type View } from './nodes';
 import { pluginClanId, pluginViewer } from './guidesView';
 import { tripPanelUi, type TripPanelData } from './tripUi';
@@ -62,12 +66,26 @@ const regionOf = (args: Args): number | null => {
 };
 
 let names: { from: MappingItem[]; byId: Map<number, string>; pouches: Set<number> } | null = null;
+let namesFetch: Promise<unknown> | null = null;
+/** The game's item names. Once known, a check never waits on the mapping's refetch (a second or more). */
 async function itemNames(): Promise<{ byId: Map<number, string>; pouches: Set<number> }> {
-  const mapping = await getItemMapping().catch(() => [] as MappingItem[]);
-  if (names?.from !== mapping) {
-    names = { from: mapping, byId: new Map(mapping.map((m) => [m.id, m.gameName ?? m.name])), pouches: new Set(mapping.filter((m) => /^(divine )?rune pouch\b/i.test(m.gameName ?? m.name)).map((m) => m.id)) };
+  const load = () => {
+    namesFetch ??= getItemMapping()
+      .catch(() => [] as MappingItem[])
+      .then((mapping) => {
+        if (names?.from !== mapping && (mapping.length || !names)) {
+          names = { from: mapping, byId: new Map(mapping.map((m) => [m.id, m.gameName ?? m.name])), pouches: new Set(mapping.filter((m) => /^(divine )?rune pouch\b/i.test(m.gameName ?? m.name)).map((m) => m.id)) };
+        }
+      })
+      .finally(() => (namesFetch = null));
+    return namesFetch;
+  };
+  if (names) {
+    void load();
+    return names;
   }
-  return names;
+  await load();
+  return names ?? { byId: new Map(), pouches: new Set() };
 }
 
 /** The monsters a player can pick by hand: the bosses and each slayer task's first monster we have stats for. */
@@ -84,6 +102,31 @@ function monsterOptions(idx: GearIndex): { key: string; name: string }[] {
   pickable = [...out.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
   return pickable;
 }
+
+/**
+ * The check's phases, for the log: one line per check, at info only when it took a while (or with
+ * TRIP_TIMING=1, as scripts/bench-trip-view does), else at debug.
+ */
+function phases() {
+  const start = performance.now();
+  let last = start;
+  const out: Record<string, number> = {};
+  return {
+    mark(name: string) {
+      const now = performance.now();
+      out[name] = Math.round(now - last);
+      last = now;
+    },
+    done(meta: Record<string, unknown>) {
+      const ms = Math.round(performance.now() - start);
+      const rec = { ms, ...out, ...meta };
+      if (process.env.TRIP_TIMING === '1' || ms >= SLOW_MS) log.info('trip.view', rec);
+      else log.debug('trip.view', rec);
+    },
+  };
+}
+/** A check slower than this is logged at info. */
+const SLOW_MS = 700;
 
 const ago = (ms: number) => (ms >= 86_400_000 ? `${Math.floor(ms / 86_400_000)}d` : ms >= 3_600_000 ? `${Math.floor(ms / 3_600_000)}h` : `${Math.max(1, Math.floor(ms / 60_000))}m`);
 
@@ -104,7 +147,7 @@ function guidePick(setups: SetupView[], defaults: Record<string, number>, openTi
 
 interface Built {
   data: TripPanelData;
-  warn: { ok: boolean; title: string; lines: string[] } | null;
+  warn: { ok: boolean; title: string; lines: string[]; fight?: number[]; instance?: true } | null;
   /** A next-trip target is set (lib/tripTarget): the plugin then asks on bank close at any bank. */
   armed: boolean;
 }
@@ -134,7 +177,107 @@ async function targetFor(viewer: GuideViewer, args: Args): Promise<{ target: Tar
   return { target: now.target, ownKeys: now.ownKeys };
 }
 
-async function build(request: Request, args: Args, viewer: GuideViewer, note: string | null): Promise<Built> {
+/** Where the trip has begun (TripContent fightRegions / instance): the plugin takes its warning down there. */
+const fightOf = (c: TripContent): { fight?: number[]; instance?: true } => ({ ...(c.fightRegions?.length ? { fight: c.fightRegions } : {}), ...(c.instance ? { instance: true as const } : {}) });
+
+interface Resolved {
+  source: TripSource;
+  sourceLine: string;
+  guide: TripPanelData['guide'];
+  /** The setup checked against: the own or guide one, null for the calc. */
+  setup: GearSetup | null;
+  /** Null: the calc has no monster it knows to work out a setup for. */
+  check: TripCheck | null;
+}
+
+/** Checks by everything they read (checkKey): a few minutes, a few hundred at most. Owner-only by key. */
+const CHECKS = new Map<string, { at: number; p: Promise<Resolved> }>();
+const CHECK_TTL = 10 * 60_000;
+const CHECK_MAX = 300;
+function remember(key: string, p: Promise<Resolved>) {
+  CHECKS.delete(key);
+  CHECKS.set(key, { at: Date.now(), p });
+  for (const k of CHECKS.keys()) {
+    if (CHECKS.size <= CHECK_MAX) break;
+    CHECKS.delete(k);
+  }
+}
+const checkKey = (parts: unknown[]) => createHash('sha1').update(JSON.stringify(parts)).digest('base64');
+/** The gear data a check used: a /staff edit builds a new index, and the old answers stop matching. */
+const stamps = new WeakMap<GearIndex, number>();
+let stampN = 0;
+const gearStamp = (idx: GearIndex) => stamps.get(idx) ?? (stamps.set(idx, ++stampN), stampN);
+
+/** The setup for the trip (own, the guide's best fit, else the calc) and the check against it. */
+async function resolveCheck(c: {
+  request: Request;
+  content: TripContent;
+  own: GearSetup | null;
+  clanId: number | null;
+  viewer: GuideViewer;
+  idx: GearIndex;
+  state: TripState | null;
+  nm: { byId: Map<number, string>; pouches: Set<number> };
+  worn: InvItem[];
+  inventory: InvItem[];
+  bank: InvItem[];
+  lootingBag: InvItem[] | undefined;
+  t: ReturnType<typeof phases>;
+}): Promise<Resolved> {
+  const { content, own, viewer, idx, state, nm, worn, inventory, bank, lootingBag, t } = c;
+  let setup: GearSetup | null = own;
+  let source: TripSource = own ? 'own' : 'calc';
+  let sourceLine = own ? 'Checked against your own saved setup' : '';
+  let targets = content.targets;
+  let guide: TripPanelData['guide'] = null;
+  if (content.guide) {
+    const g = (await publicGuideBySlug(c.clanId, content.guide).catch(() => null))?.guide;
+    if (g && g.status === 'published') {
+      guide = { id: g.id, title: g.title.split(' — ')[0] };
+      if (!own) {
+        const view = await loadGuideView(g, viewer);
+        const s = view.block ? guidePick(view.setups, view.defaults, view.openTier) : null;
+        if (s && view.block) {
+          setup = s.setup;
+          source = 'guide';
+          targets = setupTargets(s.setup, view.block);
+          sourceLine = `Checked against the guide's ${TIERS.find((x) => x.key === s.setup.tier)?.label ?? ''} setup: ${s.setup.name}`;
+        }
+      }
+    }
+  }
+  if (source === 'calc') sourceLine = calcSourceLine(content);
+  t.mark('setup');
+  const monsters = targets.map((x) => idx.monster(x)).filter((m): m is Monster => !!m);
+  if (!monsters.length && source === 'calc') return { source, sourceLine, guide, setup, check: null };
+  const heldIds = [...worn, ...inventory, ...bank, ...(lootingBag ?? [])].map((i) => i.id);
+  const setupIds = setup ? [...Object.values(setup.gear), ...Object.values(setup.alts ?? {}).flat(), ...(setup.inventory ?? []).filter((x): x is InvItem => !!x).map((x) => x.id)].filter((x): x is number => typeof x === 'number') : [];
+  const needs = equivalentsFor([...heldIds, ...setupIds], 'needs');
+  const holds = equivalentsFor(heldIds, 'holds');
+  const nameOf = (id: number) => nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
+  const check: TripCheck = checkTrip({
+    content,
+    setup,
+    source,
+    monsters,
+    worn,
+    inventory,
+    bank,
+    lootingBag,
+    state,
+    levels: viewer.levels,
+    idx,
+    needs,
+    holds,
+    nameOf,
+    isRunePouch: (id) => nm.pouches.has(id),
+    prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {},
+  });
+  t.mark('check');
+  return { source, sourceLine, guide, setup, check };
+}
+
+async function build(request: Request, args: Args, viewer: GuideViewer, note: string | null, t = phases()): Promise<Built> {
   const region = regionOf(args);
   const regionName = region != null ? TRIP_REGIONS[region]?.name ?? null : null;
   const base: TripPanelData = {
@@ -158,6 +301,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   if (!viewer.userId) return { data: { ...base, status: 'signed-out' }, warn: null, armed: false };
   const [idx, tgt] = await Promise.all([effectiveGearIndex(), targetFor(viewer, args)]);
   base.monsters = monsterOptions(idx);
+  t.mark('gear');
   const target = tgt?.target ?? null;
   const armed = !!target;
   // The player's own setups are targets too: a chip each, beside the trips Anvil knows.
@@ -191,57 +335,21 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
   const [state, own, nm] = await Promise.all([tripStateForViewer(viewer.userId, viewer.accountId), ownSetupFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []), itemNames()]);
-  let setup: GearSetup | null = own;
-  let source: TripSource = own ? 'own' : 'calc';
-  let sourceLine = own ? 'Checked against your own saved setup' : '';
-  let targets = content.targets;
-  let guide: TripPanelData['guide'] = null;
-  if (content.guide) {
-    const clanId = await pluginClanId(request, args);
-    const g = (await publicGuideBySlug(clanId, content.guide).catch(() => null))?.guide;
-    if (g && g.status === 'published') {
-      guide = { id: g.id, title: g.title.split(' — ')[0] };
-      if (!own) {
-        const view = await loadGuideView(g, viewer);
-        const s = view.block ? guidePick(view.setups, view.defaults, view.openTier) : null;
-        if (s && view.block) {
-          setup = s.setup;
-          source = 'guide';
-          targets = setupTargets(s.setup, view.block);
-          sourceLine = `Checked against the guide's ${TIERS.find((t) => t.key === s.setup.tier)?.label ?? ''} setup: ${s.setup.name}`;
-        }
-      }
-    }
+  t.mark('reads');
+  const clanId = content.guide ? await pluginClanId(request, args) : null;
+  // Everything the setup and the check read, hashed: the same items, setup and state give the same
+  // answer, so a bank-close ask after a warm (warmTrip, on the items push) or a repeat is instant.
+  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx)]);
+  const hit = CHECKS.get(key);
+  const fresh = hit && Date.now() - hit.at < CHECK_TTL ? hit : null;
+  if (!fresh) {
+    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, t });
+    remember(key, p);
+    p.catch(() => CHECKS.delete(key));
   }
-  if (source === 'calc') sourceLine = calcSourceLine(content);
-  const monsters = targets.map((t) => idx.monster(t)).filter((m): m is Monster => !!m);
-  if (!monsters.length && source === 'calc') return { data: { ...withContent, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
-
-  const bank = snap.bank?.items ?? [];
-  const lootingBag = snap.lootingBag?.items;
-  const heldIds = [...worn, ...inventory, ...bank, ...(lootingBag ?? [])].map((i) => i.id);
-  const setupIds = setup ? [...Object.values(setup.gear), ...Object.values(setup.alts ?? {}).flat(), ...(setup.inventory ?? []).filter((x): x is InvItem => !!x).map((x) => x.id)].filter((x): x is number => typeof x === 'number') : [];
-  const needs = equivalentsFor([...heldIds, ...setupIds], 'needs');
-  const holds = equivalentsFor(heldIds, 'holds');
-  const nameOf = (id: number) => nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
-  const check: TripCheck = checkTrip({
-    content,
-    setup,
-    source,
-    monsters,
-    worn,
-    inventory,
-    bank,
-    lootingBag,
-    state,
-    levels: viewer.levels,
-    idx,
-    needs,
-    holds,
-    nameOf,
-    isRunePouch: (id) => nm.pouches.has(id),
-    prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {},
-  });
+  const { source, sourceLine, guide, check } = await (fresh ?? CHECKS.get(key)!).p;
+  if (fresh) t.mark('cached');
+  if (!check) return { data: { ...withContent, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
   const data: TripPanelData = {
     ...withContent,
     source,
@@ -256,7 +364,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const refused = args.held ? HELD_WHY[args.held] : undefined;
   if (refused) data.sourceLine = `${refused}: this is from what Anvil last saw`;
   else if (behind) data.sourceLine = `${sourceLine}. Your newest items haven't arrived: this is from what Anvil last saw`;
-  return { data, warn: behind || refused ? null : tripWarn(content.short, check), armed };
+  return { data, warn: behind || refused ? null : { ...tripWarn(content.short, check), ...fightOf(content) }, armed };
 }
 
 /**
@@ -272,10 +380,38 @@ async function tripViewer(request: Request): Promise<GuideViewer | 'not-yours'> 
 
 /** View 'trip': the check for the trip this region (or the player's pick) starts. */
 export async function tripView(request: Request, args: Args, note: string | null = null): Promise<View> {
+  const t = phases();
   const viewer = await tripViewer(request);
+  t.mark('viewer');
   if (viewer === 'not-yours') return { ...message('This character isn’t one of yours on Anvil, so there is nothing of yours to check.'), warn: null, armed: false };
-  const { data, warn, armed } = await build(request, args, viewer, note);
-  return { ui: tripPanelUi(data), warn, armed };
+  const { data, warn, armed } = await build(request, args, viewer, note, t);
+  const ui = tripPanelUi(data);
+  t.mark('ui');
+  t.done({ why: args.why ?? null, content: data.content?.key ?? null, source: data.source, status: data.status, bank: viewer.snapshot?.bank?.items.length ?? 0 });
+  return { ui, warn, armed };
+}
+
+/** Accounts with a warm running: one at a time each, however fast the pushes come. */
+const warming = new Set<number>();
+
+/**
+ * An items push with the bank open in a trip region (or with a next-trip target set): work the check
+ * out now, so the bank-close ask finds it done (CHECKS) when nothing changed since. Owner-only like
+ * the view itself; never shown, never logged beyond the timing. Run after the push has answered.
+ */
+export async function warmTrip(request: Request, region: number | null): Promise<void> {
+  const viewer = await tripViewer(request).catch(() => null);
+  if (!viewer || viewer === 'not-yours' || !viewer.userId || !viewer.accountId || warming.has(viewer.accountId)) return;
+  warming.add(viewer.accountId);
+  try {
+    const t = phases();
+    const { data } = await build(request, { ...(region != null ? { region: String(region) } : {}), why: 'warm', clan: '1' }, viewer, null, t);
+    t.done({ why: 'warm', content: data.content?.key ?? null, status: data.status });
+  } catch {
+    // A warm that fails costs nothing: the ask works it out itself.
+  } finally {
+    warming.delete(viewer.accountId);
+  }
 }
 
 /** 'trip-save' (what they wear and carry becomes their setup for the trip) and 'trip-forget'. */
