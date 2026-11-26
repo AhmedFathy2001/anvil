@@ -250,7 +250,12 @@ test('every legacy fixture has a case, and every case a fixture', () => {
   assert.deepEqual(Object.keys(cases).sort(), Object.keys(legacy).sort());
 });
 
+// Restyled since the plugin built them (author line, wiki link, fields, thumbnail like the drop
+// posts); their own tests below pin the new look. The fixture keeps the old post verbatim.
+const RESTYLED = /^(caTier|diary|quest|totalLevel)\./;
+
 for (const [name, c] of Object.entries(cases)) {
+  if (RESTYLED.test(name)) continue;
   test(`matches the plugin's own embed: ${name}`, () => {
     const out = buildPluginEmbed(c.kind, c.facts, {
       imageFilename: c.image ?? null,
@@ -391,13 +396,13 @@ test('a level-99 `level` post is exactly the legacy level99 post', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), legacy['level99.slayer']);
 });
 
-test('a level below 99 reads in the same voice, with the skill wiki page and icon', () => {
+test('a level below 99 reads in the same voice, with an author line, the skill wiki page and icon', () => {
   const out = buildPluginEmbed('level', { rsn: 'Zezima', skill: 'Slayer', level: 85, at99: 12, skills: 23 }, {
     imageFilename: 'anvil-achievement.png',
   });
   assert.ok(out.ok, out.ok ? '' : out.error);
-  // No author line, like the 99 it sits beside (the message-only achievement posts never had one).
   assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), {
+    author: { name: 'Zezima' },
     title: '⬆️ Level up!',
     description: 'Zezima just reached **level 85 Slayer**!',
     color: 4886745,
@@ -416,6 +421,82 @@ test('a level post with no 99s yet and no rsn drops the progress line', () => {
   assert.equal(out.embed.description, 'A clan member just reached **level 50 Runecraft**!');
 });
 
+// ── Restyled achievement posts (diary, quest, CA tier, total level) ─────────────────────────────
+
+const embedOf = (kind: PluginEmbedKind, facts: unknown, image: string | null = null) => {
+  const out = buildPluginEmbed(kind, facts, { imageFilename: image });
+  assert.ok(out.ok, out.ok ? '' : out.error);
+  return JSON.parse(JSON.stringify(out.embed));
+};
+
+test('diary: author, area wiki page, Area/Tier fields, diary icon', () => {
+  assert.deepEqual(embedOf('diary', { rsn: 'HC Scuff', area: 'Ardougne', tier: 'Easy' }, 'anvil-diary.png'), {
+    author: { name: 'HC Scuff' },
+    title: '📜 Ardougne Easy diary',
+    description: 'HC Scuff completed the **Ardougne Easy** achievement diary.',
+    color: 4886745,
+    url: 'https://oldschool.runescape.wiki/w/Ardougne_Diary',
+    fields: [
+      { name: 'Area', value: '`Ardougne`', inline: true },
+      { name: 'Tier', value: '`Easy`', inline: true },
+    ],
+    thumbnail: { url: 'https://anvilosrs.com/img/wiki/Achievement_Diaries_icon.png?x=2' },
+    image: { url: 'attachment://anvil-diary.png' },
+  });
+  // An "&" in the area stays in the page name, not a query string.
+  const amp = embedOf('diary', { area: 'Lumbridge & Draynor', tier: 'Elite' });
+  assert.equal(amp.url, 'https://oldschool.runescape.wiki/w/Lumbridge_%26_Draynor_Diary');
+  assert.equal(amp.author, undefined);
+  assert.equal(amp.description, 'A clan member completed the **Lumbridge & Draynor Elite** achievement diary.');
+});
+
+test('quest: author, quest wiki page, Difficulty when known, quest cape icon', () => {
+  assert.deepEqual(embedOf('quest', { rsn: 'Zezima', quest: 'Dragon Slayer II', difficulty: 'Grandmaster' }), {
+    author: { name: 'Zezima' },
+    title: '🗺️ Dragon Slayer II',
+    description: 'Zezima completed **Dragon Slayer II**.',
+    color: 4886745,
+    url: 'https://oldschool.runescape.wiki/w/Dragon_Slayer_II',
+    fields: [{ name: 'Difficulty', value: '`Grandmaster`', inline: true }],
+    thumbnail: { url: 'https://anvilosrs.com/img/item/9813.png' },
+  });
+  const cook = embedOf('quest', { quest: "Cook's Assistant", difficulty: null });
+  assert.equal(cook.url, "https://oldschool.runescape.wiki/w/Cook's_Assistant");
+  assert.equal(cook.fields, undefined);
+  assert.equal(cook.author, undefined);
+  assert.equal(cook.description, "A clan member completed **Cook's Assistant**.");
+  assert.equal(embedOf('quest', { quest: 'Romeo & Juliet' }).url, 'https://oldschool.runescape.wiki/w/Romeo_%26_Juliet');
+});
+
+test('CA tier: author, the tier\'s CA wiki page, Tier field, CA icon', () => {
+  assert.deepEqual(embedOf('caTier', { rsn: 'Zezima', tier: 'Elite' }), {
+    author: { name: 'Zezima' },
+    title: '🏆 Elite Combat Achievements',
+    description: 'Zezima unlocked the **Elite** Combat Achievements tier.',
+    color: 4886745,
+    url: 'https://oldschool.runescape.wiki/w/Combat_Achievements/Elite',
+    fields: [{ name: 'Tier', value: '`Elite`', inline: true }],
+    thumbnail: { url: 'https://anvilosrs.com/img/wiki/Combat_Achievements_icon.png?x=2' },
+  });
+  const anon = embedOf('caTier', { tier: 'Master' });
+  assert.equal(anon.author, undefined);
+  assert.equal(anon.description, 'A clan member unlocked the **Master** Combat Achievements tier.');
+});
+
+test('total level: the legacy wording and fields, plus an author line and the Stats icon', () => {
+  const stats = 'https://anvilosrs.com/img/wiki/Stats_icon.png?x=2';
+  for (const name of ['totalLevel.milestone', 'totalLevel.maxed', 'totalLevel.not-chasing']) {
+    const c = cases[name];
+    const want = { ...(legacy[name] as Record<string, unknown>) };
+    const rsn = (c.facts as { rsn?: string }).rsn;
+    assert.deepEqual(embedOf(c.kind, c.facts, c.image ?? null), {
+      ...(rsn ? { author: { name: rsn } } : {}),
+      ...want,
+      thumbnail: { url: stats },
+    }, name);
+  }
+});
+
 test('bad level facts are refused', () => {
   for (const facts of [
     { skill: 'Slayer', level: 0, at99: 1, skills: 23 },
@@ -428,12 +509,12 @@ test('bad level facts are refused', () => {
   }
 });
 
-test('totalLevel accepts `milestone` and still renders the legacy post', () => {
+test('totalLevel accepts `milestone` and renders the same post', () => {
   const out = buildPluginEmbed('totalLevel', { rsn: 'Zezima', total: 1800, milestone: 1800, current: 1803, max: 2277 }, {
     imageFilename: 'anvil-achievement.png',
   });
   assert.ok(out.ok);
-  assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), legacy['totalLevel.milestone']);
+  assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), embedOf('totalLevel', cases['totalLevel.milestone'].facts, 'anvil-achievement.png'));
   assert.equal(buildPluginEmbed('totalLevel', { total: 1800, milestone: 'x' }).ok, false);
 });
 
