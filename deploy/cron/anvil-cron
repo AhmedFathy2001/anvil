@@ -19,6 +19,8 @@
 */15 * * * * root /opt/anvil/cron-anvil.sh stats
 */15 * * * * root /opt/anvil/cron-anvil.sh weekly
 *    * * * * root /opt/anvil/cron-anvil.sh flush-notifications
+# Beta's competition lifecycle (start/finish/announce), offset from prod's run.
+7-59/15 * * * * root /opt/anvil/cron-anvil.sh weekly beta
 */5  * * * * root /opt/anvil/cron-anvil.sh forge-consume
 # Nine past the hour, so it does not land in the same minute as the 15-minute jobs. Silent when
 # nothing new broke, and a no-op when ANVIL_OPS_WEBHOOK_URL is unset — safe to schedule everywhere.
