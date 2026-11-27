@@ -84,7 +84,7 @@ export function momentsFeedUi(items: FeedItem[], o: FeedOptions): Node {
     parts.push(
       dropLine(
         m.itemId,
-        m.kind === 'pet' ? `${m.label} · pet` : m.label,
+        m.kind === 'pet' ? `${m.label}, pet` : m.label,
         m.at,
         row(nameText(m.rsn, 'muted', { font: 'small' }), undefined, reactions(m, o), { gap: 8 }),
       ),

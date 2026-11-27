@@ -476,7 +476,7 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
           // Before the name, as in game chat.
           // Whatever the name already explained stays, after who they are.
           const who = found.label ?? 'Anvil Supporter';
-          t.tip = t.tip ? `${who} · ${t.tip}` : who;
+          t.tip = t.tip ? `${who}, ${t.tip}` : who;
         }
       }
     }

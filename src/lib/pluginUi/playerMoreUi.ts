@@ -40,7 +40,7 @@ export function clogPageUi(rsn: string, p: ClogPageData, back: string, kc: numbe
   return col([
     backHeader(
       p.page,
-      `${p.obtained}/${p.total}${kc ? ` · ${fmt(kc)} kc` : ''}`,
+      `${p.obtained}/${p.total}${kc ? `, ${fmt(kc)} kc` : ''}`,
       p.total > 0 && p.obtained >= p.total,
       { a: 'pane', into: 'prof', pane: back },
       `${profilePath(rsn)}?tab=collection&page=${seg(p.page)}`,
@@ -156,7 +156,7 @@ export function casUi(rsn: string, cas: CaLookup, f: CaFilters): Node {
       bg: 'card',
       pad: 2,
       inset: boss != null ? 4 : 12,
-      tip: `${boss != null ? `${boss}: ` : ''}${task.n} — ${tierName(task.t)}${task.y ? ` · ${task.y}` : ''}${task.x ? `\n${task.x}` : ''}`,
+      tip: `${boss != null ? `${boss}: ` : ''}${task.n} — ${tierName(task.t)}${task.y ? `, ${task.y}` : ''}${task.x ? `\n${task.x}` : ''}`,
       k: `${task.n} ${task.x ?? ''} ${boss ?? ''}`,
     });
 
@@ -185,7 +185,7 @@ export function casUi(rsn: string, cas: CaLookup, f: CaFilters): Node {
   parts.push(
     gap(8),
     row(
-      row(text('Bosses', f.byTask ? 'muted' : 'brand', { on: reload({ byTask: false }) }), muted('  ·  '), text('Tasks', f.byTask ? 'brand' : 'muted', { on: reload({ byTask: true }) }), { gap: 0 }),
+      row(text('Bosses', f.byTask ? 'muted' : 'brand', { on: reload({ byTask: false }) }), muted('   '), text('Tasks', f.byTask ? 'brand' : 'muted', { on: reload({ byTask: true }) }), { gap: 0 }),
       undefined,
       text(`${f.missingOnly ? '✓ ' : ''}Missing only`, f.missingOnly ? 'brand' : 'muted', { on: reload({ missingOnly: !f.missingOnly }) }),
     ),
@@ -244,7 +244,7 @@ export function compareUi(me: PlayerCard, them: PlayerCard): Node {
     parts.push(
       gap(6),
       card([
-        header('Skills', `you lead ${ahead} · they lead ${behind}`),
+        header('Skills', `you lead ${ahead}, they lead ${behind}`),
         gap(4),
         {
           t: 'grid',
@@ -323,8 +323,8 @@ export function goalsUi(goals: GoalView[], error: string | null): Node {
     const due = g.done ? null : g.due;
     const near = due && due.days <= 7;
     const runs: { s: string; color?: Color }[] = [{ s: g.text, color: FAINT }];
-    if (due) runs.push({ s: due.days < 0 ? ` · ${due.text}` : ` · due ${due.when}`, color: due.days < 0 ? CORAL : FAINT });
-    if (near && due.days >= 0) runs.push({ s: due.days === 0 ? ' · due today' : ` · ${due.days} day${due.days === 1 ? '' : 's'} left`, color: CORAL });
+    if (due) runs.push({ s: due.days < 0 ? `, ${due.text}` : `, due ${due.when}`, color: due.days < 0 ? CORAL : FAINT });
+    if (near && due.days >= 0) runs.push({ s: due.days === 0 ? ', due today' : `, ${due.days} day${due.days === 1 ? '' : 's'} left`, color: CORAL });
     const sub: Node = text('', FAINT, { font: 'small', wrap: true, runs });
     const pic = g.kind === 'skill' ? icon({ skill: g.metric, w: 16, h: 16 }) : g.kind === 'boss' ? icon({ boss: g.metric, w: 16, h: 16 }) : undefined;
     const key = `goal-rm:${g.id}`;

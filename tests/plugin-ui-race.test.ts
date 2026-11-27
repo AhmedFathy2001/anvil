@@ -104,7 +104,7 @@ test('at the start fork: Not started, every road open, the road ahead unknown, y
   assert.ok(s.includes('Your road'));
   assert.ok(s.includes('Depends on your road'));
   assert.ok(s.includes('Roads cross here: you can switch'));
-  assert.ok(s.includes('Hard Ardougne diary · same for everyone'));
+  assert.ok(s.includes('Hard Ardougne diary, same for everyone'));
   const segs = walk(main).find((x) => x.t === 'segs') as { c: string[] };
   assert.deepEqual(segs.c, ['#4a4a4a', '#4a4a4a', '#4a4a4a', '#4a4a4a']);
   assert.deepEqual(walk(main).filter((x) => x.t === 'step').map((x) => x.dot), ['now', 'lock', 'lock', 'end']);
@@ -122,7 +122,7 @@ test('mid-race on road B: one tile, its count, the road with names and the switc
   assert.ok(s.some((x) => x.startsWith('Only this one counts now')));
   assert.ok(s.includes('Your road'));
   assert.deepEqual(walk(main).filter((x) => x.t === 'step').map((x) => x.dot), ['done', 'now', 'lock', 'end']);
-  assert.ok(s.includes('Step 2 · you are here'));
+  assert.ok(s.includes('Step 2, you are here'));
   assert.ok(s.includes('PK Some Pker'));
   assert.ok(s.includes("C: 3 Seers' laps"));
   const segs = walk(main).find((x) => x.t === 'segs') as { c: string[] };
@@ -138,7 +138,7 @@ test('a tile opens in place: one Back, what counts, where it goes, who, proofs',
   // One way back, offered twice: at the head and again at the foot, under the proofs.
   assert.deepEqual(s.filter((x) => /back|all events/i.test(x)), ['Back to the race', 'Back to the race']);
   assert.equal(s[0], 'Back to the race');
-  assert.ok(s.includes('Step 2 · Road B'));
+  assert.ok(s.includes('Step 2, Road B'));
   assert.ok(s.includes('Up next'));
   assert.ok(s.includes('1 of 3'));
   assert.ok(s.includes('What counts'));
@@ -216,7 +216,7 @@ test('start tile done: Step 2 of 6, and the track names step 2\'s open tiles wit
   const two = texts(steps[1]);
   assert.ok(two.includes('2 Araxxor kills'), 'road A by name');
   assert.ok(two.includes('B: Tanzanite fang'), 'road B inline');
-  assert.ok(two.includes('Step 2 · open now'));
+  assert.ok(two.includes('Step 2, open now'));
   assert.ok(!two.includes('Depends on your road'));
   assert.ok(texts(walk(steps[1]).find((x) => x.t === 'toggle')!.off).includes('+3 other roads'));
   assert.deepEqual(walk(steps[1]).filter((x) => x.chip && (x as { w?: number }).w === 18).map((x) => x.s).slice(0, 1), ['A']);
@@ -287,7 +287,7 @@ test('roads stay open: the note, the next step up front, earlier forks listed as
   assert.ok(s.includes(ROADS_OPEN_NOTE));
   assert.ok(s.includes('Also open at earlier forks:'));
   // The finish is the one step ahead; the other starts and road B at step 3 stay open.
-  assert.ok(s.some((x) => x.includes('Finish · you are here')));
+  assert.ok(s.some((x) => x.includes('Finish, you are here')));
   for (const name of ['One haul worth 1m+', 'Vorkath under 2:00', 'PK Some Pker']) assert.ok(s.includes(name), name);
   // Earlier-fork tiles read as open in the tile list, never "Off your road".
   const tiles = (board.tiles as { tileId: number; raceState: string | null }[]);

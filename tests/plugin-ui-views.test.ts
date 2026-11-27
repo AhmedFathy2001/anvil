@@ -135,7 +135,7 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
   const page = await V.pluginView(asPlayer(), 'board', { event: '0', clan: 'uiboard', track: '1', pins: '' });
   assert.ok(texts(page!.ui).includes('1 tile'));
   assert.ok(texts(page!.ui).includes('Fire cape'));
-  assert.ok(texts(page!.ui).includes('Click for details · right-click to claim.'));
+  assert.ok(texts(page!.ui).includes('Click for details, right-click to claim.'));
 
   const claimed = await V.pluginAct(asPlayer(), 'claim', { event: '0', tile: String(fire.id), part: 'rows', clan: 'uiboard' }, { note: 'tonight' });
   assert.ok(texts(claimed!.ui).includes('Your note: “tonight”'), JSON.stringify(texts(claimed!.ui)));
@@ -145,7 +145,7 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
 
   // Someone not on the board reads it, but can't claim on it.
   const outsider = await V.pluginView(req({ ...clanHeaders('uiboard') }), 'board', { event: String(ev.id) });
-  assert.ok(texts(outsider!.ui).includes('Click for details · join this event to claim tiles.'));
+  assert.ok(texts(outsider!.ui).includes('Click for details, join this event to claim tiles.'));
 
   const teamsPage = await V.pluginView(asPlayer(), 'teams', { event: '0' });
   // One person a team: the roster ranks the players.

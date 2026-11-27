@@ -160,7 +160,7 @@ function streakCard(s: NonNullable<PlayerCard['streak']>): Node {
   return section([
     row(title('Activity streak'), undefined, text(weeks, s.weeks > 0 ? FLAME : 'muted', { font: 'bold', tip: s.milestone ? `${s.milestone} milestone` : undefined })),
     marks.length ? { t: 'segs', c: marks, h: 6 } : null,
-    small(`${week} · best ${s.best}${s.restBanked && !s.safe ? ' · rest week banked' : ''}`, 'muted', { wrap: true }),
+    small(`${week}, best ${s.best}${s.restBanked && !s.safe ? ', rest week banked' : ''}`, 'muted', { wrap: true }),
   ]);
 }
 
@@ -252,7 +252,7 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean, 
   const pic = (kind: 'banner' | 'avatar') => revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=${kind}`, media!.revision);
   const avatar = badge(media?.avatar ? { t: 'img', src: pic('avatar'), w: 32, h: 32, rad: 8, ...(media.avatarAnimated ? { motion: true } : {}) } : undefined, c.rsn);
   const name = anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' });
-  const who = [c.clan?.name ?? null, c.accountType ? accountTypeLabel(c.accountType) : null, anvil ? 'on Anvil' : 'from the hiscores'].filter(Boolean).join(' · ');
+  const who = [c.clan?.name ?? null, c.accountType ? accountTypeLabel(c.accountType) : null, anvil ? 'on Anvil' : 'from the hiscores'].filter(Boolean).join(', ');
   const totals = [c.totalLevel > 0 ? `${fmt(c.totalLevel)} total` : null, c.combatLevel != null ? `cb ${c.combatLevel}` : null].filter(Boolean);
   const clanOn = c.clan?.name ? { tip: `Open ${c.clan.name} in clan lookup`, on: { a: 'clan' as const, slug: c.clan.slug } } : {};
   const inner: Node[] = [
@@ -260,10 +260,10 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean, 
   ];
   if (!anvil && c.fetchedAt) inner.push(muted('', { at: c.fetchedAt, font: 'small' }));
   if (c.statsFrom) inner.push(text(`${c.statsFrom.label} stats`, 'brand', { font: 'small', tip: `Nothing on the main hiscores for this name: these are from ${c.statsFrom.label}` }));
-  if (totals.length) inner.push(text(totals.join(' · '), 'white'));
+  if (totals.length) inner.push(text(totals.join(', '), 'white'));
   if (own && anvil && c.clog && c.clog.total > 0) {
     const pct = percent(c.clog.obtained, c.clog.total);
-    inner.push(row(undefined, muted('Collection log', { font: 'small' }), muted(`${fmt(c.clog.obtained)} / ${fmt(c.clog.total)} · ${pct}%`, { font: 'small' })), { t: 'bar', pct, color: 'done', h: 6, bg: 'panel' });
+    inner.push(row(undefined, muted('Collection log', { font: 'small' }), muted(`${fmt(c.clog.obtained)} / ${fmt(c.clog.total)}, ${pct}%`, { font: 'small' })), { t: 'bar', pct, color: 'done', h: 6, bg: 'panel' });
   }
   const empty =
     c.totalLevel <= 0 && (!c.clog || c.clog.total <= 0) && !c.latest.length && !c.skills.length && !c.bosses.length && !c.topBosses.length;
@@ -311,7 +311,7 @@ function displayCase(c: PlayerCard, slots?: number): Node {
               small(p.name, item ? PURPLE : GOLD, { font: 'bold', wrap: PIN_WRAP, tip: p.name }),
               small(p.luck.text, p.luck.tone === 'green' ? GREEN : SOFT, { wrap: PIN_WRAP }),
             ],
-            { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(' · ') },
+            { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(', ') },
           );
         }
         return col(
@@ -322,7 +322,7 @@ function displayCase(c: PlayerCard, slots?: number): Node {
               : // Nothing known: the name, in the normal small font, wrapped — never the big line.
                 [small(p.name, item ? PURPLE : GOLD, { wrap: PIN_WRAP, tip: p.name })]),
           ],
-          { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(' · ') },
+          { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(', ') },
         );
       }),
     },
@@ -350,7 +350,7 @@ function logTab(c: PlayerCard, kills: Map<string, number>): Node {
 function categoryRow(name: string, got: number, of: number, on?: Action): Node {
   const pct = percent(got, of);
   return col([
-    row(undefined, text(name, got >= of ? 'done' : 'white'), row(muted(`${fmt(got)}/${fmt(of)} · ${pct}%`, { font: 'small' }), undefined, on ? icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }) : undefined, { gap: 5 })),
+    row(undefined, text(name, got >= of ? 'done' : 'white'), row(muted(`${fmt(got)}/${fmt(of)}, ${pct}%`, { font: 'small' }), undefined, on ? icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }) : undefined, { gap: 5 })),
     { t: 'bar', pct, color: 'done', h: 5, bg: 'panel' },
   ], { bg: 'raised', inset: 8, gap: 4, ...(on ? { on, tip: `${name}: its pages` } : {}) });
 }
@@ -409,7 +409,7 @@ function logPanes(c: PlayerCard, kills: Map<string, number>, templates: boolean)
     );
     const item = row(
       icon({ item: '{1}', w: 36, h: 32, dim: '{4}' } as unknown as Omit<Extract<Node, { t: 'icon' }>, 't'>),
-      col([text('{0}'), muted('{2} · {3}', { font: 'small' })]),
+      col([text('{0}'), muted('{2}, {3}', { font: 'small' })]),
       undefined,
       { pad: 3, tip: 'See the items on this page', on: { a: 'load', v: 'clog-page', args: { rsn: c.rsn, page: '{2}', back }, into: 'prof' } },
     );
