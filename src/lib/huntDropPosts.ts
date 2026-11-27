@@ -16,7 +16,7 @@ import crypto from 'crypto';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, huntDrops, proofUploads, weeklyCompetitions, type HuntDropRow } from '@/db/schema';
+import { clans, huntDrops, proofUploads, rushDeathShots, weeklyCompetitions, type HuntDropRow } from '@/db/schema';
 import { resolvePluginMember } from '@/lib/auth';
 import { parseStamp } from '@/lib/dbTime';
 import { deleteWeeklyHuntDrop, notifyWeeklyHuntDrop } from '@/lib/discord';
@@ -163,7 +163,7 @@ async function storeHuntShot(clanId: number, userId: number, file: File): Promis
 export async function huntProofUpload(request: Request, key: string, file: File | null): Promise<Response | null> {
   // clan-scope: global -- found by an unguessable key, then checked against the caller's own seat.
   const [row] = await db.select().from(huntDrops).where(inArray(huntDrops.proofKey, [key, attachedKeyMark(key)])).limit(1);
-  if (!row) return null;
+  if (!row) return rushDeathShotUpload(request, key, file);
   const member = await resolvePluginMember(request);
   if (!member || member.clanMemberId !== row.clanMemberId) return Response.json({ error: 'Not found' }, { status: 404 });
   if (row.proofKey !== key) return Response.json({ ok: true, attached: 0 });
@@ -184,4 +184,31 @@ export async function huntProofUpload(request: Request, key: string, file: File 
   if (attached.length === 0) return Response.json({ ok: true, attached: 0 });
   void showHuntDropImage(row.id).catch((err) => log.warn('hunt.post-image-failed', { dropId: row.id }, err));
   return Response.json({ ok: true, attached: 1 });
+}
+
+/**
+ * A Boss Rush death's screenshot, under the key the moments reply named for it (lib/itemHuntDb
+ * recordRushDeath). Seen by the player and staff only; it changes nothing about the score.
+ */
+async function rushDeathShotUpload(request: Request, key: string, file: File | null): Promise<Response | null> {
+  // clan-scope: global -- found by an unguessable key, then checked against the caller's own seat.
+  const [row] = await db.select().from(rushDeathShots).where(inArray(rushDeathShots.proofKey, [key, attachedKeyMark(key)])).limit(1);
+  if (!row) return null;
+  const member = await resolvePluginMember(request);
+  if (!member || member.clanMemberId !== row.clanMemberId) return Response.json({ error: 'Not found' }, { status: 404 });
+  if (row.proofKey !== key) return Response.json({ ok: true, attached: 0 });
+  if (!huntProofOpen({ status: 'counted', createdAtMs: parseStamp(row.createdAt) }, Date.now())) {
+    return Response.json({ error: 'Too late for this death’s screenshot. The death still counts.' }, { status: 410 });
+  }
+  if (!file) return Response.json({ error: 'No file provided' }, { status: 400 });
+  const [comp] = await db.select({ clanId: weeklyCompetitions.clanId }).from(weeklyCompetitions).where(eq(weeklyCompetitions.id, row.competitionId)).limit(1);
+  if (!comp) return Response.json({ error: 'Not found' }, { status: 404 });
+  const stored = await storeHuntShot(comp.clanId, member.userId, file);
+  if ('error' in stored) return Response.json({ error: stored.error }, { status: stored.status });
+  const attached = await db
+    .update(rushDeathShots)
+    .set({ screenshotUrl: stored.url, proofKey: attachedKeyMark(key) })
+    .where(and(eq(rushDeathShots.id, row.id), eq(rushDeathShots.proofKey, key)))
+    .returning({ id: rushDeathShots.id });
+  return Response.json({ ok: true, attached: attached.length });
 }

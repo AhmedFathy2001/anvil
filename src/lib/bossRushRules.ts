@@ -229,6 +229,16 @@ export function raidOfTarget(target: string): string | null {
   return RUSH_RAID_TARGETS.find((r) => plain(r.name) === t)?.raid ?? RAID_LABELS[t] ?? null;
 }
 
+/**
+ * Does a drop from this raid mode score in a rush over these targets? An Entry Mode chest only when
+ * that raid's Entry Mode is a target: Entry ToB's vials of blood do not count in a normal ToB rush.
+ * Anything else (another mode, no raid, an older client that did not say) is up to the drop's row.
+ */
+export function rushTakesRaidMode(targets: readonly string[], raid: string | null | undefined, mode: string | null | undefined): boolean {
+  if (mode !== 'entry' || !raid) return true;
+  return targets.some((t) => raidOfTarget(t) === `${raid}-entry`);
+}
+
 /** Two death reports this close together are the same death sent twice. */
 export const RUSH_SAME_DEATH_MS = 20_000;
 
