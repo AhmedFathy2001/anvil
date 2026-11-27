@@ -169,7 +169,7 @@ export async function eventsDueForPurge(now: Date, limit = 20): Promise<{ id: nu
 }
 
 /** Of these URLs, the ones some OTHER event's (eventId null: ANY) proof, fee, payout, start shot or attachment names. */
-async function urlsUsedElsewhere(eventId: number | null, urls: string[]): Promise<Set<string>> {
+export async function urlsUsedElsewhere(eventId: number | null, urls: string[]): Promise<Set<string>> {
   const out = new Set<string>();
   const notThis = (col: AnyPgColumn) => (eventId == null ? sql`true` : ne(col, eventId));
   for (let i = 0; i < urls.length; i += 500) {

@@ -114,3 +114,12 @@ export function deletableMedia(input: {
     ...moneyUrls.filter((u) => !usedElsewhere.has(u) && inClanFolder(u)),
   ];
 }
+
+/**
+ * Which of an item hunt's screenshot files a purge may delete (lib/huntMediaRetention): in the clan's
+ * own storage folder (a pasted link is never ours), and named by no other competition's drop or
+ * event row. `inClanFolder` is lib/storage isClanMediaUrl for the hunt's clan.
+ */
+export function deletableHuntFiles(urls: string[], inClanFolder: (u: string) => boolean, usedElsewhere: Set<string>): string[] {
+  return [...new Set(urls)].filter((u) => inClanFolder(u) && !usedElsewhere.has(u));
+}
