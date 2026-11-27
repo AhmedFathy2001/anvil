@@ -5,6 +5,8 @@
 //   Pre-trip check                                ↻
 //   Trip: ToA · picked from the ToA lobby · change
 //   (away from a trip region: "Checking for: Doom (last trip) · change   clear", lib/tripTarget)
+//   [ Learner | Experienced | Max DPS ]           a trip the loadout engine has a profile for
+//   One weapon per style, your armour stays on…    (lib/tripLoadout): the plan the setup is built to
 //   ┌ 5 problems · 4 in your bank · 2 not owned ──┐
 //   │ Checked against your own saved setup · 18:42 │
 //   │      [equipment screen, wells coloured]      │   green packed, amber in bank, red not owned
@@ -21,7 +23,7 @@
 // before: failing open, the rest folded to "✓ N checks met". No combat cues, ever.
 
 import { button, col, icon, row, text, type Action, type Node } from './nodes';
-import { CARD_W, CORAL, FAINT, GOLD, GREEN, SOFT, boxChip, chip, section, small, title } from './sections';
+import { CARD_W, CORAL, FAINT, GOLD, GREEN, LINE, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BankLayout, TripCheck, TripRow, TripSource } from '@/lib/tripCheck';
 import type { Have, LayoutItem, TripLayout } from '@/lib/tripLayout';
 import { SLOT_NAME } from '@/lib/slotNames';
@@ -58,6 +60,8 @@ export interface TripPanelData {
   bankFilter?: boolean;
   /** ToA only: the raid level the check scales the bosses by (lib/tripRaidLevel), and the ones offered. */
   raid?: { level: number; levels: readonly number[] } | null;
+  /** The loadout engine's plan (lib/tripLoadout), for a trip with a boss profile: the chooser. */
+  plan?: { preset: string; presets: readonly { key: string; label: string }[]; blurb: string } | null;
   /** The setup laid out as the game does (lib/tripLayout): drawn instead of a row per item. */
   layout?: TripLayout | null;
   /** Item names for the layout's tips. */
@@ -349,10 +353,32 @@ function raidLine(d: TripPanelData): Node | null {
   return { t: 'toggle', key: RAID_KEY, off: shut, lit: col([text('', SOFT, { font: 'small', runs: [{ s: 'Raid level ', color: FAINT }, { s: String(d.raid.level), color: 'white' }, { s: ' ▴', color: GOLD }], on: { a: 'flip', key: RAID_KEY }, tip: 'Close' }), chips], { gap: 4 }) };
 }
 
+/**
+ * "[ Learner | Experienced | Max DPS ]" and what the plan picked means: the setup the engine builds
+ * for the player's bank (switch budget, supplies). Remembered per character and trip ('trip-plan').
+ */
+function planLine(d: TripPanelData): Node | null {
+  if (!d.plan || !d.content) return null;
+  const content = d.content.key;
+  const chips: Node = {
+    t: 'grid',
+    cols: d.plan.presets.length,
+    gap: 2,
+    // boxChip's look, the small font either way: "Experienced" in bold doesn't fit a third of the card.
+    c: d.plan.presets.map((p) => {
+      const on = p.key === d.plan!.preset;
+      return row(undefined, text(p.label, on ? 'white' : FAINT, { font: 'small', align: 'c' }), undefined, { bg: on ? '#3a3a3a' : 'card', edge: LINE, pad: 3, inset: 0, on: { a: 'post', act: 'trip-plan', args: regionArgs(d, { content, plan: p.key }) }, tip: on ? `The ${p.label} plan` : `Build the setup for the ${p.label} plan` });
+    }),
+  };
+  return col([chips, small(d.plan.blurb, FAINT, { wrap: W })], { gap: 4 });
+}
+
 export function tripPanelUi(d: TripPanelData): Node {
   const parts: Node[] = [head(d), tripLine(d)];
   const raid = raidLine(d);
   if (raid) parts.push(raid);
+  const plan = d.status === 'ready' ? planLine(d) : null;
+  if (plan) parts.push(plan);
   if (d.note) parts.push(chip(d.note, 'green', { wrap: W }));
   if (d.status === 'ready' && d.check) parts.push(d.layout ? layoutCard(d, d.check, d.layout) : checkCard(d, d.check));
   else parts.push(why(d));

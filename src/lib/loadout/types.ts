@@ -211,6 +211,8 @@ export interface Loadout {
   specs: { id: number; name: string }[];
   inventory: (InvSlot | null)[];
   runePouch: { rune: string; perCast: number }[] | null;
+  /** The spells the carried staves autocast ("Fire Surge"). */
+  spells: string[];
   spellbook: 'standard' | 'ancient' | 'arceuus' | 'lunar';
   /** A second ammo held in a worn Dizana's quiver. */
   quiverAmmo: number | null;

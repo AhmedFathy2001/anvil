@@ -25,7 +25,7 @@
 // slotOf, shortlist/kindScore and SETS. Imported from it: ammoFits, isSpecWeapon, usableHeld,
 // raidScaled, calcSpell, SPELL_RUNES, staffRunes.
 
-import { TOA_MONSTER, calculate, type DpsResult, type GearItem, type Monster, type Stats } from '../dps/engine';
+import { calculate, type DpsResult, type GearItem, type Monster, type Stats } from '../dps/engine';
 import { POWERED_MAX, SLOTS, spellByName, stylesFor, type AttackType, type Slot } from '../dps/tables';
 import type { GearIndex } from '../dps/summary';
 import { SPELL_RUNES, ammoFits, calcSpell, isSpecWeapon, raidScaled, staffRunes, usableHeld } from '../tripCheck';
@@ -171,15 +171,8 @@ function dpsOnUncached(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, t
       ctx.idx.rules,
     );
     if (!r || !(r.maxHit > 0)) return;
+    // Osmumten's fang's second accuracy roll is the DPS engine's own (lib/dps/engine).
     let dps = r.dps;
-    // Osmumten's fang on stab rolls accuracy twice (the DPS engine only notes it). From the wiki's
-    // item page: inside ToA the whole check repeats, 1 − (1 − p)²; outside, two attack rolls.
-    if (/^osmumten's fang/i.test(weapon.n) && s.type === 'stab' && r.accuracy > 0) {
-      const a = r.attackRoll;
-      const d = r.defenceRoll;
-      const p2 = TOA_MONSTER.test(t.m.n) ? 1 - (1 - r.accuracy) ** 2 : a >= d ? 1 - ((d + 2) * (2 * d + 3)) / (6 * (a + 1) ** 2) : (a * (4 * a + 5)) / (6 * (a + 1) * (d + 1));
-      dps *= p2 / r.accuracy;
-    }
     if (t.p.alwaysMaxHit) dps = r.maxHit / (r.speed * TICK);
     else if (t.p.maxHitCap && r.maxHit > t.p.maxHitCap && r.maxHit > 0) dps *= cappedMean(r.maxHit, t.p.maxHitCap) / (r.maxHit / 2);
     if (!best || dps > best.dps) best = { dps, r };
@@ -630,6 +623,7 @@ export function buildLoadout(input: EngineInput): Loadout {
       specs: [],
       inventory: Array(INV).fill(null),
       runePouch: null,
+      spells: [],
       spellbook: 'standard',
       quiverAmmo: null,
       phases: targets.map((t) => ({ key: t.p.key, name: t.p.name, kit: null, dps: 0, seconds: Infinity, timeShare: 0 })),
@@ -786,6 +780,7 @@ export function buildLoadout(input: EngineInput): Loadout {
     specs: specs.map((s) => ({ id: s.id, name: s.n })),
     inventory: inventory.slice(0, INV),
     runePouch,
+    spells: [...new Set(spells.map((s) => s.spell))],
     spellbook,
     quiverAmmo,
     phases: chosen.phases,
