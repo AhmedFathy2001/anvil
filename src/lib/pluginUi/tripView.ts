@@ -29,8 +29,8 @@ import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { tripStateForViewer } from '@/lib/playerItems';
 import type { TripState } from '@/lib/tripState';
 import { rateLimit } from '@/lib/rate-limit';
-import { checkTrip, isSpecWeapon, raidScaled, setupFromHeld, supplyKind, tripWarn, usableHeld, type TripCheck, type TripSource } from '@/lib/tripCheck';
-import { tripLayout, type TripLayout } from '@/lib/tripLayout';
+import { checkTrip, heldQuiverAmmo, isSpecWeapon, raidScaled, setupFromHeld, supplyKind, tripWarn, usableHeld, type TripCheck, type TripSource } from '@/lib/tripCheck';
+import { layoutBanks, tripLayout, type TripLayout } from '@/lib/tripLayout';
 import { ownStats, setupResult, withSlot } from '@/lib/gearNow';
 import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, type TripContent } from '@/lib/tripContent';
 import { tripRegions } from '@/lib/guideAreas';
@@ -263,7 +263,8 @@ function runCheck(c: CheckCtx, setup: GearSetup | null, source: TripSource, mons
   const holds = equivalentsFor(heldIds, 'holds');
   const nameOf = (id: number) => nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
   const isRunePouch = (id: number) => nm.pouches.has(id);
-  const checked: TripCheck = checkTrip({ content, setup, source, monsters, worn, inventory, bank, lootingBag, state, levels: viewer.levels, idx, needs, holds, nameOf, isRunePouch, raidLevel: c.raidLevel, prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {} });
+  const input = { content, setup, source, monsters, worn, inventory, bank, lootingBag, state, levels: viewer.levels, idx, needs, holds, nameOf, isRunePouch, raidLevel: c.raidLevel, prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {} };
+  const checked: TripCheck = checkTrip(input);
   const check = plan ? withPlan(checked, plan) : checked;
   // Holding X counts as X's forms and upgrades (as the check reads it).
   const wide = (list: readonly InvItem[]) => {
@@ -278,7 +279,14 @@ function runCheck(c: CheckCtx, setup: GearSetup | null, source: TripSource, mons
     const it = idx.item(id) ?? holds(id).map((x) => idx.item(x)).find(Boolean);
     return it ? (it.s === '2h' ? 'weapon' : it.s) : null;
   };
-  const layout = tripLayout({ setup, rows: check.rows, worn, inventory, bank, lootingBag, state, carries, owns, slotOf: slotOfId, nameOf, isRunePouch, isSpec: (id) => isSpecWeapon(idx.item(id)?.n ?? nameOf(id)) });
+  const isSpec = (id: number) => isSpecWeapon(idx.item(id)?.n ?? nameOf(id));
+  const quiverAmmo = heldQuiverAmmo(input);
+  const isQuiver = (id: number) => [nameOf(id), ...holds(id).map((x) => idx.item(x)?.n ?? '')].some((n) => /dizana's quiver/i.test(n));
+  const layout = tripLayout({ setup, rows: check.rows, worn, inventory, bank, lootingBag, state, carries, owns, slotOf: slotOfId, nameOf, isRunePouch, isSpec, quiverAmmo });
+  // The bank filters off the same layout the card draws, so "Show the N" shows those N.
+  const banks = layoutBanks(layout, { bank, holds, needs, nameOf, isRunePouch, isSpec, slotOf: slotOfId, isQuiver });
+  check.layouts = { missing: banks.missing, setup: banks.setup };
+  check.bank = banks.bank;
   const ids = new Set<number>([...Object.values(layout.worn).map((x) => x.id), ...layout.inventory.filter((x): x is NonNullable<typeof x> => !!x).map((x) => x.id), ...layout.pouch.map((x) => x.id), ...(layout.quiver ? [layout.quiver.id] : [])]);
   return { check, layout, names: Object.fromEntries([...ids].map((id) => [id, nameOf(id)])) };
 }

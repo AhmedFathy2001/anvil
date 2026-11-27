@@ -14,7 +14,8 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, guideItemSkips, guideViewerPrefs, playerItemSnapshots, users } from '@/db/schema';
 import { CONTAINER_KINDS, type Container, type ContainerKind, type Snapshot } from '@/lib/gearOwnership';
-import { storedTripState, type TripState } from '@/lib/tripState';
+import { equivalentsFor } from '@/lib/itemFamilies';
+import { keepBankedQuiver, storedTripState, type TripState } from '@/lib/tripState';
 
 const MAX_ITEMS: Record<ContainerKind, number> = { bank: 1500, inventory: 28, equipment: 14, lootingBag: 28 };
 const MAX_ID = 100_000;
@@ -57,7 +58,24 @@ export async function saveSnapshot(accountId: number, snap: Snapshot): Promise<n
 export const STATE_ROW = 'state';
 
 /** Store the plugin's spellbook / pouch / prayers reading (owner-only, as the items). */
-export async function saveTripState(accountId: number, state: TripState): Promise<void> {
+/** Dizana's quiver in every form, and the max cape that holds one. */
+const DIZANAS_QUIVER = 28951;
+let quiverForms: Set<number> | null = null;
+const isQuiverForm = (id: number) => (quiverForms ??= new Set([DIZANAS_QUIVER, ...equivalentsFor([DIZANAS_QUIVER], 'holds')(DIZANAS_QUIVER)])).has(id);
+
+/** Store the state; call after the push's containers are saved (a banked quiver keeps its last ammo). */
+export async function saveTripState(accountId: number, next: TripState): Promise<void> {
+  let state = next;
+  if (next.quiver === null) {
+    // clan-scope: global -- the account's own rows, read to store its own reading.
+    const rows = await db
+      .select({ container: playerItemSnapshots.container, items: playerItemSnapshots.items, state: playerItemSnapshots.state })
+      .from(playerItemSnapshots)
+      .where(and(eq(playerItemSnapshots.accountId, accountId), inArray(playerItemSnapshots.container, [STATE_ROW, 'equipment', 'inventory'])));
+    const prev = rows.find((r) => r.container === STATE_ROW)?.state;
+    const along = rows.some((r) => r.container !== STATE_ROW && ((r.items ?? []) as { id: number }[]).some((it) => isQuiverForm(it.id)));
+    state = keepBankedQuiver(next, prev ? storedTripState(prev) : null, along);
+  }
   const at = new Date().toISOString();
   const value = state as unknown as Record<string, unknown>;
   await db

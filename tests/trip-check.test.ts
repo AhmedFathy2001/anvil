@@ -432,7 +432,7 @@ test('raid calc: ONE setup for the whole raid (worn + switches), never a line pe
   assert.ok(worn.rows.some((r) => r.ok && /^Your setup covers all 5 bosses$/.test(r.line)) || failing(worn).length > 0, worn.rows.map((r) => r.line).join(' | '));
 });
 
-test('bank layout: worn pieces as a paper doll, switches beside, each supply kind its own row by dose', () => {
+test('bank layout: worn pieces as a paper doll, switches beside, ONE stack per supply kind (its own item, else the highest dose)', () => {
   const rows = [
     { group: 'gear' as const, ok: false, line: '', slot: 'head', bank: [11] },
     { group: 'gear' as const, ok: false, line: '', slot: 'weapon', bank: [12] },
@@ -440,16 +440,17 @@ test('bank layout: worn pieces as a paper doll, switches beside, each supply kin
     { group: 'spec' as const, ok: false, line: '', bank: [14] },
     { group: 'gear' as const, ok: false, line: '', bank: [15] },
     { group: 'supplies' as const, ok: false, line: '', bank: [21, 24, 22] },
+    { group: 'supplies' as const, ok: false, line: '', item: 32, bank: [31, 32, 34] },
   ];
-  const names: Record<number, string> = { 21: 'Prayer potion(1)', 22: 'Prayer potion(2)', 24: 'Prayer potion(4)' };
+  const names: Record<number, string> = { 21: 'Prayer potion(1)', 22: 'Prayer potion(2)', 24: 'Prayer potion(4)', 31: 'Saradomin brew(1)', 32: 'Saradomin brew(2)', 34: 'Saradomin brew(4)' };
   const l = bankLayout(rows, (x) => names[x] ?? `Item ${x}`);
   assert.equal(l.layout[1], 11, 'head top middle');
   assert.equal(l.layout[16], 12, 'weapon left of the body');
   assert.equal(l.layout[34], 13, 'ring bottom right');
   assert.equal(l.layout[24], 14, 'spec left of the legs');
   assert.equal(l.layout[4], 15, 'switches to the right');
-  assert.deepEqual([l.layout[12], l.layout[13], l.layout[14]], [24, 22, 21], 'supplies their own row, 4 → 1');
-  assert.deepEqual(l.ids.sort((a, b) => a - b), [11, 12, 13, 14, 15, 21, 22, 24]);
+  assert.deepEqual([l.layout[12], l.layout[13]], [24, 32], 'supplies below: one stack a kind, never every dose');
+  assert.deepEqual(l.ids.sort((a, b) => a - b), [11, 12, 13, 14, 15, 24, 32]);
 });
 
 test('bank layout: one bank slot per piece, never every form owned (Infernal max cape, imbued god capes)', () => {
