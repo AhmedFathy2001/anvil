@@ -26,7 +26,9 @@
 // raidScaled, calcSpell, SPELL_RUNES, staffRunes.
 
 import { calculate, type DpsResult, type GearItem, type Monster, type Stats } from '../dps/engine';
-import { POWERED_MAX, SLOTS, spellByName, stylesFor, type AttackType, type Slot } from '../dps/tables';
+import { canEquip } from '../dps/requirements';
+import { POWERED_MAX, SLOTS, givesDefenceXp, spellByName, stylesFor, type AttackType, type Slot } from '../dps/tables';
+import { mergeMods } from '../dps/targets';
 import type { GearIndex } from '../dps/summary';
 import { SPELL_RUNES, ammoFits, calcSpell, isSpecWeapon, raidScaled, staffRunes, usableHeld } from '../tripCheck';
 import { SUPPLY_FORMS, SUPPLY_LABEL, pickSupplies } from './supplies';
@@ -66,6 +68,8 @@ interface Ctx {
   stats: Stats;
   prayers: string[];
   boosts: Partial<Record<Style, string>>;
+  /** The player's "Avoid Defence XP": styles that train Defence are never used. */
+  avoidDefenceXp?: boolean;
   /** dpsOn's answers for this run, by phase, style, spell, darts and gear. */
   memo: Map<string, { dps: number; r: DpsResult } | null>;
 }
@@ -170,11 +174,14 @@ function dpsOnUncached(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, t
   const weapon = ctx.idx.item(gear.weapon);
   if (!weapon) return null;
   let best: { dps: number; r: DpsResult } | null = null;
+  // The phase's own target effects (a style's share, demonbane vulnerability…) over the monster's.
+  const m = t.p.mods ? { ...t.m, mods: mergeMods(t.m.mods, t.p.mods) } : t.m;
   stylesFor(weapon.c).forEach((s, i) => {
     if (kindOfType(s.type) !== kit.style) return;
+    if (ctx.avoidDefenceXp && givesDefenceXp(s)) return;
     const r = calculate(
       { gear, style: i, spell: kit.spell, dart: kit.dart, stats: ctx.stats, prayer: ctx.prayers, boost: ctx.boosts[kit.style] ?? null, onTask: false },
-      t.m,
+      m,
       ctx.idx.item,
       ctx.idx.rules,
     );
@@ -234,6 +241,7 @@ export function buildLoadout(input: EngineInput): Loadout {
     stats: { attack: lv.attack, strength: lv.strength, ranged: lv.ranged, magic: lv.magic, hitpoints: lv.hitpoints },
     prayers,
     boosts: profile.boosts ?? {},
+    ...(player.avoidDefenceXp ? { avoidDefenceXp: true } : {}),
     memo: new Map(),
   };
 
@@ -266,6 +274,8 @@ export function buildLoadout(input: EngineInput): Loadout {
     .filter((id) => !banned.has(id))
     .map((id) => idx.item(id))
     .filter((x): x is GearItem => !!x && !x.hid && usableHeld(x.n))
+    // Only what the player's levels let them wear (lib/dps/requirements; quests aren't known here).
+    .filter((x) => canEquip(x, lv).ok)
     .filter((x) => !bannedNames.some((re) => re.test(x.n)) && (!weaponsOnly || slotOf(x) !== 'weapon' || weaponsOnly.some((re) => re.test(x.n))));
   const weapons = pool.filter((x) => slotOf(x) === 'weapon');
   const ammoPool = pool.filter((x) => x.s === 'ammo');
@@ -450,7 +460,7 @@ export function buildLoadout(input: EngineInput): Loadout {
     let time = 0;
     const phases: LoadoutPhase[] = [];
     for (const t of targets) {
-      let best: { kit: string; dps: number; s: number } | null = null;
+      let best: { kit: string; dps: number; s: number; r: DpsResult } | null = null;
       for (const { k, g, gk } of carried) {
         if (!usable(k, t.p)) continue;
         const d = dpsOn(g, k, t, ctx, gk);
@@ -459,11 +469,11 @@ export function buildLoadout(input: EngineInput): Loadout {
         // A switch costs a tick per three pieces put on (about three clicks a tick), each entry.
         const swap = k === a.wornKit ? 0 : TICK * Math.ceil(a.packed.filter((p) => p.kit === k.key).length / 3) * (t.p.entries ?? 1);
         const s = (t.damage / d.dps) * off + swap;
-        if (!best || s < best.s) best = { kit: k.key, dps: d.dps, s };
+        if (!best || s < best.s) best = { kit: k.key, dps: d.dps, s, r: d.r };
       }
       const s = (best?.s ?? Infinity) + (t.p.downtime ?? 0);
       time += s;
-      phases.push({ key: t.p.key, name: t.p.name, kit: best?.kit ?? null, dps: best?.dps ?? 0, seconds: s, timeShare: 0 });
+      phases.push({ key: t.p.key, name: t.p.name, kit: best?.kit ?? null, dps: best?.dps ?? 0, seconds: s, timeShare: 0, ...(best ? { stance: { name: best.r.style.name, type: best.r.style.type } } : {}) });
     }
     for (const ph of phases) ph.timeShare = Number.isFinite(time) && time > 0 ? ph.seconds / time : 0;
     return { time, phases };

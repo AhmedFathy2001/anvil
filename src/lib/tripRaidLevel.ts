@@ -97,3 +97,20 @@ export async function tripCaFor(accountId: number, contentKey: string): Promise<
 export async function saveTripCa(accountId: number, contentKey: string, ca: number | null): Promise<void> {
   await savePrefs(accountId, { [caKey(contentKey)]: ca });
 }
+
+/**
+ * "Avoid Defence XP": the loadout never uses a style that trains Defence (controlled or defensive
+ * melee, longrange, defensive autocast). Per character, every trip: on by default at Defence 1
+ * (a pure keeps its Defence), off otherwise.
+ */
+export const defaultAvoidDefXp = (defence: number | null | undefined): boolean => defence === 1;
+
+/** The player's pick, or the default for their Defence level when they haven't picked. */
+export async function avoidDefXpFor(accountId: number, defence: number | null | undefined): Promise<boolean> {
+  const v = (await prefsOf(accountId)).avoidDefXp;
+  return typeof v === 'boolean' ? v : defaultAvoidDefXp(defence);
+}
+
+export async function saveAvoidDefXp(accountId: number, on: boolean): Promise<void> {
+  await savePrefs(accountId, { avoidDefXp: on });
+}

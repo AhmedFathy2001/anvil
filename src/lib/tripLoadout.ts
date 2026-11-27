@@ -52,6 +52,8 @@ export interface TripLoadoutInput {
   isRunePouch: (id: number) => boolean;
   /** A Combat Achievement picked on the card (lib/loadout/caRules): its limits applied. */
   ca?: number | null;
+  /** The card's "Avoid Defence XP" (lib/tripRaidLevel): no style that trains Defence. */
+  avoidDefenceXp?: boolean;
 }
 
 const BOOKS = { standard: 0, ancient: 1, lunar: 2, arceuus: 3 } as const;
@@ -91,6 +93,7 @@ export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: Tri
         ...(inp.state?.pray ? { prayers: [...inp.state.pray, 'piety'] } : {}),
         owned,
         supplies: [...supplies.values()],
+        ...(inp.avoidDefenceXp ? { avoidDefenceXp: true } : {}),
         ...(withCa && rule?.constraints ? { constraints: rule.constraints } : {}),
         ...(inp.raidLevel != null || (withCa && rule?.variant) ? { mode: { ...(inp.raidLevel != null ? { raidLevel: inp.raidLevel } : {}), ...(withCa && rule?.variant ? { variant: rule.variant } : {}) } } : {}),
       },

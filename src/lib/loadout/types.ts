@@ -6,6 +6,7 @@
 // strategy pages (cited in each file); the wording is ours.
 
 import type { Slot } from '../dps/tables';
+import type { TargetMods } from '../dps/targets';
 
 export type Style = 'melee' | 'ranged' | 'magic';
 export type Preset = 'learner' | 'experienced' | 'max';
@@ -39,6 +40,11 @@ export interface PhaseProfile {
   tags?: string[];
   /** A per-hit damage cap (Zulrah: 50). */
   maxHitCap?: number;
+  /**
+   * What this phase does to damage beyond the monster's own defaults (lib/dps/targets): a style's
+   * share ({ magic: 0.2 }), what escapes it, demonbane vulnerability, Awakened rules, drain limits.
+   */
+  mods?: TargetMods;
   /** Every hit that lands is a max hit (the Wardens' core): accuracy and the roll don't matter. */
   alwaysMaxHit?: boolean;
   /** The target's size for multi-hit weapons, when the phase's target isn't the dataset monster's. */
@@ -206,6 +212,8 @@ export interface PlayerInput {
   /** An id's family key: two ids with one key are the same piece (cosmetic kits, (f)/(i) upgrades). */
   familyOf?: (id: number) => number | string;
   constraints?: LoadoutConstraints;
+  /** Never a style that trains Defence (controlled or defensive melee, longrange, defensive autocast). */
+  avoidDefenceXp?: boolean;
   /** The fight's settings (ToA raid level). */
   mode?: { raidLevel?: number; variant?: string };
 }
@@ -232,6 +240,8 @@ export interface LoadoutPhase {
   dps: number;
   seconds: number;
   timeShare: number;
+  /** The attack style the kit's weapon is used on here, worked out from the gear ("Jab", crush). */
+  stance?: { name: string; type: 'stab' | 'slash' | 'crush' | 'ranged' | 'magic' };
 }
 
 export interface Unmet {
