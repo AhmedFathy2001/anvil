@@ -12,7 +12,7 @@ import { contentForRegion, contentFromKey, MOKHAIOTL_WAYSTONE, SPADE, TRIP_CONTE
 import { cleanTripState, storedTripState } from '../src/lib/tripState.ts';
 import { equivalentsFor } from '../src/lib/itemFamilies.ts';
 import { indexGear, type GearData } from '../src/lib/dps/summary.ts';
-import { bestStyle, type Monster } from '../src/lib/dps/engine.ts';
+import { bestStyle, hitChance, type Monster } from '../src/lib/dps/engine.ts';
 import type { GearSetup, InvItem } from '../src/lib/guideTiers.ts';
 import itemsJson from '../src/data/gearItems.json' with { type: 'json' };
 import monstersJson from '../src/data/gearMonsters.json' with { type: 'json' };
@@ -78,7 +78,8 @@ test('doom: no food or restore fails; brews and a moonlight potion pass; the cal
   const packed = checkTrip(input({ setup: null, content: doom, monsters: [mon('Doom of Mokhaiotl#Delve 8')], inventory: [{ id: BREW }, { id: MOON }], nameOf: names }));
   assert.ok(packed.rows.some((r) => r.ok && r.line === 'Food packed'));
   assert.ok(packed.rows.some((r) => r.ok && r.line === 'Prayer restores packed'));
-  assert.ok(checkTrip(input({ setup: null, inventory: [] })).rows.every((r) => r.group !== 'supplies'), 'only content with basics');
+  // Elsewhere only the calc's own supplies (each with a count), never the basics rows.
+  assert.ok(checkTrip(input({ setup: null, inventory: [] })).rows.every((r) => r.group !== 'supplies' || r.need), 'only content with basics');
 });
 
 // ── state ──────────────────────────────────────────────────────────────────────────────────
@@ -180,7 +181,7 @@ test('own setup, everything banked: every slot says take it; gone from the bank 
   const bank = [{ id: fang }, { id: torvaHelm }, { id: lb }];
   const c = checkTrip(input({ setup: s, source: 'own', worn: [], inventory: [], bank }));
   for (const n of ["Osmumten's fang", 'Torva full helm', 'Lightbearer']) assert.ok(failing(c).includes(`${shortName(n)} is in your bank: take it`), `${n}: ${failing(c).join(' | ')}`);
-  assert.ok(!c.info.some((l) => /Switches/.test(l)), 'nothing packed: no slots line');
+  assert.ok(!c.info.some((l) => /switch slot/.test(l)), 'nothing packed: no slots line');
   const gone = checkTrip(input({ setup: s, source: 'own', worn: [], inventory: [], bank: [{ id: fang }, { id: lb }] }));
   assert.ok(failing(gone).includes('Torva full helm: not found'), failing(gone).join(' | '));
   // A guide's setup: not owned is an upgrade, never a trip problem.
@@ -244,7 +245,7 @@ test('supplies by kind: any brew dose counts, sharks count as food', () => {
   assert.ok(failing(c).includes('Brews: have 2, need 3'), failing(c).join(' | '));
   assert.ok(c.rows.some((r) => r.ok && r.line === 'Food 2'));
   assert.ok(c.rows.some((r) => r.ok && r.line === 'Restores 1'));
-  assert.deepEqual(c.info, ['Switches 2 slots · 26 free for supplies']);
+  assert.deepEqual(c.info, ['2 switch slots packed, 26 free for supplies']);
 });
 
 test('spellbook and runes: needs state; the pouch counts only when it is packed', () => {
@@ -257,7 +258,7 @@ test('spellbook and runes: needs state; the pouch counts only when it is packed'
   assert.ok(!old.rows.some((r) => r.group === 'book' || r.group === 'pouch'));
   const state = { book: 0, pouch: [{ id: 560, q: 100 }, { id: 565, q: 100 }], pray: [], readAt: '' };
   const c = checkTrip(input({ setup: s, worn, inventory: [...base, { id: POUCH }], state }));
-  assert.ok(failing(c).includes('On Standard · setup needs Ancient'), failing(c).join(' | '));
+  assert.ok(failing(c).includes('On Standard, the setup needs Ancient'), failing(c).join(' | '));
   assert.ok(failing(c).includes('Rune pouch: no Water runes'), failing(c).join(' | '));
   // A Kodai wand worn gives the water.
   const kodai = id('Kodai wand');
@@ -274,7 +275,7 @@ test('prayers: Rigour locked fails, unlocked passes, Piety is never judged', () 
   const worn = [{ id: fang }, { id: torvaHelm }];
   const inv = [{ id: claws }, { id: tbow }];
   const locked = checkTrip(input({ setup: s, worn, inventory: inv, state: { book: 0, pouch: null, pray: [], readAt: '' } }));
-  assert.ok(failing(locked).includes('Rigour locked · setup prays it'));
+  assert.ok(failing(locked).includes('Rigour locked, the setup prays it'));
   assert.ok(!locked.rows.some((r) => /piety/i.test(r.line)));
   const open = checkTrip(input({ setup: s, worn, inventory: inv, state: { book: 0, pouch: null, pray: ['rigour'], readAt: '' } }));
   assert.ok(open.rows.some((r) => r.ok && r.line === 'Rigour unlocked'));
@@ -295,7 +296,7 @@ test('calc: Fang left in the bank for Kephri says take it, with the swaps', () =
   // A weapon packed but weaker armour: said in words.
   const torva = [id('Torva platebody'), id('Torva platelegs')];
   const weak = checkTrip(input({ setup: null, worn: [{ id: fang }], bank: torva.map((x) => ({ id: x })) }));
-  const w = failing(weak);
+  const w = weak.rows.filter((r) => !r.ok && r.group === 'gear').map((r) => r.line);
   assert.ok(w.length === 0 || w.some((l) => /^Your gear is .* the best stab setup in your bank$/.test(l)), w.join(' | '));
   // Packed, it passes.
   const ok = checkTrip(input({ setup: null, worn: [{ id: whip }], inventory: [{ id: fang }] }));
@@ -324,7 +325,7 @@ test('calc: the best loadout fills armour slots and runs quickly on a big bank',
 test('warn: problems counted and capped; all clear says Ready', () => {
   const rows = ['a', 'b', 'c', 'd', 'e', 'f'].map((line) => ({ group: 'gear' as const, ok: false, line }));
   const w = tripWarn('ToA', { rows, info: [], unknown: [] });
-  assert.equal(w.title, 'ToA · 6 problems');
+  assert.equal(w.title, 'ToA: 6 problems');
   assert.deepEqual(w.lines, ['a', 'b', 'c', '+3 more in the panel']);
   assert.deepEqual(tripWarn('ToA', { rows: [{ group: 'gear', ok: true, line: 'x' }], info: [], unknown: [] }), { ok: true, title: '✓ Ready for ToA', lines: [] });
 });
@@ -344,7 +345,7 @@ test('save: worn gear to slots, the inventory as laid out, the pouch only when p
 
 test('panel: failing rows open, the rest folded to "✓ N checks met", save and re-check actions', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
-  const check = { rows: [{ group: 'gear' as const, ok: false, line: 'No stab weapon: Kephri (Fang in bank)', item: fang, bank: [fang] }, { group: 'spec' as const, ok: true, line: 'Spec: Dragon claws' }, { group: 'supplies' as const, ok: true, line: 'Brews 6' }], info: ['Switches 2 slots · 24 free for supplies'], unknown: [], bank: [fang] };
+  const check = { rows: [{ group: 'gear' as const, ok: false, line: 'No stab weapon: Kephri (Fang in bank)', item: fang, bank: [fang] }, { group: 'spec' as const, ok: true, line: 'Spec: Dragon claws' }, { group: 'supplies' as const, ok: true, line: 'Brews 6' }], info: ['2 switch slots packed, 24 free for supplies'], unknown: [], bank: [fang] };
   const ui = tripPanelUi({ region: '13454', regionName: 'the ToA lobby', content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, fromRegion: true, source: 'calc', sourceLine: 'Worked out from your bank', guide: null, check, status: 'ready', checkedAt: '18:42', hasOwn: false, canSave: true, options: [], monsters: [] });
   const json = JSON.stringify(ui);
   assert.ok(json.includes('No stab weapon: Kephri (Fang in bank)'));
@@ -501,6 +502,12 @@ const endgame = (key: string, over: Partial<TripInput> = {}) => {
   const content = tripContent(key)!;
   return checkTrip(input({ setup: null, content, monsters: content.targets.map(mon), bank: ENDGAME_BANK, state: QUIVER_STATE, nameOf: endgameName, ...over }));
 };
+const SANFEW = 10925;
+const ANGLER = 13441;
+const SAT_HEART = 27641;
+const SUPPLY_NAMES: Record<number, string> = { [SANFEW]: 'Sanfew serum(4)', [ANGLER]: 'Anglerfish', [SAT_HEART]: 'Saturated heart', 12913: 'Anti-venom+(4)', 23685: 'Divine super combat potion(4)', 23733: 'Divine ranging potion(4)', 22209: 'Extended super antifire(4)' };
+const supplyName = (x: number) => SUPPLY_NAMES[x] ?? endgameName(x);
+const slotOfItem = (x: number) => (idx.item(x)?.s === '2h' ? 'weapon' : idx.item(x)?.s);
 const gearLines = (c: ReturnType<typeof checkTrip>) => c.rows.filter((r) => r.group === 'gear').map((r) => `${r.line} ${r.detail ?? ''}`);
 
 test('ammo: each launcher fires only its own', () => {
@@ -533,7 +540,8 @@ test('endgame bank: Vorkath is the Dragon hunter crossbow in Masori with Anguish
   // Without the crossbow: the Twisted bow, firing the quiver's dragon arrows.
   const bow = endgame('vorkath', { bank: ENDGAME_BANK.filter((x) => x.id !== id('Dragon hunter crossbow')) });
   const r2 = bow.rows.find((r) => r.group === 'gear' && !r.ok)!;
-  assert.ok([id('Twisted bow'), id("Tumeken's shadow")].includes(r2.item!), nameOf(r2.item!));
+  // Vorkath's stab defence is low: the Fang (two accuracy rolls) is level with the bow and the staff.
+  assert.ok([id('Twisted bow'), id("Tumeken's shadow"), id("Osmumten's fang")].includes(r2.item!), nameOf(r2.item!));
   const b = bestLoadout(mon('Vorkath#Post-quest'), [id('Twisted bow'), DRAGON_ARROW, id('Rune arrow')], { idx, stats: STATS, prayer: calcPrayers(LEVELS, null), spell: null })!;
   assert.equal(b.gear.ammo, DRAGON_ARROW);
 });
@@ -542,7 +550,7 @@ test('endgame bank: Zulrah is Shadow worn (charge it) and a bow switch; no melee
   const c = endgame('zulrah');
   const lines = gearLines(c);
   assert.ok(c.info.some((l) => /magic worn/.test(l)), c.info.join(' | '));
-  assert.ok(lines.some((l) => /^Shadow is in your bank: take it \(charge it\)/.test(l) && /uncharged in your bank: charge it/.test(l)), lines.join(' | '));
+  assert.ok(lines.some((l) => /^Shadow is in your bank: take it \(charge it\)/.test(l) && /Uncharged in your bank: charge it/.test(l)), lines.join(' | '));
   assert.ok(lines.some((l) => /^Twisted bow \(switch\)/.test(l)), lines.join(' | '));
   for (const n of ['Ancestral hat', 'Occult necklace', 'Imbued Zamorak cape']) assert.ok(lines.some((l) => l.startsWith(`${n} is in your bank`)), `${n}: ${lines.join(' | ')}`);
   assert.ok(!lines.some((l) => /scythe|fang|torva|rancour/i.test(l)), lines.join(' | '));
@@ -566,8 +574,11 @@ test('endgame bank: ToA is the Shadow (x4 in the Tombs), melee in Torva without 
   const lines = gearLines(c);
   assert.ok(!lines.some((l) => /sunlight|dragonstone|mixed hide|rune arrow/i.test(l)), lines.join(' | '));
   assert.ok(lines.some((l) => /^Shadow\b/.test(l)), lines.join(' | '));
-  assert.deepEqual(c.rows.filter((r) => r.group === 'spec').map((r) => r.line), ['Elder maul (spec): in your bank', 'Lightbearer (ring switch): in your bank']);
-  assert.match(c.rows.find((r) => r.line.startsWith('Lightbearer'))!.detail ?? '', /twice as fast/);
+  assert.deepEqual(c.rows.filter((r) => r.group === 'spec').map((r) => r.line), ['Elder maul (spec): in your bank']);
+  // A Ring of shadows adds next to nothing to the Shadow: Lightbearer is the worn ring on a spec trip.
+  const ring = c.rows.find((r) => r.slot === 'ring')!;
+  assert.equal(ring.item, id('Lightbearer'));
+  assert.match(ring.detail ?? '', /twice as fast/);
 });
 
 test("Tumeken's shadow: x4 against the Tombs' bosses, x3 elsewhere, magic damage capped at 100%", () => {
@@ -664,4 +675,151 @@ test('layout: the game inventory (one food a slot, stackables one), have / bank 
   assert.ok(isStackable('Death rune') && isStackable('Dragon arrow') && !isStackable('Manta ray') && !isStackable('Saradomin brew(4)'));
   assert.equal(l.inBank, 3);
   assert.equal(l.notOwned, 1);
+});
+
+// ── switches, required styles, rings, supplies, the Fang ─────────────────────────────────────
+
+test('ToA: a ranged and a melee switch for the Wardens P2 even when magic wins every boss, within the switch slots', () => {
+  const c = endgame('toa', { raidLevel: 300 });
+  const lines = gearLines(c);
+  assert.ok(c.info.some((l) => /magic worn/.test(l)), c.info.join(' | '));
+  assert.ok(lines.some((l) => /^Twisted bow \(switch\)/.test(l)), lines.join(' | '));
+  assert.ok(lines.some((l) => /^(Fang|Scythe) \(switch\)/.test(l)), lines.join(' | '));
+  assert.ok(c.info.includes("Wardens P2: you'll need ranged and melee switches"), c.info.join(' | '));
+  const slots = Number(/(\d+) switch slots?/.exec(c.info.join(' '))?.[1]);
+  const switches = c.rows.filter((r) => r.group === 'gear' && !r.slot && r.item != null);
+  assert.equal(switches.length, slots);
+  assert.ok(slots <= tripContent('toa')!.switchSlots!, `${slots} slots`);
+  // Never the same piece twice, nor a switch of something already worn.
+  const names = c.rows.filter((r) => r.group === 'gear' && r.item != null).map((r) => nameOf(r.item!).replace(/\s*\(.*\)\s*/g, ''));
+  assert.equal(new Set(names).size, names.length, names.join(', '));
+  const capes = c.rows.filter((r) => r.group === 'gear' && r.item != null && idx.item(r.item!)?.s === 'cape');
+  assert.ok(capes.length <= 2, capes.map((r) => r.line).join(' | '));
+});
+
+test('ToB: all three styles packed for the Nylocas', () => {
+  const c = endgame('tob');
+  const weapons = c.rows.filter((r) => r.group === 'gear' && r.item != null && slotOfItem(r.item!) === 'weapon').map((r) => nameOf(r.item!));
+  for (const w of ['Scythe of Vitur', 'Twisted bow', "Tumeken's shadow"]) assert.ok(weapons.includes(w), `${w}: ${weapons.join(', ')}`);
+  assert.ok(c.info.some((l) => /^Nylocas: you'll need/.test(l)), c.info.join(' | '));
+});
+
+test('rings: Magus for magic, Venator for ranged, Ultor for melee; a Ring of shadows only when none of them is owned', () => {
+  const rings = ['Magus ring', 'Venator ring', 'Ultor ring', 'Ring of shadows', 'Lightbearer'].map(id);
+  const ctx = (only: 'melee' | 'ranged' | 'magic') => ({ idx, stats: STATS, prayer: calcPrayers(LEVELS, null), spell: null, only });
+  const ring = (key: string, weapon: string, only: 'melee' | 'ranged' | 'magic', pool = rings) => nameOf(bestLoadout(mon(key), [id(weapon), DRAGON_ARROW, ...pool], ctx(only))!.gear.ring);
+  assert.equal(ring('Vorkath#Post-quest', "Tumeken's shadow", 'magic'), 'Magus ring');
+  assert.equal(ring('Vorkath#Post-quest', 'Twisted bow', 'ranged'), 'Venator ring');
+  assert.equal(ring('Vorkath#Post-quest', "Osmumten's fang", 'melee'), 'Ultor ring');
+  assert.equal(ring('Vorkath#Post-quest', "Tumeken's shadow", 'magic', [id('Ring of shadows'), id('Lightbearer')]), 'Ring of shadows');
+});
+
+test("Osmumten's fang: two accuracy rolls (both fresh in the Tombs), hits 15-85% of the max; the Keris partisan of amascut is weaker outside", () => {
+  const gear = { weapon: id("Osmumten's fang") };
+  const run = (m: Monster, g: Record<string, number> = gear) => bestStyle({ gear: g, style: 0, stats: STATS }, m, idx.item)!.result;
+  const akkha = mon('Akkha');
+  const inToa = run(akkha);
+  const out = run({ ...akkha, n: 'Not Akkha' });
+  const p = hitChance(inToa.attackRoll, inToa.defenceRoll);
+  assert.ok(Math.abs(inToa.accuracy - (1 - (1 - p) ** 2)) < 1e-9, 'Tombs: 1 - (1 - p)^2');
+  const A = out.attackRoll;
+  const D = out.defenceRoll;
+  const want = A > D ? 1 - ((D + 2) * (2 * D + 3)) / (6 * (A + 1) ** 2) : (A * (4 * A + 5)) / (6 * (A + 1) * (D + 1));
+  assert.ok(Math.abs(out.accuracy - want) < 1e-9, 'elsewhere: the second roll against one defence roll');
+  assert.ok(inToa.accuracy > p && out.accuracy > p);
+  assert.ok(Math.abs(inToa.dps - (inToa.accuracy * (inToa.maxHit / 2)) / (inToa.speed * 0.6)) < 0.05, 'a hit averages half the max');
+  const keris = { weapon: id('Keris partisan of amascut') };
+  assert.ok(run(akkha, keris).attackRoll > run({ ...akkha, n: 'Not Akkha' }, keris).attackRoll, 'its bonuses hold only inside');
+});
+
+test('calc supplies: the trip template filled from the bank, owned forms first, room left after the switches; none owned is red', () => {
+  const bank = [...ENDGAME_BANK, { id: SANFEW, q: 20 }, { id: BREW, q: 30 }, { id: ANGLER, q: 100 }, { id: SAT_HEART }];
+  const c = endgame('toa', { raidLevel: 300, bank, nameOf: supplyName });
+  const sup = c.rows.filter((r) => r.group === 'supplies');
+  const by = (re: RegExp) => sup.find((r) => re.test(r.line));
+  assert.equal(by(/^Restores/)?.item, SANFEW, sup.map((r) => r.line).join(' | '));
+  assert.equal(by(/^Restores/)?.need, 3);
+  assert.equal(by(/^Brews/)?.need, 2);
+  assert.equal(by(/^Saturated heart/)?.need, 1, 'the magic boost: the heart owned');
+  assert.ok(/none in your bank/.test(by(/^Anti-venoms/)?.line ?? ''), 'no anti-venom owned: red');
+  const used = c.rows.filter((r) => r.item != null && ((r.group === 'gear' && !r.slot) || r.group === 'spec')).length;
+  const packed = sup.reduce((a, r) => a + (r.need ?? 0), 0);
+  assert.ok(used + packed <= 27, `${used} switches + ${packed} supplies`);
+  // Vorkath: food fills what is left.
+  const v = endgame('vorkath', { bank, nameOf: supplyName });
+  const food = v.rows.find((r) => r.group === 'supplies' && /^Food/.test(r.line))!;
+  assert.ok((food.need ?? 0) >= 10, `${food.need} food`);
+});
+
+// ── spells and the rune pouch ────────────────────────────────────────────────────────────────
+
+const DIVINE_POUCH = 27281;
+const runeName = (x: number) => (x === DIVINE_POUCH ? 'Divine rune pouch' : x === POUCH ? 'Rune pouch' : supplyName(x));
+const isPouch = (x: number) => x === POUCH || x === DIVINE_POUCH;
+const pouchRows = (c: ReturnType<typeof checkTrip>) => c.rows.filter((r) => r.group === 'pouch' && r.item != null && r.item !== POUCH && r.item !== DIVINE_POUCH);
+const runeNeed = (c: ReturnType<typeof checkTrip>, rune: number) => pouchRows(c).find((r) => r.item === rune)?.need ?? 0;
+const STATE = (book: number) => cleanTripState({ book, pray: ['rigour', 'augury'], quiver: [DRAGON_ARROW, 2000] })!;
+
+test('runes: Vorkath on the standard book takes Crumble Undead runes', () => {
+  const c = endgame('vorkath', { state: STATE(0), bank: [...ENDGAME_BANK, { id: POUCH }], nameOf: runeName, isRunePouch: isPouch });
+  // 10 casts: 2 earth, 2 air, 1 chaos each.
+  assert.equal(runeNeed(c, 557), 20, pouchRows(c).map((r) => r.line).join(' | '));
+  assert.equal(runeNeed(c, 556), 20);
+  assert.equal(runeNeed(c, 562), 10);
+  assert.ok(c.rows.some((r) => r.group === 'book' && /Standard spellbook/.test(r.line) && /Crumble Undead/.test(r.detail ?? '')));
+  // On Arceuus it isn't cast (not on that book): no crumble runes.
+  const arc = endgame('vorkath', { state: STATE(3), bank: [...ENDGAME_BANK, { id: POUCH }], nameOf: runeName, isRunePouch: isPouch });
+  assert.equal(runeNeed(arc, 562), 0);
+});
+
+test('runes: an Ancients barrage setup fills the pouch with death and blood; a Kodai wand covers the water', () => {
+  const content = contentFromKey('m:Cerberus')!;
+  const magicBank = (wand: string) => [wand, 'Ancestral hat', 'Ancestral robe top', 'Ancestral robe bottom', 'Occult necklace', 'Imbued Zamorak cape'].map((n) => ({ id: id(n) })).concat([{ id: DIVINE_POUCH }]);
+  const run = (wand: string) => checkTrip(input({ setup: null, content, monsters: [mon('Cerberus')], bank: magicBank(wand), state: STATE(1), nameOf: runeName, isRunePouch: isPouch }));
+  const kodai = run('Kodai wand');
+  assert.ok(runeNeed(kodai, 560) > 0 && runeNeed(kodai, 565) > 0, pouchRows(kodai).map((r) => r.line).join(' | '));
+  assert.equal(runeNeed(kodai, 555), 0, 'the Kodai gives water without end');
+  assert.equal(runeNeed(kodai, 560), 2 * runeNeed(kodai, 565), 'Ice Barrage: 4 death to 2 blood');
+  assert.ok(pouchRows(kodai).every((r) => r.inPouch), 'two kinds: both in the divine pouch');
+  const master = run('Master wand');
+  assert.equal(runeNeed(master, 555), (6 / 4) * runeNeed(master, 560), 'without it: 6 water a cast');
+});
+
+test('runes: a staff giving fire and air without end leaves only the wrath of Fire Surge', () => {
+  const content = contentFromKey('m:Cerberus')!;
+  const bank = ['Smoke battlestaff', 'Ancestral hat', 'Ancestral robe top', 'Ancestral robe bottom'].map((n) => ({ id: id(n) })).concat([{ id: POUCH }]);
+  const c = checkTrip(input({ setup: null, content, monsters: [mon('Bloodthirsty gargoyle')], bank, state: STATE(0), nameOf: runeName, isRunePouch: isPouch }));
+  const runes = pouchRows(c).map((r) => r.item);
+  assert.deepEqual(runes, [21880], c.rows.map((r) => `${r.group}:${r.line}`).join(' | '));
+});
+
+test('runes: Arceuus at a raid packs thrall and Death Charge runes; the fifth kind goes in the inventory', () => {
+  const c = endgame('toa', { raidLevel: 300, state: STATE(3), bank: [...ENDGAME_BANK, { id: DIVINE_POUCH }], nameOf: runeName, isRunePouch: isPouch });
+  const book = c.rows.find((r) => r.group === 'book');
+  assert.ok(/Arceuus spellbook/.test(book?.line ?? '') && /Resurrect Greater/.test(book?.detail ?? '') && /Death Charge/.test(book?.detail ?? ''), book?.detail);
+  for (const r of [554, 565, 564, 560, 566]) assert.ok(runeNeed(c, r) > 0, `${r}: ${pouchRows(c).map((x) => x.line).join(' | ')}`);
+  assert.equal(pouchRows(c).filter((r) => r.inPouch).length, 4, 'a divine pouch holds four kinds');
+  assert.equal(pouchRows(c).filter((r) => !r.inPouch).length, 1);
+  assert.ok(c.rows.some((r) => r.group === 'pouch' && r.item === DIVINE_POUCH), 'the pouch itself is packed');
+});
+
+test('layout: a raid the carried setup covers draws what is worn on the doll, never a worn piece as a switch', async () => {
+  const { tripLayout } = await import('../src/lib/tripLayout.ts');
+  const toa = tripContent('toa')!;
+  const wornNames = ['Ancestral hat', 'Ancestral robe top', 'Ancestral robe bottom', 'Occult necklace', 'Confliction gauntlets', 'Avernic treads (max)', 'Lightbearer'];
+  const worn = [...wornNames.map((n) => ({ id: id(n) })), { id: SHADOW_U }];
+  const inventory = ['Twisted bow', 'Masori mask (f)', 'Masori body (f)', 'Masori chaps (f)', "Osmumten's fang", 'Torva platebody', 'Avernic defender', 'Amulet of rancour', 'Ferocious gloves', 'Ultor ring', 'Infernal cape'].map((n) => ({ id: id(n) }));
+  const c = checkTrip(input({ setup: null, content: toa, monsters: toa.targets.map(mon), worn, inventory, bank: [{ id: DRAGON_ARROW }], state: QUIVER_STATE, nameOf: endgameName, raidLevel: 300 }));
+  const has = (list: InvItem[]) => (x: number) => list.some((i) => i.id === x);
+  const holds = equivalentsFor([...worn, ...inventory].map((x) => x.id), 'holds');
+  const slotOf = (x: number) => {
+    const it = idx.item(x) ?? holds(x).map((h) => idx.item(h)).find(Boolean);
+    return it ? (it.s === '2h' ? 'weapon' : it.s) : null;
+  };
+  const l = tripLayout({ setup: null, rows: c.rows, worn, inventory, bank: [], state: QUIVER_STATE, carries: has([...worn, ...inventory]), owns: has([...worn, ...inventory]), slotOf, nameOf: endgameName, isRunePouch: () => false, isSpec: (x) => isSpecWeapon(endgameName(x)) });
+  // However the calc words it ("covers all 5 bosses" or a worn kit), the doll is never empty.
+  for (const s of ['head', 'body', 'legs', 'neck', 'hands', 'feet', 'ring', 'weapon']) assert.ok(l.worn[s], `${s} on the doll: ${c.rows.map((r) => r.line).join(' | ')}`);
+  if (!c.rows.some((r) => r.group === 'gear' && r.slot)) assert.equal(l.worn.ring.id, id('Lightbearer'));
+  const invIds = l.inventory.filter((x) => !!x).map((x) => x!.id);
+  for (const w of Object.values(l.worn)) assert.ok(!invIds.includes(w.id), `${endgameName(w.id)} is worn, not a switch`);
 });

@@ -1,5 +1,5 @@
 // The pre-trip check's next-trip target (lib/tripTarget): which source wins, what clears it, which
-// guides and kills map to a trip, and the panel's "Checking for: … · change · clear". No database.
+// guides and kills map to a trip, and the panel's "Checking for: …" line with its change and clear links. No database.
 //
 // Run: npx tsx --test tests/trip-target.test.ts
 
@@ -94,7 +94,7 @@ const base = { region: '12598', regionName: null, fromRegion: false, source: 'ca
 test('panel: "Checking for: Doom (last trip)", chips set the target, clear, again keeps it', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
   const json = JSON.stringify(tripPanelUi({ ...base, content: { key: DOOM, name: 'Doom of Mokhaiotl', short: 'Doom of Mokhaiotl' }, target: { key: DOOM, short: 'Doom of Mokhaiotl', why: 'last trip' }, fromTarget: true }));
-  assert.ok(json.includes('"Checking for: "') && json.includes(' (last trip) · '));
+  assert.ok(json.includes('"Checking for: "') && json.includes(' (last trip)"'));
   assert.ok(json.includes(`"target":"${DOOM}"`), 'a chip makes it the target');
   assert.ok(json.includes('"target":"clear"'));
   assert.ok(json.includes(`"content":"${DOOM}"`), 'the monster list only looks');

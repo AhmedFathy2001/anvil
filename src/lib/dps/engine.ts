@@ -196,6 +196,13 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
   // Summed equipment bonuses. A blowpipe's darts add their ranged strength.
   const sum = [0, 0, 0, 0, 0, 0, 0, 0, 0];
   for (const g of gear) g.b.forEach((v, i) => (sum[i] += v));
+  // The Keris partisan of amascut's listed bonuses hold only inside the Tombs; elsewhere it has 50
+  // less stab and 22 less strength.
+  const inToa = TOA_MONSTER.test(monster.n);
+  if (/^keris partisan of amascut/i.test(weapon?.n ?? '') && !inToa) {
+    sum[0] -= 50;
+    sum[5] -= 22;
+  }
   const isBlowpipe = /blowpipe/i.test(weapon?.n ?? '');
   if (isBlowpipe) {
     const dart = items(loadout.dart);
@@ -233,6 +240,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
   let attackRoll = 0;
   let defenceRoll = 0;
   let hits = [1]; // damage fractions per attack (scythe: several)
+  let fang: { stab: boolean; toa: boolean } | null = null;
 
   // Custom effect rules (lib/dps/effects), applied after each style's built-in effects.
   const applyRules = () => {
@@ -309,7 +317,10 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
       hits = size >= 3 ? [1, 0.5, 0.25] : size === 2 ? [1, 0.5] : [1];
       if (hits.length > 1) effects.push(`Scythe of vitur: ${hits.length} hits on a size-${size} target`);
     }
-    if (/osmumten's fang/i.test(wn) && style.type === 'stab') notes.push("Osmumten's fang: its double accuracy roll is approximated.");
+    if (/^osmumten's fang/i.test(wn)) {
+      fang = { stab: style.type === 'stab', toa: inToa };
+      effects.push(`Osmumten's fang: ${fang.stab ? (inToa ? 'accuracy rolled twice (Tombs of Amascut), ' : 'a second accuracy roll, ') : ''}hits 15–85% of the max`);
+    }
   } else if (kind === 'ranged') {
     const pr = prayerMultipliers(loadout.prayer, 'ranged');
     const rng = boostedLevel(loadout.stats.ranged, loadout.boost, 'ranged');
@@ -454,11 +465,22 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
   }
 
   if (monster.fa) notes.push(`Flat armour (${monster.fa}) is not modelled.`);
+  if (fang) {
+    // Osmumten's fang: a hit lands for 15–85% of the max (no zeros), the mean half the max. With a
+    // stab style it rolls accuracy twice: inside the Tombs both rolls are fresh (1 − (1 − p)²);
+    // elsewhere only the player's roll is re-rolled against the one defence roll (the wiki's formula).
+    const A = attackRoll;
+    const D = defenceRoll;
+    const p0 = hitChance(A, D);
+    const p = !fang.stab ? p0 : fang.toa ? 1 - (1 - p0) ** 2 : A > D ? 1 - ((D + 2) * (2 * D + 3)) / (6 * (A + 1) ** 2) : (A * (4 * A + 5)) / (6 * (A + 1) * (D + 1));
+    const lo = floor(maxHit * 0.15);
+    return finish(p * ((lo + (maxHit - lo)) / 2), p);
+  }
   const p = hitChance(attackRoll, defenceRoll);
   return finish(hits.reduce((acc, frac) => acc + p * avgAccurateHit(floor(maxHit * frac)), 0));
 
-  function finish(avgPerAttack: number): DpsResult {
-    const acc = hitChance(attackRoll, defenceRoll);
+  function finish(avgPerAttack: number, accuracy?: number): DpsResult {
+    const acc = accuracy ?? hitChance(attackRoll, defenceRoll);
     const s = Math.max(1, speed);
     const dps = avgPerAttack / (s * TICK);
     return {
