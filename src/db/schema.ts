@@ -1934,6 +1934,8 @@ export const rushDeathShots = pgTable('rush_death_shots', {
   occurredAt: text('occurred_at').notNull(),
   /** What killed them, when the plugin knew. */
   source: text('source'),
+  /** 'poison' | 'venom' when they died poisoned (source is then the likely culprit), else the killer's kind. */
+  sourceKind: text('source_kind'),
   proofKey: text('proof_key'),
   screenshotUrl: text('screenshot_url'),
   /** The frame as the plugin took it, before the site drew its stamp (lib/huntStamp). */

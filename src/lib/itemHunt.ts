@@ -692,6 +692,8 @@ export interface HuntReport {
   /** 'death' only: the monsters within a few tiles when it happened (the plugin's look around), so a
    *  death to a boss's minion or mechanic counts at that boss (Blood reavers at Nex). */
   near?: string[] | null;
+  /** The killer's kind; 'poison' | 'venom' for a death nobody dealt (lib/deathSource). */
+  sourceKind?: string | null;
   /** Where it happened (lib/momentPlace): a rush skips an Entry Mode chest it does not run. */
   place?: { raid: string | null; raidMode: string | null } | null;
   kc?: number | null;
