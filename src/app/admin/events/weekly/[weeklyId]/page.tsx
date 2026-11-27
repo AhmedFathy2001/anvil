@@ -7,6 +7,7 @@ import { getCofferBalance, clanHasCoffer, getWeeklyPool } from '@/lib/coffer';
 import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
 import WeeklyHomeClient from './WeeklyHomeClient';
 import HuntAdminClient, { type HuntAttention } from './HuntAdminClient';
+import HuntMediaNote from './HuntMediaNote';
 import { huntPrizeBoard, huntStandings } from '@/lib/itemHuntDb';
 import { buildHuntView } from '@/lib/itemHuntView';
 import { huntStat } from '@/lib/itemHunt';
@@ -90,7 +91,9 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
       .filter((r) => r.count > 0)
       .slice(0, 3)
       .map((r) => `${r.rank}. ${r.rsn} (${r.count} ${r.count === 1 ? 'drop' : 'drops'})`);
+    const renderedAt = new Date().getTime();
     return (
+      <>
       <HuntAdminClient
         competitionId={comp.id}
         title={comp.title}
@@ -101,6 +104,8 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
         prizes={{ initial: prizes, cofferAvailable: balance.available + held, held: held > 0, settledAt: comp.prizesSettledAt, canEdit: Boolean(feeCollector), hasCoffer, hcw: comp.prizeCurrency === 'hcw' }}
         prizesWaiting={comp.status === 'completed' && !comp.prizesSettledAt && prizeHolds.length > 0}
       />
+      <HuntMediaNote comp={comp} now={renderedAt} />
+      </>
     );
   }
 

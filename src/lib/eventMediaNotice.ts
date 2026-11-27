@@ -124,49 +124,66 @@ export async function sendPurgeNotice(
     return result;
   }
 
-  const [clan] = await db.select({ name: clans.name, slug: clans.slug, kind: clans.kind }).from(clans).where(eq(clans.id, e.clanId));
-  const archiveUrl = absoluteUrl(clanCanonicalPath({ slug: clan?.slug ?? '', kind: clan?.kind }, `/admin/events/${e.id}`));
+  const delivered = await deliverPurgeNotice(e.clanId, { stage: e.stage, name: e.name, purgeAt, files, path: `/admin/events/${e.id}`, now });
+  Object.assign(result, delivered);
+  await stamp();
+  log.info('media-retention.notice', { eventId: e.id, stage: e.stage, files, dms: result.dms, emails: result.emails, channel: result.channel });
+  return result;
+}
+
+/**
+ * Tell a clan's owner and admins a purge is coming: Discord DM from the clan's bot and email when set
+ * up, else the clan's channel. Shared by events and item hunts (lib/huntMediaRetention); `path` is the
+ * clan-relative admin page the notice links to, `hunt` picks the no-archive wording.
+ */
+export async function deliverPurgeNotice(
+  clanId: number,
+  n: { stage: 'first' | 'final'; name: string; purgeAt: Date; files: number; path: string; now: Date; hunt?: boolean },
+): Promise<{ dms: number; emails: number; channel: boolean }> {
+  const out = { dms: 0, emails: 0, channel: false };
+  const [clan] = await db.select({ name: clans.name, slug: clans.slug, kind: clans.kind }).from(clans).where(eq(clans.id, clanId));
+  const archiveUrl = absoluteUrl(clanCanonicalPath({ slug: clan?.slug ?? '', kind: clan?.kind }, n.path));
   const { subject, lines } = purgeNoticeText({
-    stage: e.stage,
-    eventName: e.name,
+    stage: n.stage,
+    eventName: n.name,
     clanName: clan?.name ?? '',
-    purgeAt,
-    files,
+    purgeAt: n.purgeAt,
+    files: n.files,
     archiveUrl,
-    now,
+    now: n.now,
+    hunt: n.hunt,
   });
+  const cta = n.hunt ? 'Open the competition' : 'Download the archive';
   const embed = {
     title: subject,
     url: archiveUrl,
-    description: `${lines.join('\n\n')}\n\n[Download the archive](${archiveUrl})`,
-    color: e.stage === 'final' ? EMBED_COLOR.red : EMBED_COLOR.amber,
+    description: `${lines.join('\n\n')}\n\n[${cta}](${archiveUrl})`,
+    color: n.stage === 'final' ? EMBED_COLOR.red : EMBED_COLOR.amber,
     footer: { text: POWERED_BY, icon_url: ANVIL_LOGO_URL },
   };
 
-  const admins = await clanAdmins(e.clanId);
-  const bot = await getBotTokenOnly(e.clanId);
+  const admins = await clanAdmins(clanId);
+  const bot = await getBotTokenOnly(clanId);
   if (bot) {
     for (const id of new Set(admins.map((a) => a.discordId).filter((d): d is string => !!d))) {
-      if (await sendDm(bot.token, id, { embeds: [embed] }).catch(() => false)) result.dms++;
+      if (await sendDm(bot.token, id, { embeds: [embed] }).catch(() => false)) out.dms++;
     }
   }
   if (isMailConfigured()) {
-    // The layout takes HTML; everything here is text, and the event name is admin-typed.
+    // The layout takes HTML; everything here is text, and the name is admin-typed.
     const { html, text } = renderEmail({
       preheader: escapeHtml(lines[0]),
       heading: escapeHtml(subject),
       lines: lines.map(escapeHtml),
-      cta: { label: 'Download the archive', url: archiveUrl },
+      cta: { label: cta, url: archiveUrl },
       footnote: `You get this because you are an owner or admin of this ${isCreatorSpace(clan) ? 'space' : 'clan'} on Anvil.`,
     });
     for (const to of new Set(admins.map((a) => a.email?.trim().toLowerCase()).filter((m): m is string => !!m))) {
-      if (await sendMail({ to, subject, text, html })) result.emails++;
+      if (await sendMail({ to, subject, text, html })) out.emails++;
     }
   }
-  if (result.dms === 0 && result.emails === 0) {
-    result.channel = await sendDiscordWebhook(e.clanId, { embeds: [embed] }).catch(() => false);
+  if (out.dms === 0 && out.emails === 0) {
+    out.channel = await sendDiscordWebhook(clanId, { embeds: [embed] }).catch(() => false);
   }
-  await stamp();
-  log.info('media-retention.notice', { eventId: e.id, stage: e.stage, files, dms: result.dms, emails: result.emails, channel: result.channel });
-  return result;
+  return out;
 }
