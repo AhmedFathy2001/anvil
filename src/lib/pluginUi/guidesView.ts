@@ -4,6 +4,7 @@
 // played character when it is theirs, else their main. Clanless players get the Anvil library; a
 // clan member pointed at their clan gets the clan's copies where it has them (lib/guides).
 
+import { tripEnabled } from '@/lib/serverInfo';
 import { caName } from '@/lib/loadout/caRules';
 import { eq } from 'drizzle-orm';
 
@@ -134,7 +135,7 @@ export async function guidesSearchView(request: Request, args: Args): Promise<Vi
   const at = spot ? await publicGuideBySlug(clanId, spot.slug) : null;
   const here = at && spot ? { id: at.guide.id, title: at.guide.title.split(' — ')[0], where: spot.where, pic: guidePic(at.guide, firstGearBlock(at.guide.body)) } : null;
   // The pre-trip check's way in, for a signed-in player on a character of theirs.
-  const trip = viewer.userId && viewer.accountId ? await targetLabel(viewer.userId, viewer.accountId).catch(() => null) : undefined;
+  const trip = tripEnabled() && viewer.userId && viewer.accountId ? await targetLabel(viewer.userId, viewer.accountId).catch(() => null) : undefined;
   return { ui: guidesSearchUi({ recent, sections, filters, here, region, trip }) };
 }
 
@@ -325,7 +326,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       alternatives,
       route: guide.kind === 'route' ? await routePanel(viewer, guide.id, guide.body) : null,
       gearNow: nowCard,
-      goingNext: nextKey && nextTrip ? { key: nextKey, short: nextTrip.short } : null,
+      goingNext: tripEnabled() && nextKey && nextTrip ? { key: nextKey, short: nextTrip.short } : null,
     }),
   };
 }

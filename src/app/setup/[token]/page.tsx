@@ -1,3 +1,4 @@
+import { tripEnabled } from '@/lib/serverInfo';
 import { notFound } from 'next/navigation';
 
 import { getItemMapping } from '@/lib/osrsItems';
@@ -14,6 +15,7 @@ export const metadata = { title: 'Shared setup', robots: { index: false } };
  * inventory and rune pouch, with its bank tag to copy. Never whose it is, nor anything of their bank.
  */
 export default async function SharedSetupPage({ params }: { params: Promise<{ token: string }> }) {
+  if (!tripEnabled()) notFound();
   const { token } = await params;
   const shared = await sharedSetup(token);
   if (!shared) notFound();

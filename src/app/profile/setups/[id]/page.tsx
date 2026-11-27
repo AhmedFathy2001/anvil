@@ -1,3 +1,4 @@
+import { tripEnabled } from '@/lib/serverInfo';
 import { notFound, redirect } from 'next/navigation';
 
 import { verifyUser } from '@/lib/auth';
@@ -12,6 +13,7 @@ export const metadata = { title: 'Setup', robots: { index: false } };
 
 /** One of the person's saved setups: the full doll, inventory and pouch, and its actions. Owner only. */
 export default async function SetupDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  if (!tripEnabled()) notFound();
   const { id } = await params;
   const session = await verifyUser();
   if (!session) redirect(`/login?return=${encodeURIComponent(`/profile/setups/${id}`)}`);

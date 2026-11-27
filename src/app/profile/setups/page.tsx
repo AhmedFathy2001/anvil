@@ -1,4 +1,5 @@
-import { redirect } from 'next/navigation';
+import { tripEnabled } from '@/lib/serverInfo';
+import { redirect, notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -22,6 +23,7 @@ export const metadata = { title: 'My setups', robots: { index: false } };
  * a new one from the character's bank (api/profile/setups). No bank shown.
  */
 export default async function MySetupsPage() {
+  if (!tripEnabled()) notFound();
   const session = await verifyUser();
   if (!session) redirect(`/login?return=${encodeURIComponent('/profile/setups')}`);
   const [setups, characters, mapping] = await Promise.all([
