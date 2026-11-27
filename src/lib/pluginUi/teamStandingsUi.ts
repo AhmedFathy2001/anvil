@@ -63,7 +63,7 @@ export function weeklyGroupsPayload(type: string, view: GroupStandingsView | nul
     ? {
         ...standings.find((s) => s.rank === mine.rank)!,
         // "Your team: 2nd of 4 · +1.2M XP"
-        line: `Your ${noun}: ${ordinal(mine.rank)} of ${view.groups.length} · ${groupGain(type, mine.total)}`,
+        line: `Your ${noun}: ${ordinal(mine.rank)} of ${view.groups.length}, ${groupGain(type, mine.total)}`,
       }
     : null;
   return { mode: view.mode, noun, of: view.groups.length, you, standings };
@@ -76,7 +76,7 @@ export function yourGroupCard(type: string, g: WeeklyGroupsPayload): Node | null
   if (!g.you) return null;
   return card([
     row(text(g.you.name, hex(g.you.colour)), undefined, text(groupGain(type, g.you.total), 'progress')),
-    muted(`Your ${g.noun}: ${ordinal(g.you.rank)} of ${g.of} · ${groupGain(type, g.you.average)} avg/player`, { wrap: true }),
+    muted(`Your ${g.noun}: ${ordinal(g.you.rank)} of ${g.of}, ${groupGain(type, g.you.average)} avg/player`, { wrap: true }),
   ]);
 }
 

@@ -135,7 +135,7 @@ export function momentTitle(m: MomentLike): string {
   const run = m.run && m.run.n > 1 ? m.run : null;
   if (!run) return oneTitle(m);
   // Deaths to different killers: the count leads, the latest killer after it.
-  if (m.kind === 'death' && run.mixed) return m.source ? `Died ×${run.n} · last to ${m.source}` : `Died ×${run.n}`;
+  if (m.kind === 'death' && run.mixed) return m.source ? `Died ×${run.n}, last to ${m.source}` : `Died ×${run.n}`;
   return `${oneTitle(m)}${runSuffix(run)}`;
 }
 
@@ -532,7 +532,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
         t: 'input',
         name: 's',
         kind: 'select',
-        options: o.scopes.map((s) => ({ v: scopeKey(s), label: `${s.kind === 'clan' ? 'Clan' : 'Event'} · ${s.name}` })),
+        options: o.scopes.map((s) => ({ v: scopeKey(s), label: `${s.kind === 'clan' ? 'Clan' : 'Event'}, ${s.name}` })),
         value: key,
         tip: 'Whose feed to show',
         on: load({}),
@@ -540,7 +540,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
     );
   }
   const live = !o.mode?.active
-    ? text('', 'muted', { font: 'small', runs: [{ s: 'Live', color: BLUE }, { s: o.pane === 'chat' ? ' · your board’s chat' : o.current.kind === 'event' ? ' · drops, pets and finished tiles from every team' : ' · drops, pets and achievements from the clan', color: 'muted' }] })
+    ? text('', 'muted', { font: 'small', runs: [{ s: 'Live', color: BLUE }, { s: o.pane === 'chat' ? ', your board’s chat' : o.current.kind === 'event' ? ', drops, pets and finished tiles from every team' : ', drops, pets and achievements from the clan', color: 'muted' }] })
     : null;
   const cur = o.current;
   if (cur.kind === 'clan') {
@@ -641,7 +641,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
     parts.push(
       gap(6),
       openRow(
-        text(`Game-mode activity · ${o.mode.count}`),
+        text(`Game-mode activity (${o.mode.count})`),
         undefined,
         [],
         load({ s: key, p: 'feed', m: '1', f: 'all', wm: 'all' }),

@@ -122,7 +122,7 @@ export function whereCard(x: Pick<Ctx, 'graph' | 'route' | 'race' | 'board'>): N
   let line: Node;
   if (done === 0 && !r.finished) {
     const lead = leader && leaderName && leader.teamId !== x.board.yourTeamId
-      ? leader.finished ? ` · ${clip(leaderName, 16)} already finished` : leader.stepsDone > 0 ? ` · ${clip(leaderName, 16)} is on step ${leader.stepsDone + 1}` : ''
+      ? leader.finished ? `, ${clip(leaderName, 16)} already finished` : leader.stepsDone > 0 ? `, ${clip(leaderName, 16)} is on step ${leader.stepsDone + 1}` : ''
       : '';
     line = muted(`${r.steps} steps to the finish${lead}`, { wrap: CARD_W });
   } else {
@@ -188,14 +188,14 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'> & P
   const sub = (s: string, color: Color = FAINT) => text(s, color, { font: 'small', wrap: TRACK_W });
   route.path.forEach((id, step) => {
     if (step > last) return;
-    out.push(stop('done', text(clip(x.name(id), 28), GREEN), sub(`${step === last ? 'Finish' : `Step ${step + 1}`} · done`), open(id), step === last));
+    out.push(stop('done', text(clip(x.name(id), 28), GREEN), sub(`${step === last ? 'Finish' : `Step ${step + 1}`}, done`), open(id), step === last));
   });
   if (x.race.finished) return out;
   // Where the team stands: one open tile is "you are here"; several (a fork) are in the gold card.
   // ("Roads stay open": only the open tiles at the next step; earlier forks are in the gold card.)
   const front = frontOpen(g, route);
   let at: number | null = front.length === 1 && route.pickFrom.length === 0 ? front[0] : null;
-  if (at != null) out.push(stop('now', text(clip(x.name(at), 28), 'white', { font: 'bold' }), sub(`${done === last ? 'Finish' : `Step ${done + 1}`} · you are here`, GOLD), open(at), done === last));
+  if (at != null) out.push(stop('now', text(clip(x.name(at), 28), 'white', { font: 'bold' }), sub(`${done === last ? 'Finish' : `Step ${done + 1}`}, you are here`, GOLD), open(at), done === last));
   // A fork the team is AT (open now, or picked from): its tiles are unlocked, so the track names them
   // — badged, one other inline, the rest behind "+N other roads" — with the gold "now" dot. Only the
   // steps past it can still say "Depends on your road".
@@ -205,7 +205,7 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'> & P
     const [first, ...others] = fork;
     const head = row(roadBadge(roadOf(g, first)), text(clip(x.name(first), 24), 'white', { font: 'bold', tip: x.name(first) }), undefined, { gap: 6 });
     const other = others[0];
-    const here = `${word} · ${route.pickFrom.length ? 'pick your road' : 'open now'}`;
+    const here = `${word}, ${route.pickFrom.length ? 'pick your road' : 'open now'}`;
     const inline = other != null
       ? col([
           sub(here, GOLD),
@@ -236,14 +236,14 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'> & P
       const others = ways.filter((id) => id !== main);
       const other = others[0];
       const inline = other != null
-        ? row(text(`${word} · or switch: `, FAINT, { font: 'small' }), text(clip(`${roadOf(g, other)}: ${x.name(other)}`, 22), roadInk(roadOf(g, other))[1], { font: 'small', on: open(other), tip: `Open ${x.name(other)}` }), undefined, { gap: 0 })
+        ? row(text(`${word}, or switch: `, FAINT, { font: 'small' }), text(clip(`${roadOf(g, other)}: ${x.name(other)}`, 22), roadInk(roadOf(g, other))[1], { font: 'small', on: open(other), tip: `Open ${x.name(other)}` }), undefined, { gap: 0 })
         : sub(word);
       // Many roads: one switch inline, the rest behind "+N other roads" (every road's tile, badged).
       const subLine = others.length > 1 ? roadsToggle(`race-alts:${main}`, inline, sub(word), ways, g, x.name, open) : inline;
       out.push(stop(dot, text(clip(x.name(main), 28), 'text'), subLine, open(main), end));
       at = main;
     } else if (ids.length === 1) {
-      out.push(stop(dot, text(word, 'text'), sub(`${clip(x.name(ids[0]), 22)} · same for everyone`), open(ids[0]), end));
+      out.push(stop(dot, text(word, 'text'), sub(`${clip(x.name(ids[0]), 22)}, same for everyone`), open(ids[0]), end));
       at = ids[0];
     } else {
       const cross = ids.some((id) => (g.prev.get(id)?.length ?? 0) > 1);
@@ -256,7 +256,7 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'> & P
 
 /** "Step 4 · Locked · 5 tiles": a step not unlocked yet, as the track shows it. */
 export function lockedStop(word: string, tiles: number, end = false): Node {
-  return stop(end ? 'end' : 'lock', text(word, 'text'), text(`Locked · ${tiles} tile${tiles === 1 ? '' : 's'}`, FAINT, { font: 'small', wrap: TRACK_W }), undefined, end);
+  return stop(end ? 'end' : 'lock', text(word, 'text'), text(`Locked, ${tiles} tile${tiles === 1 ? '' : 's'}`, FAINT, { font: 'small', wrap: TRACK_W }), undefined, end);
 }
 
 /** A step's roads folded: `inline` and a "+N other roads" chip, opening to one badged row per road. */
@@ -417,7 +417,7 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
   const chip = STATE_CHIP[state] ?? STATE_CHIP.ahead;
   const p = x.o.ctx.progress.get(id);
   const prog = state === 'open' && p && p.goal > 1 ? text(`${count(Math.min(p.current, p.goal))} of ${count(p.goal)}`, PROGRESS, { live: { tile: id, cur: p.current, goal: p.goal, fmt: 'raw' } }) : undefined;
-  const where = `${node.step === g.lastStep ? 'Finish' : `Step ${node.step + 1}`}${hasRoads(g, id) ? ` · Road ${roadOf(g, id)}` : ''}`;
+  const where = `${node.step === g.lastStep ? 'Finish' : `Step ${node.step + 1}`}${hasRoads(g, id) ? `, Road ${roadOf(g, id)}` : ''}`;
   const back = row(undefined, text('Back to the race', '#e6e6e6', { icon: icon({ glyph: 'chevron-left', w: 9, h: 9, color: '#e6e6e6' }) }), undefined, { bg: 'raised', pad: 8, on: pane('main'), tip: 'Back to the race' });
   const out: Node[] = [
     back,
@@ -438,7 +438,7 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
     title('What counts'),
     ...(what.length ? what.slice(0, 10).map((s) => (s.startsWith('    ') ? muted(s.trim(), { wrap: CARD_W }) : text(s.trim(), SOFT, { wrap: CARD_W }))) : [text(t.requirement?.trim() || 'See the tile on the site.', SOFT, { wrap: CARD_W })]),
     ...(what.length > 10 ? [muted(`+${what.length - 10} more on the site`)] : []),
-    muted(['Worth 1 step', t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null].filter(Boolean).join(' · ')),
+    muted(['Worth 1 step', t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null].filter(Boolean).join(', ')),
   ]));
 
   // Easier options (lib/raceEase): the ones open for the team, when the clock opens the next, the lifeline.

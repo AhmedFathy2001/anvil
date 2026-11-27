@@ -85,7 +85,7 @@ export function bodySections(text: string): BodySection[] {
     if (sub) {
       flushPara();
       const s = plainLine(sub[1]);
-      if (s) cur.note = cur.note ? `${cur.note} · ${s}` : s;
+      if (s) cur.note = cur.note ? `${cur.note}, ${s}` : s;
       continue;
     }
     const img = IMAGE_RE.exec(raw);

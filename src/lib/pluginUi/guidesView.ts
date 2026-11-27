@@ -101,7 +101,7 @@ function rowOf(g: { id: number; title: string; category: string; body: string; k
   const levels = new Set([...(block?.setups.map((s) => s.tier) ?? []), ...textTiers(g.body)]).size;
   const parts = g.kind === 'route' ? ['Progression route'] : [levels > 1 ? `${levels} levels` : 'Guide', block ? `${block.setups.length} setup${block.setups.length === 1 ? '' : 's'}` : `${readingMinutes(g.body)} min read`];
   if (community) parts.push(`${community} community`);
-  return { id: g.id, title: g.title.split(' — ')[0], category: catLabel, pic: guidePic(g, block), meta: parts.join(' · '), by };
+  return { id: g.id, title: g.title.split(' — ')[0], category: catLabel, pic: guidePic(g, block), meta: parts.join(', '), by };
 }
 
 export async function guidesSearchView(request: Request, args: Args): Promise<View> {
@@ -274,20 +274,20 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       kind: guide.kind === 'route' ? 'Progression route' : categoryOf(guide.category, cats).label,
       tier,
       tiers,
-      byline: `${byShort(credits)}${top && !phase2 ? ` · ${top.label}` : ''}` || writtenByLine(credits),
+      byline: `${byShort(credits)}${top && !phase2 ? `, ${top.label}` : ''}` || writtenByLine(credits),
       rankGlyph: phase2 ? tone : null,
       region,
       keep: Object.fromEntries((['account', 'build'] as const).filter((k) => args[k] && args[k] !== 'any').map((k) => [k, args[k]!])),
       setups: all.map((x) => ({
         key: x.key,
         name: x.community ? `${x.setup.name} (community)` : x.setup.name,
-        sub: [x.setup.pick ? 'Curator pick' : x.setup.tag ?? '', x.dps != null ? `${x.dps.toFixed(1)} DPS` : ''].filter(Boolean).join(' · '),
+        sub: [x.setup.pick ? 'Curator pick' : x.setup.tag ?? '', x.dps != null ? `${x.dps.toFixed(1)} DPS` : ''].filter(Boolean).join(', '),
         weapon: x.setup.gear.weapon ?? null,
         blocked: x.fit.ok ? null : x.fit.reason,
         pick: !!x.setup.pick,
       })),
       current: current?.key ?? null,
-      dps: current ? `${((current.resolved ? current.myDps : current.dps) ?? 0).toFixed(1)} DPS${current.ttk != null ? ` · ~${fmtDuration(current.ttk)}` : ''}` : '',
+      dps: current ? `${((current.resolved ? current.myDps : current.dps) ?? 0).toFixed(1)} DPS${current.ttk != null ? `, ~${fmtDuration(current.ttk)}` : ''}` : '',
       usingFallbacks: current?.resolved?.slots.filter((x) => x.kind === 'fallback').map((x) => `${names[x.use!] ?? 'item'} for ${names[x.guide] ?? 'item'}`).join(', ') || null,
       slots: s
         ? SLOTS.map((slot) => {
