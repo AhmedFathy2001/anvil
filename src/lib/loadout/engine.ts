@@ -22,7 +22,9 @@
 // Imported from it: ammoFits, isSpecWeapon, usableHeld, raidScaled, calcSpell, SPELL_RUNES, staffRunes.
 
 import { calculate, type DpsResult, type GearItem, type Monster, type Stats } from '../dps/engine';
-import { POWERED_MAX, SLOTS, spellByName, stylesFor, type AttackStyle, type AttackType, type Slot } from '../dps/tables';
+import { canEquip as canWear, missingLine } from '../dps/requirements';
+import { POWERED_MAX, SLOTS, givesDefenceXp, spellByName, stylesFor, type AttackType, type Slot } from '../dps/tables';
+import { mergeMods } from '../dps/targets';
 import type { GearIndex } from '../dps/summary';
 import { SPELL_RUNES, ammoFits, calcSpell, isSpecWeapon, raidScaled, staffRunes, usableHeld } from '../tripCheck';
 import { SUPPLY_FORMS, SUPPLY_LABEL, pickSupplies } from './supplies';
@@ -34,8 +36,8 @@ export interface EngineInput {
   player: PlayerInput;
   idx: GearIndex;
   /**
-   * Whether the player can wear an item with their levels: null when they can, else the reason
-   * ("needs 75 Attack"). Unset: everything is wearable.
+   * Whether the player can wear an item: null when they can, else the reason ("needs 75 Attack").
+   * Unset: the item's level requirements against the player's levels (lib/dps/requirements).
    */
   canEquip?: (it: GearItem) => string | null;
 }
@@ -173,23 +175,19 @@ function dpsOn(gear: Gear, kit: KitLike, t: Target, ctx: Ctx, gk = gearKey(gear)
   return out;
 }
 
-/** Stances that give Defence experience. */
-const DEFENCE_XP = (s: AttackStyle) => s.stance === 'controlled' || s.stance === 'defensive' || s.stance === 'longrange' || /^defensive autocast$/i.test(s.name);
-
 function dpsOnUncached(gear: Gear, kit: KitLike, t: Target, ctx: Ctx): { dps: number; r: DpsResult } | null {
   const weapon = ctx.idx.item(gear.weapon);
   if (!weapon) return null;
   let best: { dps: number; r: DpsResult } | null = null;
-  // The phase's own cut on this style (the Olm's head takes a third from melee and magic).
-  const taken = t.p.taken?.[kit.style] ?? 1;
-  if (taken <= 0) return null;
+  // The phase's own target effects (a style's share, demonbane vulnerability…) over the monster's.
+  const m = t.p.mods ? { ...t.m, mods: mergeMods(t.m.mods, t.p.mods) } : t.m;
   stylesFor(weapon.c).forEach((s, i) => {
     if (kindOfType(s.type) !== kit.style) return;
     if (kit.types && !kit.types.includes(s.type)) return;
-    if (ctx.avoidDefence && DEFENCE_XP(s)) return;
+    if (ctx.avoidDefence && givesDefenceXp(s)) return;
     const r = calculate(
       { gear, style: i, spell: kit.spell, dart: kit.dart, stats: ctx.stats, prayer: ctx.prayers, boost: ctx.boosts[kit.style] ?? null, onTask: false },
-      t.m,
+      m,
       ctx.idx.item,
       ctx.idx.rules,
     );
@@ -199,7 +197,6 @@ function dpsOnUncached(gear: Gear, kit: KitLike, t: Target, ctx: Ctx): { dps: nu
     if (t.p.alwaysMaxHit) dps = r.maxHit / (r.speed * TICK);
     else if (t.p.alwaysHits && r.accuracy > 0) dps = r.dps / r.accuracy;
     else if (t.p.maxHitCap && r.maxHit > t.p.maxHitCap && r.maxHit > 0) dps *= cappedMean(r.maxHit, t.p.maxHitCap) / (r.maxHit / 2);
-    dps *= taken;
     if (!best || dps > best.dps) best = { dps, r };
   });
   return best;
@@ -324,7 +321,7 @@ export function buildLoadout(input: EngineInput): Loadout {
     // A CA's "this phase with melee only": those styles are the phase's, the others ruled out there.
     const only = phaseStyles[raw.key];
     const p: PhaseProfile = only?.length
-      ? { ...raw, allowed: [...only], required: (raw.required ?? []).filter((s) => only.includes(s)), immune: STYLES.filter((s) => !only.includes(s)), prefer: undefined, taken: undefined }
+      ? { ...raw, allowed: [...only], required: (raw.required ?? []).filter((s) => only.includes(s)), immune: STYLES.filter((s) => !only.includes(s)), prefer: undefined }
       : raw;
     const base = idx.monster(variant?.monsters[p.key] ?? p.monster);
     if (!base) {
@@ -347,8 +344,14 @@ export function buildLoadout(input: EngineInput): Loadout {
     .filter((x): x is GearItem => !!x && !x.hid && usableHeld(x.n))
     .filter((x) => !bannedNames.some((re) => re.test(x.n)) && (!weaponsOnly || slotOf(x) !== 'weapon' || weaponsOnly.some((re) => re.test(x.n))));
   const blockedWhy = new Map<number, string>();
+  const wearable =
+    input.canEquip ??
+    ((it: GearItem) => {
+      const c = canWear(it, lv);
+      return c.ok ? null : missingLine(c);
+    });
   for (const it of held) {
-    const r = input.canEquip?.(it) ?? null;
+    const r = wearable(it);
     if (r) blockedWhy.set(it.id, r);
   }
   const pool = held.filter((x) => !blockedWhy.has(x.id));

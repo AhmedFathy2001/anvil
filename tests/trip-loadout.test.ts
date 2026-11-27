@@ -105,6 +105,21 @@ test('panel: the plan chooser posts trip-plan with the trip, the picked plan lif
   assert.ok(/"s":"Max DPS","color":"white"/.test(ui), 'the picked plan is lifted');
 });
 
+test('panel: "Avoid Defence XP" is one plain row that flips the setting (trip-defxp)', () => {
+  const base = {
+    region: '13454', regionName: 'the ToA lobby', content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, fromRegion: true, source: 'calc' as const, sourceLine: 'x', guide: null,
+    check: { rows: [], info: [], unknown: [] }, status: 'ready' as const, checkedAt: '05:27', hasOwn: false, canSave: true, options: [], monsters: [],
+    plan: { preset: 'max', presets: [{ key: 'max', label: 'Max DPS' }], blurb: 'b' },
+  };
+  const on = JSON.stringify(tripPanelUi({ ...base, defXp: { on: true } }));
+  assert.ok(on.includes('Avoid Defence XP') && on.includes('"act":"trip-defxp"') && on.includes('"dx":"0"'), 'on: a click turns it off');
+  const off = JSON.stringify(tripPanelUi({ ...base, defXp: { on: false } }));
+  assert.ok(off.includes('"dx":"1"'));
+  assert.ok(!on.includes(' · ') && !off.includes(' · '));
+  const own = JSON.stringify(tripPanelUi({ ...base, defXp: { on: true }, setupSel: 3 }));
+  assert.ok(!own.includes('Avoid Defence XP'), 'only with Anvil’s loadout');
+});
+
 // ── Raids that used to fall to the calc ──────────────────────────────────────────────────────────
 
 const names = (ids: (number | null | undefined)[]) => ids.filter((x): x is number => x != null).map((x) => nameOf(x));

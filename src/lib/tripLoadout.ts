@@ -14,7 +14,6 @@ import type { GearIndex } from './dps/summary';
 import type { GearSetup, InvItem } from './guideTiers';
 import { caChangeLine, caName, caRule } from './loadout/caRules';
 import { buildLoadout } from './loadout/engine';
-import { equipCheck } from './loadout/equip';
 import { profileFor } from './loadout/profiles';
 import type { Loadout, OwnedSupply, Preset } from './loadout/types';
 import { RUNE, type TripCheck, type TripRow } from './tripCheck';
@@ -58,7 +57,7 @@ export interface TripLoadoutInput {
   isRunePouch: (id: number) => boolean;
   /** A Combat Achievement picked on the card (lib/loadout/caRules): its limits applied. */
   ca?: number | null;
-  /** The character's "Avoid Defence XP" switch; unset: on at Defence 1, off otherwise. */
+  /** The card's "Avoid Defence XP" (lib/tripRaidLevel): no style that trains Defence. Unset: on at Defence 1. */
   avoidDefenceXp?: boolean | null;
 }
 
@@ -92,13 +91,11 @@ export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: Tri
   const rule = caRule(profile.key, inp.ca);
   const levels = { attack: lv('attack'), strength: lv('strength'), defence: lv('defence'), ranged: lv('ranged'), magic: lv('magic'), prayer: lv('prayer'), hitpoints: lv('hitpoints', 99) };
   const avoidDefenceXp = inp.avoidDefenceXp ?? levels.defence <= 1;
-  const canEquip = equipCheck(inp.levels ?? null);
   const run = (withCa: boolean) =>
     buildLoadout({
       profile,
       preset: withCa && rule?.preset ? rule.preset : preset,
       idx: inp.idx,
-      ...(canEquip ? { canEquip } : {}),
       player: {
         levels,
         avoidDefenceXp,

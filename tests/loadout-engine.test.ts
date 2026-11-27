@@ -362,11 +362,12 @@ test('Araxxor: melee worn (crush where the gear says), a drain spec first; range
   assert.equal(bow.wornStyle, 'ranged', 'melee is the reference, ranged when nothing melee is owned');
 });
 
-test('Yama: melee worn with the Emberlight owned (the reference stands), the Judge with magic', () => {
+test('Yama: the Emberlight worn (demonbane, 120% vulnerable), the reference stands over magic', () => {
   const l = run(YAMA, maxPlayer());
   sane(l, MAX_BANK);
   assert.equal(l.wornStyle, 'melee');
-  assert.equal(phaseKit(l, 'judge'), 'magic');
+  assert.equal(name(l.worn.weapon), 'Emberlight');
+  assert.ok(phaseKit(l, 'judge'), 'the Judge is fought');
   const mid = run(YAMA, midPlayer());
   sane(mid, MID_BANK);
   assert.ok(mid.wornStyle);

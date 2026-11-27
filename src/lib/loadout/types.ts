@@ -15,6 +15,7 @@
 // 15% faster with what the player owns, and the card says why.
 
 import type { AttackType, Slot } from '../dps/tables';
+import type { TargetMods } from '../dps/targets';
 
 export type Style = 'melee' | 'ranged' | 'magic';
 export type Preset = 'learner' | 'experienced' | 'max';
@@ -48,6 +49,11 @@ export interface PhaseProfile {
   tags?: string[];
   /** A per-hit damage cap (Zulrah: 50). */
   maxHitCap?: number;
+  /**
+   * What this phase does to damage beyond the monster's own defaults (lib/dps/targets): a style's
+   * share ({ magic: 0.2 }), what escapes it, demonbane vulnerability, Awakened rules, drain limits.
+   */
+  mods?: TargetMods;
   /** Every hit that lands is a max hit (the Wardens' core): accuracy and the roll don't matter. */
   alwaysMaxHit?: boolean;
   /** Every hit lands (demonbane on Doom's shield): accuracy doesn't matter, the roll does. */
@@ -72,11 +78,6 @@ export interface PhaseProfile {
    * player can fill is used; a later one only when it is at least 15% faster. Unset: ['main'].
    */
   use?: string[];
-  /**
-   * The share of damage each style deals here (the Olm's head takes a third from melee and magic),
-   * for targets the DPS data has no per-style cut for. Unset styles deal full damage.
-   */
-  taken?: Partial<Record<Style, number>>;
   /** One static line for the card about this phase ("Freeze the crabs with Ice Barrage"). */
   tip?: string;
   /**
