@@ -116,10 +116,16 @@ export function deletableMedia(input: {
 }
 
 /**
- * Which of an item hunt's screenshot files a purge may delete (lib/huntMediaRetention): in the clan's
- * own storage folder (a pasted link is never ours), and named by no other competition's drop or
- * event row. `inClanFolder` is lib/storage isClanMediaUrl for the hunt's clan.
+ * Which of an item hunt's screenshot files a purge may delete (lib/huntMediaRetention): only ones the
+ * server stored for this competition itself (`stored`: a plugin screenshot it uploaded for the drop;
+ * a member-typed URL could name any file and is never deleted), in the clan's own storage folder,
+ * and named by no other competition's drop or event row. `inClanFolder` is lib/storage isClanMediaUrl.
  */
-export function deletableHuntFiles(urls: string[], inClanFolder: (u: string) => boolean, usedElsewhere: Set<string>): string[] {
-  return [...new Set(urls)].filter((u) => inClanFolder(u) && !usedElsewhere.has(u));
+export function deletableHuntFiles(
+  rows: { url: string; stored: boolean }[],
+  inClanFolder: (u: string) => boolean,
+  usedElsewhere: Set<string>,
+): string[] {
+  const typed = new Set(rows.filter((r) => !r.stored).map((r) => r.url));
+  return [...new Set(rows.filter((r) => r.stored).map((r) => r.url))].filter((u) => !typed.has(u) && inClanFolder(u) && !usedElsewhere.has(u));
 }

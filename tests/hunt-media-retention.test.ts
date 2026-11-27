@@ -31,10 +31,26 @@ test('never deleted without a reminder, nor sooner than a week after it', () => 
   assert.equal(effectivePurgeAt(hunt(end, noticed), now)?.getTime(), now.getTime() + 7 * DAY);
 });
 
-test('only files in the clan folder and named nowhere else are deleted', () => {
+test('only server-stored files in the clan folder and named nowhere else are deleted', () => {
   const ours = (u: string) => u.includes('/c/anvil/');
-  const urls = ['https://m/c/anvil/a.jpg', 'https://m/c/anvil/b.jpg', 'https://m/c/other/c.jpg', 'https://m/c/anvil/a.jpg'];
-  assert.deepEqual(deletableHuntFiles(urls, ours, new Set(['https://m/c/anvil/b.jpg'])), ['https://m/c/anvil/a.jpg']);
+  const rows = [
+    { url: 'https://m/c/anvil/a.jpg', stored: true },
+    { url: 'https://m/c/anvil/b.jpg', stored: true },
+    { url: 'https://m/c/other/c.jpg', stored: true },
+    { url: 'https://m/c/anvil/a.jpg', stored: true },
+  ];
+  assert.deepEqual(deletableHuntFiles(rows, ours, new Set(['https://m/c/anvil/b.jpg'])), ['https://m/c/anvil/a.jpg']);
+});
+
+test('a URL not uploaded for this competition is never deleted', () => {
+  const ours = () => true;
+  // A manual proof naming some other file in the clan's storage (the clan banner, say).
+  assert.deepEqual(deletableHuntFiles([{ url: 'https://m/c/anvil/banner.png', stored: false }], ours, new Set()), []);
+  // Even when a plugin upload of this hunt names the same file, a typed copy of it keeps it.
+  assert.deepEqual(
+    deletableHuntFiles([{ url: 'https://m/c/anvil/x.jpg', stored: true }, { url: 'https://m/c/anvil/x.jpg', stored: false }], ours, new Set()),
+    [],
+  );
 });
 
 test('the hunt reminder points at the competition, not an archive', () => {

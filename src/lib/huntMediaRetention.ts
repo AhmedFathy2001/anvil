@@ -6,6 +6,7 @@ import { urlsUsedElsewhere } from '@/lib/eventMediaRetention';
 import { deliverPurgeNotice } from '@/lib/eventMediaNotice';
 import { EXPIRED_PROOF_URL, deletableHuntFiles, effectivePurgeAt, isPurgeDue, purgeNoticeDue, type RetentionState } from '@/lib/eventMediaRetentionRules';
 import { log } from '@/lib/logger';
+import { ATTACHED_PREFIX } from '@/lib/proofAfter';
 
 // Item hunt and Boss Rush media retention: the same 90 days and reminders as an event's proofs
 // (lib/eventMediaRetention, rules in lib/eventMediaRetentionRules), for a 'hunt' weekly competition.
@@ -30,15 +31,22 @@ const huntCols = {
 
 const withForce = <T extends { endDate: string }>(r: T): T & { forceEndedAt: null } => ({ ...r, forceEndedAt: null });
 
-/** One hunt's stored drop screenshots. Already-expired URLs are skipped. */
-export async function huntMediaUrls(competitionId: number): Promise<{ id: number; url: string }[]> {
+/**
+ * One hunt's stored drop screenshots. Already-expired URLs are skipped. `stored`: the server wrote
+ * this URL itself, uploading the plugin's screenshot for this drop (its proof key is marked used,
+ * lib/huntDropPosts huntProofUpload). A manual proof's URL is whatever the member typed, so it is only
+ * ever blanked, never deleted: it could name any file.
+ */
+export async function huntMediaUrls(competitionId: number): Promise<{ id: number; url: string; stored: boolean }[]> {
   // clan-scope: global -- one competition's own rows, by id; the caller settled which.
   const rows = await db
-    .select({ id: huntDrops.id, url: huntDrops.screenshotUrl })
+    .select({ id: huntDrops.id, url: huntDrops.screenshotUrl, proofKey: huntDrops.proofKey })
     .from(huntDrops)
     .where(and(eq(huntDrops.competitionId, competitionId), isNotNull(huntDrops.screenshotUrl)));
   // TODO(rush_death_shots): once migration 0296 adds rush_death_shots.screenshot_url, include its rows here and in purgeHuntMedia.
-  return rows.filter((r): r is { id: number; url: string } => !!r.url && r.url !== EXPIRED_PROOF_URL);
+  return rows
+    .filter((r): r is typeof r & { url: string } => !!r.url && r.url !== EXPIRED_PROOF_URL)
+    .map((r) => ({ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX) }));
 }
 
 /** Hunts with a reminder due now. */
@@ -121,9 +129,10 @@ export async function purgeHuntMedia(competitionId: number, opts: { dryRun?: boo
     await tx.update(weeklyCompetitions).set({ mediaPurgedAt: new Date().toISOString() }).where(eq(weeklyCompetitions.id, competitionId));
   });
   const tenant: MediaTenant | null = comp.slug ? { slug: comp.slug, kind: comp.kind } : null;
-  const urls = media.map((m) => m.url).filter((u) => isManagedMediaUrl(u));
+  const urls = media.filter((m) => isManagedMediaUrl(m.url));
   if (urls.length && tenant) {
-    const elsewhere = new Set([...(await namedByOtherHunts(competitionId, urls)), ...(await urlsUsedElsewhere(null, urls))]);
+    const list = urls.map((m) => m.url);
+    const elsewhere = new Set([...(await namedByOtherHunts(competitionId, list)), ...(await urlsUsedElsewhere(null, list))]);
     const gone = deletableHuntFiles(urls, (u) => isClanMediaUrl(u, tenant), elsewhere);
     for (let i = 0; i < gone.length; i += 100) {
       await del(gone.slice(i, i + 100)).catch((e) => log.warn('media-retention.hunt-delete-failed', { competitionId, error: (e as Error).message }));
