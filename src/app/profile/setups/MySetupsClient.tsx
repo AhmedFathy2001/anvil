@@ -127,7 +127,7 @@ function SetupArticle({ s, names, shortOf, onChanged }: { s: SetupCard; names: N
 
   if (deleting) {
     return (
-      <article className="flex flex-wrap items-center gap-3 rounded-xl border border-red-400/40 bg-card-bg p-4">
+      <article className="flex flex-wrap items-center gap-3 self-start rounded-xl border border-red-400/40 bg-card-bg p-4">
         <div className="min-w-[220px] flex-1">
           <h3 className="text-base font-semibold text-white">Delete {s.name}?</h3>
           <p className="text-sm text-text-muted">It leaves your plugin’s Setup list{s.shareToken ? ' and its share link stops working' : ''}. This can’t be undone.</p>
