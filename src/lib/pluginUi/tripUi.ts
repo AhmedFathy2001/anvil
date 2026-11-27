@@ -3,22 +3,21 @@
 // (lib/tripContent) and shows the answer's `warn` on its overlay; the panel has the whole check.
 //
 //   Pre-trip check                                ↻      (Check again)
-//   Trip: ToA (from the ToA lobby)  change    [Lock]       locked: "Trip: Yama  Locked  unlock"
+//   Trip: ToA (from the ToA lobby)  change  🔓            the padlock locks it; locked: "Trip: Yama 🔒 unlock"
 //   (at another trip's bank while locked: "At ToB's bank, still checking Yama.")
 //   Raid level 300 ▾                                      ToA only
-//   Setup [Solo shadow ▾]                                 saved setups, Anvil's loadout, Save current as new…
-//                                   Manage setups ↗       the site's My setups page
-//   Anvil's loadout, for how you play                     only with Anvil's loadout picked
-//   [ Learner | Experienced | Max DPS ]
+//   Setup [Solo shadow ▾]  ↗                              own setups, the clan's, Anvil's loadout, Save current as new…
+//   [ Learner | Experienced | Max DPS ]                   only with Anvil's loadout picked
+//   Going for a CA? [Perfect Zulrah ▾]                    the undone CAs that change the loadout
 //   ┌ Take 27 from your bank ─────────────────────┐       the next move: missing / take / fix / ready
-//   │ Your Solo shadow setup, checked 18:42.       │
+//   │ Checked 18:42.                               │
+//   │ ★ Perfect Zulrah: 3 food swapped for 2 …     │       what the CA changed
 //   │      [equipment screen, wells coloured]      │       green packed, amber in bank, red not owned
-//   │      [28-slot inventory]   Rune pouch […]    │
-//   │ Have  In bank  Not owned                     │
-//   │ 8 switches, 4 food, 6 potions, 4 free slots. │       what the inventory shows, counted
+//   │      [28-slot inventory, the same width]     │
+//   │ 8 switches, 4 food, 4 free. Have  In bank    │       counted, with the legend, one quiet line
 //   └──────────────────────────────────────────────┘
 //   [ Show the 27 in my bank ]                            only when something is in the bank to take
-//   [ List ] [ Save ] [ Guide ↗ ]
+//   [ List ] [ Save ] [ Bank ] [ Guide ↗ ]                Bank: the whole setup in the open bank
 //
 // A slot's click lists the player's own options for it; a pick re-checks with it (`swap`), "Reset"
 // drops the picks and saving keeps them. Without a layout (no setup laid out) the rows are listed as
@@ -77,13 +76,19 @@ export interface TripPanelData {
   alts?: { slot: string; rows: { id: number; name: string; here: boolean; current: boolean; delta: string; ammo?: number; ammoName?: string }[]; more: number } | null;
   /** The player's saved setups for this trip (lib/tripSetups), by name: the Setup dropdown. */
   setups?: { id: number; name: string }[];
-  /** The setup in use: a saved one's id, or 'anvil' (the guide's, the loadout engine's or the calc's). */
-  setupSel?: number | 'anvil';
+  /** Clanmates' setups shared with the clan ("From your clan"), read-only: the name and the sharer's RSN. */
+  clanSetups?: { id: number; name: string; rsn: string }[];
+  /** The setup in use: a saved one's id, a clan one's "c:<id>", or 'anvil' (the guide's, the loadout engine's or the calc's). */
+  setupSel?: number | 'anvil' | `c:${number}`;
   setupName?: string | null;
   /** The card's short source line: "Your Solo shadow setup", "Anvil’s Experienced loadout from your bank". */
   sourceShort?: string;
   /** What the laid-out inventory holds: "8 switches, 4 food, 6 potions, 4 free slots." */
   summary?: string;
+  /** Said in the card only when it isn't what the Setup dropdown shows (picks, items not arrived). */
+  sourceNote?: string;
+  /** "Going for a CA?" (Anvil's loadout only): the undone tasks that change it, the pick, what it changed. */
+  ca?: { options: { id: number; name: string; does: string }[]; sel: number | null; line: string | null } | null;
   /** The trip is locked (lib/tripTarget): `at` names the other trip whose bank this is, if any. */
   lock?: { at: string | null } | null;
 }
@@ -123,35 +128,34 @@ const lockOff = (d: TripPanelData): Action => ({ a: 'load', v: 'trip', args: reg
  * another trip's bank, "At ToB's bank, still checking Yama." The change link opens the picker.
  */
 function tripLine(d: TripPanelData): Node {
+  const padlock = (glyph: 'lock' | 'unlock', color: Color, on: Action, tip: string): Node => text('', color, { w: 14, align: 'c', icon: icon({ glyph, w: 10, h: 11, color }), on, tip });
   if (d.lock && d.content) {
     const short = d.content.short;
     const line = row(
-      text('', SOFT, { font: 'small', wrap: W - 90, runs: [{ s: 'Trip: ', color: FAINT }, { s: short, color: 'white' as const }] }),
-      small('Locked', AMBER, { tip: `Every bank you close checks ${short} until you unlock it` }),
-      small('unlock', GOLD, { on: lockOff(d), tip: 'Stop locking this trip: other bosses’ banks check their own trip again' }),
-      { gap: 6 },
+      text('', SOFT, { font: 'small', wrap: W - 50, runs: [{ s: 'Trip: ', color: FAINT }, { s: short, color: 'white' as const }] }),
+      undefined,
+      row(padlock('lock', AMBER, lockOff(d), `Locked: every bank you close checks ${short}. Click to unlock`), small('unlock', GOLD, { on: lockOff(d), tip: 'Stop locking this trip: other bosses’ banks check their own trip again' }), undefined, { gap: 2 }),
+      { gap: 4 },
     );
     if (!d.lock.at) return line;
-    return col([line, row(undefined, small(`At ${d.lock.at}’s bank, still checking ${short}.`, FAINT, { wrap: W - 12 }), undefined, { bg: 'card', pad: 4, inset: 6 })], { gap: 5 });
+    return col([line, small(`At ${d.lock.at}’s bank, still checking ${short}.`, FAINT, { wrap: W })], { gap: 4 });
   }
   const why = d.content ? (d.fromTarget && d.target ? d.target.why : d.fromRegion && d.regionName ? `from ${d.regionName}` : 'your pick') : null;
-  const lock = d.content
-    ? row(undefined, small('Lock', SOFT, { align: 'c' }), undefined, { bg: 'raised', edge: LINE, pad: 2, inset: 5, on: lockOn(d), tip: `Lock ${d.content.short}: every bank you close checks it, other bosses’ banks don’t switch it, until you unlock it` })
-    : undefined;
+  const lock = d.content ? padlock('unlock', FAINT, lockOn(d), `Lock ${d.content.short}: every bank you close checks it, other bosses’ banks don’t switch it, until you unlock it`) : undefined;
   const line = (open: boolean): Node =>
     row(
-      undefined,
       text('', SOFT, {
         font: 'small',
-        wrap: lock ? W - 50 : W - 20,
+        wrap: lock ? W - 18 : W,
         runs: d.content
           ? [{ s: 'Trip: ', color: FAINT }, { s: d.content.short, color: 'white' as const }, { s: ` (${why})  `, color: FAINT }, { s: open ? 'close' : 'change', color: GOLD }]
           : [{ s: `No trip picked${d.regionName ? ` at ${d.regionName}` : ''}  `, color: FAINT }, { s: open ? 'close' : 'pick', color: GOLD }],
         on: { a: 'flip', key: PICK_KEY },
         tip: open ? 'Close the list' : 'Pick the trip you go on next: it is checked at whichever bank you gear up at',
       }),
+      undefined,
       lock,
-      { gap: 6 },
+      { gap: 4 },
     );
   // The target named, with a way to drop it, when the trip shown is another one.
   const clear = d.target ? small('clear', GOLD, { on: clearAim(d), tip: 'Stop checking your next trip until your next kill' }) : undefined;
@@ -194,13 +198,17 @@ function tripLine(d: TripPanelData): Node {
  */
 function setupLine(d: TripPanelData): Node | null {
   if (!d.content) return null;
+  const clan = d.clanSetups ?? [];
   const options = [
     ...(d.setups ?? []).map((x) => ({ v: String(x.id), label: x.name })),
+    // No headings in the game's combo box: a line that reads as one (picking it changes nothing).
+    ...(clan.length ? [{ v: 'clan-head', label: '— From your clan —' }, ...clan.map((x) => ({ v: `c:${x.id}`, label: `${x.name} (${x.rsn})` }))] : []),
     { v: 'anvil', label: 'Anvil’s loadout' },
     { v: 'new', label: 'Save current as new…' },
   ];
-  const combo: Node = { t: 'input', name: 'setup', kind: 'select', options, value: d.setupSel != null ? String(d.setupSel) : 'anvil', on: { a: 'post', act: 'trip-setup', args: regionArgs(d, { content: d.content.key }) }, tip: 'Your saved setups for this trip, or Anvil’s loadout' };
-  return col([row(small('Setup', FAINT), combo, undefined, { gap: 6 }), small('Manage setups ↗', GOLD, { align: 'r', on: { a: 'site', path: '/profile/setups' }, tip: 'Rename, delete, share and pick defaults on the site' })], { gap: 3 });
+  const combo: Node = { t: 'input', name: 'setup', kind: 'select', options, value: d.setupSel != null ? String(d.setupSel) : 'anvil', on: { a: 'post', act: 'trip-setup', args: regionArgs(d, { content: d.content.key }) }, tip: 'Your saved setups for this trip, your clan’s shared ones, or Anvil’s loadout' };
+  const manage = text('', GOLD, { w: 14, align: 'c', icon: icon({ glyph: 'external', w: 9, h: 9, color: GOLD }), on: { a: 'site', path: '/profile/setups' }, tip: 'My setups on the site: rename, delete, share, pick defaults' });
+  return row(small('Setup', FAINT, { w: 34 }), combo, manage, { gap: 4 });
 }
 
 /** A row's picture: its item, or a cross where the row is about no one item (26px either way). */
@@ -273,8 +281,14 @@ const EMPTY = '#2b241b';
 /** A slot's ground: green worn or packed, amber in the bank (take it), red not owned. */
 const GROUND: Record<Have, `#${string}`> = { here: '#24401f', bank: '#5a3d0e', none: '#561f1a' };
 const HAVE_WORDS: Record<Have, string> = { here: 'you have it', bank: 'in your bank: take it', none: 'not owned' };
-const SLOT_PX = 34;
+const SLOT_PX = 35;
 const INV_PX = 32;
+/** The inventory's 4 × 32 px plus its 3 px gaps: the doll's 3 slots spread to the same width. */
+const FRAME_IN = 4 * INV_PX + 3 * 3;
+const DOLL_GAP = (FRAME_IN - 3 * SLOT_PX) / 2;
+/** Both frames' inner padding, and the whole card's one spacing step. */
+const PAD = 6;
+const GAP = 8;
 
 const nameIn = (d: TripPanelData, id: number) => d.names?.[id] ?? `Item ${id}`;
 
@@ -301,18 +315,20 @@ function wornGrid(d: TripPanelData, l: TripLayout): Node {
       else if (!it) cells.push(text('', 'muted', { chip: EMPTY, w: SLOT_PX, align: 'c', icon: { t: 'icon', sprite: SLOT_SPRITE[slot] ?? 170 }, tip: `${SLOT_NAME[slot] ?? slot}: empty. Click for your options`, ...(slot === 'quiver' ? {} : { on: view(d, { alt: slot }) }) }));
       else cells.push(well(d, it, SLOT_PX, `${SLOT_NAME[slot] ?? slot}: `, slot === 'quiver' ? undefined : view(d, d.alts?.slot === slot ? {} : { alt: slot })));
     }
-  return centred(col([{ t: 'grid', cols: 3, gap: 6, vgap: 6, c: cells }], { bg: STONE, edge: '#14100b', inset: 6 }), 3 * SLOT_PX + 12 + 14);
+  return centred(col([{ t: 'grid', cols: 3, gap: DOLL_GAP, vgap: PAD, c: cells }], { bg: STONE, edge: '#14100b', inset: PAD }), FRAME_IN + 2 * PAD + 2);
 }
 
 function invGrid(d: TripPanelData, l: TripLayout): Node {
   const cells = l.inventory.map((it) => (it ? well(d, it, INV_PX, '') : text('', 'muted', { w: INV_PX })));
-  return centred(col([{ t: 'grid', cols: 4, gap: 3, vgap: 3, c: cells }], { bg: STONE, edge: '#14100b', inset: 6 }), 4 * INV_PX + 9 + 14);
+  return centred(col([{ t: 'grid', cols: 4, gap: 3, vgap: 3, c: cells }], { bg: STONE, edge: '#14100b', inset: PAD }), FRAME_IN + 2 * PAD + 2);
 }
 
 /** "Rune pouch" with its runes. */
 function pouchStrip(d: TripPanelData, l: TripLayout): Node | null {
   if (!l.pouch.length) return null;
-  return row(small(l.pouch.length > 3 ? 'Divine rune pouch' : 'Rune pouch', FAINT, { w: 62, wrap: 62 }), col([{ t: 'grid', cols: l.pouch.length, gap: 3, c: l.pouch.map((p) => well(d, p, 30, 'Rune pouch: ')) }], { bg: STONE, edge: '#14100b', inset: 4 }), undefined, { gap: 6 });
+  const w = l.pouch.length * INV_PX + (l.pouch.length - 1) * 3;
+  const strip = col([{ t: 'grid', cols: l.pouch.length, gap: 3, c: l.pouch.map((p) => well(d, p, INV_PX, 'Rune pouch: ')) }], { bg: STONE, edge: '#14100b', inset: PAD, tip: l.pouch.length > 3 ? 'Divine rune pouch' : 'Rune pouch' });
+  return centred(strip, w + 2 * PAD + 2);
 }
 
 /** A clicked slot's options: what the player owns for it, best first, with what each does to DPS. */
@@ -338,8 +354,18 @@ function altsList(d: TripPanelData): Node | null {
   );
 }
 
-const legend = (l: TripLayout): Node =>
-  row(chip('Have', 'green'), row(l.inBank ? chip('In bank', 'gold') : undefined, l.notOwned ? chip('Not owned', 'coral') : undefined, undefined, { gap: 4 }), undefined, { gap: 4 });
+/** "8 switches, 4 food, 4 free slots. Have In bank": the count and the colours' key, one quiet line. */
+const footLine = (d: TripPanelData, l: TripLayout): Node =>
+  text('', FAINT, {
+    font: 'small',
+    wrap: W,
+    runs: [
+      ...(d.summary ? [{ s: `${d.summary}  `, color: FAINT }] : []),
+      { s: 'Have', color: GREEN },
+      ...(l.inBank ? [{ s: '  In bank', color: AMBER }] : []),
+      ...(l.notOwned ? [{ s: '  Not owned', color: CORAL }] : []),
+    ],
+  });
 
 /** The card's edge and headline colours: red something isn't owned, amber take from the bank, green ready. */
 const RED_EDGE = '#a8463d';
@@ -350,7 +376,8 @@ const GREEN_EDGE = '#3f7a3f';
 function headline(d: TripPanelData, c: TripCheck, l: TripLayout): { edge: `#${string}`; head: Node; sub: string } {
   const short = d.content?.short ?? 'the trip';
   const bad = c.rows.filter((r) => !r.ok);
-  const when = `${d.sourceShort ?? d.sourceLine}${d.checkedAt ? `, checked ${d.checkedAt}` : ''}.`;
+  // The Setup dropdown already names the setup: the card says only when, and anything unusual.
+  const when = [d.sourceNote ? `${d.sourceNote}.` : '', d.checkedAt ? `Checked ${d.checkedAt}.` : ''].filter(Boolean).join(' ');
   const glyph = (g: 'check' | 'close', color: Color): Node => icon({ glyph: g, w: 11, h: 11, color });
   const head = (g: Node | undefined, s: string, color: Color): Node => row(g, text(s, color, { font: 'bold', wrap: W - 16 }), undefined, { gap: 5 });
   if (l.notOwned) {
@@ -372,26 +399,23 @@ function layoutCard(d: TripPanelData, c: TripCheck, l: TripLayout): Node {
   // What no slot shows: the spellbook, the runes, the prayers, a supply short by kind.
   const other = bad.filter((r) => r.group === 'book' || r.group === 'pouch' || r.group === 'prayer' || (r.group === 'supplies' && r.item == null));
   const otherLines = other.map((r) => row(icon({ glyph: 'close', w: 9, h: 9, color: CORAL }), small(r.line, SOFT, { wrap: W - 16, ...(r.detail ? { tip: r.detail } : {}) }), undefined, { gap: 5 }));
-  const setup = c.layouts?.setup;
-  const showSetup = d.bankFilter && setup?.ids.length ? row(undefined, small('Show my setup in bank', GOLD, { align: 'c' }), undefined, { pad: 2, on: bankAction(setup.ids, setup), tip: 'Your open bank shows the whole setup, laid out: worn, switches, supplies' }) : null;
   const unknown = c.unknown.length ? small(`Not checked: ${c.unknown.join(', ')}.`, FAINT, { wrap: W }) : null;
+  const caLine = d.ca?.line && d.setupSel === 'anvil' ? row(icon({ glyph: 'star', w: 10, h: 10, color: GOLD }), small(d.ca.line, SOFT, { wrap: W - 16 }), undefined, { gap: 5 }) : null;
   return section(
     [
-      top.head,
-      small(top.sub, FAINT, { wrap: W }),
+      col([top.head, top.sub ? small(top.sub, FAINT, { wrap: W }) : null].filter((x): x is Node => !!x), { gap: 2 }),
+      caLine,
       wornGrid(d, l),
       altsList(d),
-      d.swap ? row(undefined, small('Reset to the setup', GOLD, { align: 'c' }), undefined, { pad: 2, on: view(d, {}, ''), tip: 'Drop your picks' }) : null,
+      d.swap ? row(undefined, small('Reset to the setup', GOLD, { align: 'c' }), undefined, { on: view(d, {}, ''), tip: 'Drop your picks' }) : null,
       l.inventory.some(Boolean) ? invGrid(d, l) : null,
       pouchStrip(d, l),
-      legend(l),
+      footLine(d, l),
       ...otherLines,
-      d.summary ? small(d.summary, FAINT, { wrap: W }) : null,
       ...c.info.map((s) => small(s, FAINT, { wrap: W })),
       unknown,
-      showSetup,
     ],
-    { gap: 7, edge: top.edge },
+    { gap: GAP, edge: top.edge },
   );
 }
 
@@ -418,15 +442,18 @@ function actionRow(d: TripPanelData, c: TripCheck | null, hasLayout: boolean): N
         )
       : null;
   const guide = d.guide ? boxed('Guide ↗', { a: 'load', v: 'guide', args: regionArgs(d, { id: String(d.guide.id) }) }, `The ${d.guide.title} guide and its setups`) : null;
+  // The whole setup in the open bank, when the primary button isn't already showing what to take.
+  const setupIds = c?.layouts?.setup;
+  const bank = d.bankFilter && hasLayout && setupIds?.ids.length && !(d.layout?.inBank && c?.bank?.length) ? boxed('Bank', bankAction(setupIds.ids, setupIds), 'Your open bank shows the whole setup, laid out: worn, switches, supplies') : null;
   const listRows = c && hasLayout ? c.rows.map((r) => row(icon({ glyph: r.ok ? 'check' : 'close', w: 9, h: 9, color: r.ok ? GREEN : CORAL }), small(r.line, r.ok ? SOFT : 'white', { wrap: W - 16, ...(r.detail ? { tip: r.detail } : {}) }), undefined, { gap: 5 })) : [];
   const grid = (open: boolean): Node | null => {
-    const cells = [listRows.length ? boxed(open ? 'List ▴' : 'List', { a: 'flip', key: LIST_KEY }, open ? 'Fold' : 'The check as a list') : null, save, guide].filter((x): x is Node => !!x);
+    const cells = [listRows.length ? boxed(open ? 'List ▴' : 'List', { a: 'flip', key: LIST_KEY }, open ? 'Fold' : 'The check as a list') : null, save, bank, guide].filter((x): x is Node => !!x);
     return cells.length ? { t: 'grid', cols: cells.length, gap: 4, vgap: 4, c: cells } : null;
   };
   const shut = grid(false);
   if (!shut) return null;
   if (!listRows.length) return shut;
-  return { t: 'toggle', key: LIST_KEY, off: shut, lit: col([grid(true), ...listRows], { gap: 4 }) };
+  return { t: 'toggle', key: LIST_KEY, off: shut, lit: col([grid(true), ...listRows], { gap: GAP / 2 }) };
 }
 
 function why(d: TripPanelData): Node {
@@ -472,17 +499,39 @@ function raidLine(d: TripPanelData): Node | null {
 function planLine(d: TripPanelData): Node | null {
   if (!d.plan || !d.content || (d.setupSel != null && d.setupSel !== 'anvil')) return null;
   const content = d.content.key;
-  const chips: Node = {
+  return {
     t: 'grid',
     cols: d.plan.presets.length,
     gap: 2,
     // boxChip's look, the small font either way: "Experienced" in bold doesn't fit a third of the card.
     c: d.plan.presets.map((p) => {
       const on = p.key === d.plan!.preset;
-      return row(undefined, text(p.label, on ? 'white' : FAINT, { font: 'small', align: 'c' }), undefined, { bg: on ? '#3a3a3a' : 'card', edge: on ? GOLD : LINE, pad: 3, inset: 0, on: { a: 'post', act: 'trip-plan', args: regionArgs(d, { content, plan: p.key }) }, tip: on ? d.plan!.blurb : `Build the setup for the ${p.label} plan` });
+      return row(undefined, text(p.label, on ? 'white' : FAINT, { font: 'small', align: 'c' }), undefined, { bg: on ? '#3a3a3a' : 'card', edge: on ? GOLD : LINE, pad: 3, inset: 0, on: { a: 'post', act: 'trip-plan', args: regionArgs(d, { content, plan: p.key }) }, tip: on ? d.plan!.blurb : `Anvil’s loadout for the ${p.label} plan: ${PLAN_TIPS[p.key] ?? ''}` });
     }),
   };
-  return col([small('Anvil’s loadout, for how you play', FAINT), chips], { gap: 4 });
+}
+const PLAN_TIPS: Record<string, string> = {
+  learner: 'one weapon per style, more food for mistakes',
+  experienced: 'the weapons, the spec and the pieces that pay for their slot',
+  max: 'armour swaps for each style, the fastest kills',
+};
+
+/**
+ * "Going for a CA?": None and the player's undone Combat Achievements for this boss that change the
+ * loadout (lib/loadout/caRules). Chips for a few, the game's combo box past four. A pick re-runs the
+ * engine with the task's limits ('trip-ca', remembered per character and trip).
+ */
+function caLine(d: TripPanelData): Node | null {
+  if (!d.ca || !d.content || d.setupSel !== 'anvil' || !d.ca.options.length) return null;
+  const content = d.content.key;
+  const opts = [{ v: 'none', label: 'None', tip: 'No Combat Achievement: Anvil’s loadout as it is' }, ...d.ca.options.map((o) => ({ v: String(o.id), label: o.name, tip: `${o.name}: ${o.does}` }))];
+  const sel = d.ca.sel != null ? String(d.ca.sel) : 'none';
+  const label = small('Going for a CA?', FAINT);
+  if (opts.length > 4) {
+    const combo: Node = { t: 'input', name: 'ca', kind: 'select', options: opts.map((o) => ({ v: o.v, label: o.label })), value: sel, on: { a: 'post', act: 'trip-ca', args: regionArgs(d, { content }) }, tip: 'Your undone Combat Achievements here that change the loadout' };
+    return col([label, combo], { gap: 3 });
+  }
+  return col([label, { t: 'grid', cols: 2, gap: 3, vgap: 3, c: opts.map((o) => boxChip(o.label, o.v === sel, { a: 'post', act: 'trip-ca', args: regionArgs(d, { content, ca: o.v }) }, o.tip)) }], { gap: 3 });
 }
 
 export function tripPanelUi(d: TripPanelData): Node {
@@ -494,6 +543,8 @@ export function tripPanelUi(d: TripPanelData): Node {
   if (setups) parts.push(setups);
   const plan = d.status === 'ready' ? planLine(d) : null;
   if (plan) parts.push(plan);
+  const ca = d.status === 'ready' ? caLine(d) : null;
+  if (ca) parts.push(ca);
   if (d.note) parts.push(chip(d.note, 'green', { wrap: W }));
   if (d.status === 'ready' && d.check) {
     if (d.layout) {
@@ -505,7 +556,7 @@ export function tripPanelUi(d: TripPanelData): Node {
   if (d.status === 'behind') parts.push(button('Check again', again(d), 'With what you wear and carry now'));
   const actions = live ? actionRow(d, d.check, !!d.layout) : d.guide ? actionRow({ ...d, canSave: false }, null, false) : null;
   if (actions) parts.push(actions);
-  return col(parts, { gap: 9 });
+  return col(parts, { gap: GAP });
 }
 
 /**

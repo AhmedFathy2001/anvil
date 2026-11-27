@@ -4,30 +4,22 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
+import { PROFILES } from '@/lib/loadout/profiles';
 import { getItemMapping } from '@/lib/osrsItems';
-import { contentFromKey, TRIP_CONTENT } from '@/lib/tripContent';
-import { presetTags } from '@/lib/tripSetupNames';
+import { contentFromKey } from '@/lib/tripContent';
 import { setupsOfUser } from '@/lib/tripSetups';
-import MySetupsClient, { type SetupCard } from './MySetupsClient';
+import { cardOf } from './cards';
+import MySetupsClient from './MySetupsClient';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'My setups', robots: { index: false } };
 
-/** "today", "yesterday", "3 days ago", "on 2026-10-02". */
-function savedWhen(iso: string, now: number): string {
-  const days = Math.floor((now - Date.parse(iso)) / 86_400_000);
-  if (!Number.isFinite(days)) return '';
-  if (days <= 0) return 'today';
-  if (days === 1) return 'yesterday';
-  if (days < 30) return `${days} days ago`;
-  return `on ${iso.slice(0, 10)}`;
-}
-
 /**
- * My setups: the pre-trip check's saved setups on each of the person's characters, by boss. Only the
- * owner sees it (the setups are read through setupsOfUser, which joins on the session's person); the
- * page renames, tags, picks defaults, shares and deletes (api/profile/setups/[id]). No bank shown.
+ * My setups: the pre-trip check's saved setups on each of the person's characters, as compact rows
+ * by boss; a row opens the setup's own page (setups/[id]) with the full doll and its actions. Only
+ * the owner sees it (setupsOfUser joins on the session's person). "Start from Anvil's loadout" builds
+ * a new one from the character's bank (api/profile/setups). No bank shown.
  */
 export default async function MySetupsPage() {
   const session = await verifyUser();
@@ -45,39 +37,14 @@ export default async function MySetupsPage() {
   // Server component: Date.now() runs once per request.
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
-  const raids = new Set(TRIP_CONTENT.filter((c) => c.instance).map((c) => c.key));
-  const cards: SetupCard[] = setups.map((s) => {
-    const c = contentFromKey(s.content);
-    const inv = (s.setup.inventory ?? []).slice(0, 28);
-    for (const id of [...Object.values(s.setup.gear), ...inv.map((x) => x?.id), ...(s.setup.runePouch ?? []).map((x) => x.id)]) {
-      if (typeof id === 'number' && byId.has(id)) names[id] = byId.get(id)!;
-    }
-    return {
-      id: s.id,
-      accountId: s.accountId,
-      content: s.content,
-      contentName: c?.name ?? s.content,
-      contentShort: c?.short ?? s.content,
-      raid: raids.has(s.content),
-      name: s.name || s.setup.name,
-      tag: s.tag,
-      presets: [...presetTags(s.content)],
-      isDefault: s.isDefault,
-      shareClan: s.shareClan,
-      shareToken: s.shareToken,
-      gear: s.setup.gear,
-      inventory: inv,
-      runePouch: s.setup.runePouch ?? [],
-      spellbook: s.setup.spellbook ?? null,
-      saved: savedWhen(s.updatedAt, now),
-    };
-  });
+  const cards = setups.map((s) => cardOf(s, byId, names, now));
   const chars = characters
     .sort((a, b) => b.isPrimary - a.isPrimary || a.rsn.localeCompare(b.rsn))
     .map((a) => ({ id: a.id, rsn: a.rsn }));
+  const bosses = Object.keys(PROFILES).map((key) => ({ key, name: contentFromKey(key)?.name ?? PROFILES[key].name }));
   return (
-    <div className="max-w-6xl mx-auto">
-      <MySetupsClient setups={cards} characters={chars} names={names} />
+    <div className="max-w-5xl mx-auto">
+      <MySetupsClient setups={cards} characters={chars} names={names} bosses={bosses} />
     </div>
   );
 }

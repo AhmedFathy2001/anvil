@@ -33,8 +33,9 @@ import { tripLayout, type TripLayout } from '@/lib/tripLayout';
 import { ownStats, setupResult, withSlot } from '@/lib/gearNow';
 import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, type TripContent } from '@/lib/tripContent';
 import { tripRegions } from '@/lib/guideAreas';
-import { createTripSetup, forgetOwnTripSetup, listOwnSetups, saveOwnTripSetup, type SavedSetup } from '@/lib/tripSetups';
-import { cleanRaidLevel, RAID_LEVELS, raidLevelFor, saveRaidLevel, saveTripPlan, saveTripSetupPick, tripPlanFor, tripSetupPickFor } from '@/lib/tripRaidLevel';
+import { clanSharedSetups, createTripSetup, forgetOwnTripSetup, listOwnSetups, saveOwnTripSetup, type ClanSetup, type SavedSetup } from '@/lib/tripSetups';
+import { clanPickId, cleanRaidLevel, isClanPick, RAID_LEVELS, raidLevelFor, saveRaidLevel, saveTripCa, saveTripPlan, saveTripSetupPick, tripCaFor, tripPlanFor, tripSetupPickFor, type SetupPick } from '@/lib/tripRaidLevel';
+import { casFor, type CaOption } from '@/lib/loadout/caRules';
 import { cleanPlan, hasProfile, loadoutFor, PLAN_PRESETS, withPlan, type TripPlan } from '@/lib/tripLoadout';
 import type { Preset } from '@/lib/loadout/types';
 import { canonicalKey, ownAlias, targetWhy, type Target } from '@/lib/tripTarget';
@@ -170,8 +171,8 @@ async function ownSetupsFor(userId: number, accountId: number, key: string, ownK
 }
 
 /** The setup the check uses: the dropdown's pick ('anvil': none of them), else the trip's default. */
-function pickedSetup(setups: readonly SavedSetup[], pick: number | 'anvil' | null): SavedSetup | null {
-  if (pick === 'anvil') return null;
+function pickedSetup(setups: readonly SavedSetup[], pick: SetupPick | null): SavedSetup | null {
+  if (pick === 'anvil' || isClanPick(pick)) return null;
   return (pick != null ? setups.find((s) => s.id === pick) : null) ?? setups.find((s) => s.isDefault) ?? setups[0] ?? null;
 }
 
@@ -233,6 +234,8 @@ interface Resolved {
   monsters?: Monster[];
   /** The loadout engine's plan (a trip with a boss profile, no own or guide setup). */
   plan?: TripPlan;
+  /** What the CA picked changed in the engine's loadout, one line (lib/loadout/caRules). */
+  caLine?: string | null;
 }
 
 /** What a check reads besides the setup, kept so an adjusted setup is checked the same way. */
@@ -397,6 +400,8 @@ async function resolveCheck(c: {
   raidLevel: number | null;
   /** The loadout plan picked for a trip with a boss profile (lib/tripLoadout). */
   preset: Preset | null;
+  /** The Combat Achievement picked for the engine's loadout, or null. */
+  ca: number | null;
   t: ReturnType<typeof phases>;
 }): Promise<Resolved> {
   const { content, own, viewer, idx, t } = c;
@@ -427,13 +432,15 @@ async function resolveCheck(c: {
   // A trip with a boss profile: the loadout engine's setup for the plan picked, checked like a
   // guide's (the doll its worn loadout, the inventory its switches and supplies).
   let plan: TripPlan | undefined;
+  let caLine: string | null = null;
   if (source === 'calc' && hasProfile(content.key)) {
     const holds = equivalentsFor([...c.worn, ...c.inventory, ...c.bank, ...(c.lootingBag ?? [])].map((i) => i.id), 'holds');
     const nameOf = (id: number) => c.nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
-    const got = loadoutFor({ contentKey: content.key, preset: c.preset, idx, worn: c.worn, inventory: c.inventory, bank: c.bank, lootingBag: c.lootingBag, state: c.state, levels: viewer.levels, raidLevel: c.raidLevel, nameOf, holds, isRunePouch: (id) => c.nm.pouches.has(id), idOfName: (n) => c.nm.byName?.get(n.toLowerCase()) ?? null });
+    const got = loadoutFor({ contentKey: content.key, preset: c.preset, idx, worn: c.worn, inventory: c.inventory, bank: c.bank, lootingBag: c.lootingBag, state: c.state, levels: viewer.levels, raidLevel: c.raidLevel, nameOf, holds, isRunePouch: (id) => c.nm.pouches.has(id), idOfName: (n) => c.nm.byName?.get(n.toLowerCase()) ?? null, ca: c.ca });
     if (got) {
       setup = got.setup;
       plan = got.plan;
+      caLine = got.caLine;
       sourceLine = got.sourceLine;
       t.mark('loadout');
     }
@@ -441,7 +448,7 @@ async function resolveCheck(c: {
   if (!monsters.length && source === 'calc' && !setup) return { source, sourceLine, guide, setup, check: null, monsters };
   const out = runCheck(c, setup, source, monsters, plan);
   t.mark('check');
-  return { source, sourceLine, guide, setup, monsters, plan, ...out };
+  return { source, sourceLine, guide, setup, monsters, plan, caLine, ...out };
 }
 
 /** The card's short source line: "Your Solo shadow setup", "Anvil's Experienced loadout from your bank". */
@@ -516,7 +523,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const behind = !!content && !note && args.held === '1' && age > BEHIND_MS;
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
-  const [state, ownRows, setupPick, nm, raidLevel, planPref] = await Promise.all([
+  const [state, ownRows, setupPick, nm, raidLevel, planPref, clanRows, caPref] = await Promise.all([
     tripStateForViewer(viewer.userId, viewer.accountId),
     ownSetupsFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []),
     tripSetupPickFor(viewer.accountId, content.key),
@@ -525,23 +532,36 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     content.key === 'toa' ? raidLevelFor(viewer.accountId) : Promise.resolve(null),
     // The loadout plan picked for a trip the engine has a profile for (lib/tripLoadout).
     hasProfile(content.key) ? tripPlanFor(viewer.accountId, content.key) : Promise.resolve(null),
+    // Clanmates' setups shared with the clan: the clan is the played character's own member seat.
+    clanSharedSetups(viewer.userId, viewer.accountId, [content.key]),
+    hasProfile(content.key) ? tripCaFor(viewer.accountId, content.key) : Promise.resolve(null),
   ]);
   const preset = hasProfile(content.key) ? cleanPlan(planPref) : null;
-  const ownRow = pickedSetup(ownRows, setupPick);
-  const own = ownRow?.setup ?? null;
-  // The Setup dropdown: the saved setups by name, the one in use (or Anvil's loadout).
-  const setupList: Pick<TripPanelData, 'setups' | 'setupSel' | 'setupName'> = { setups: ownRows.map((r) => ({ id: r.id, name: r.name || r.setup.name })), setupSel: ownRow ? ownRow.id : 'anvil', setupName: ownRow ? ownRow.name || ownRow.setup.name : null };
+  const clanRow: ClanSetup | null = isClanPick(setupPick) ? (clanRows.find((r) => r.id === clanPickId(setupPick)) ?? null) : null;
+  // A clan pick that is no longer shared falls back to the trip's default.
+  const ownRow = clanRow ? null : pickedSetup(ownRows, isClanPick(setupPick) ? null : setupPick);
+  const own = clanRow?.setup ?? ownRow?.setup ?? null;
+  // "Going for a CA?": the player's undone loadout-changing tasks, with Anvil's loadout only.
+  const caOptions: CaOption[] = hasProfile(content.key) && !own ? casFor(content.key, viewer.cas) : [];
+  const ca = caPref != null && caOptions.some((o) => o.id === caPref) ? caPref : null;
+  // The Setup dropdown: the saved setups by name, the clan's, the one in use (or Anvil's loadout).
+  const setupList: Pick<TripPanelData, 'setups' | 'clanSetups' | 'setupSel' | 'setupName'> = {
+    setups: ownRows.map((r) => ({ id: r.id, name: r.name || r.setup.name })),
+    clanSetups: clanRows.map((r) => ({ id: r.id, name: r.name, rsn: r.rsn })),
+    setupSel: clanRow ? `c:${clanRow.id}` : ownRow ? ownRow.id : 'anvil',
+    setupName: clanRow ? clanRow.name : ownRow ? ownRow.name || ownRow.setup.name : null,
+  };
   t.mark('reads');
   const clanId = content.guide ? await pluginClanId(request, args) : null;
   // Everything the setup and the check read, hashed: the same items, setup and state give the same
   // answer, so a bank-close ask after a warm (warmTrip, on the items push) or a repeat is instant.
   // Each container's readAt too: a reload after any push is worked out from that push (its items are
   // the key already; the stamps make it so even when a push resent the same items).
-  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx), raidLevel, preset, [snap.equipment?.readAt, snap.inventory?.readAt, snap.bank?.readAt, snap.lootingBag?.readAt]]);
+  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx), raidLevel, preset, ca, [snap.equipment?.readAt, snap.inventory?.readAt, snap.bank?.readAt, snap.lootingBag?.readAt]]);
   const hit = CHECKS.get(key);
   const fresh = hit && Date.now() - hit.at < CHECK_TTL ? hit : null;
   if (!fresh) {
-    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel, preset, t });
+    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel, preset, ca, t });
     remember(key, p);
     p.catch(() => CHECKS.delete(key));
   }
@@ -549,6 +569,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   if (fresh) t.mark('cached');
   const { source, guide } = got;
   let { sourceLine, check, layout, names } = got;
+  if (clanRow) sourceLine = `Checked against ${clanRow.name}, shared by ${clanRow.rsn} in your clan`;
   if (!check) return { data: { ...withContent, ...setupList, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
   // The player's own picks (a slot clicked, an alternative taken): the same check of the setup with them.
   const ctx: CheckCtx = { content, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel };
@@ -565,11 +586,12 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const data: TripPanelData = {
     raid: raidLevel != null ? { level: raidLevel, levels: RAID_LEVELS } : null,
     plan: got.plan ? { preset: got.plan.preset, presets: got.plan.presets, blurb: got.plan.blurb } : null,
+    ca: got.plan && caOptions.length ? { options: caOptions.map((o) => ({ id: o.id, name: o.name, does: o.does })), sel: ca, line: got.caLine ?? null } : null,
     ...withContent,
     ...setupList,
     source,
     sourceLine,
-    sourceShort: shortSource(source, setupList.setupName ?? null, got.plan?.preset ?? null, sourceLine),
+    sourceShort: clanRow ? `${clanRow.name}, ${clanRow.rsn}’s clan setup` : shortSource(source, setupList.setupName ?? null, got.plan?.preset ?? null, sourceLine),
     summary: packSummary(layout, idx, (id) => names?.[id] ?? nm.byId.get(id) ?? idx.item(id)?.n ?? ''),
     guide,
     check: check!,
@@ -583,9 +605,9 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     canSave: worn.length + inventory.length > 0,
   };
   const refused = args.held ? HELD_WHY[args.held] : undefined;
-  if (refused) data.sourceLine = data.sourceShort = `${refused}: this is from what Anvil last saw`;
-  else if (behind) data.sourceLine = data.sourceShort = `${data.sourceShort}. Your newest items haven't arrived: this is from what Anvil last saw`;
-  else if (hasPicks) data.sourceShort = sourceLine;
+  if (refused) data.sourceLine = data.sourceShort = data.sourceNote = `${refused}: this is from what Anvil last saw`;
+  else if (behind) data.sourceLine = data.sourceShort = data.sourceNote = `${data.sourceShort}. Your newest items haven't arrived: this is from what Anvil last saw`;
+  else if (hasPicks) data.sourceShort = data.sourceNote = sourceLine;
   // Adjusting in the panel is not a bank-close answer: the overlay is left out of it.
   const quiet = behind || !!refused || hasPicks || !!alts;
   return { data, warn: quiet ? null : { ...tripWarn(content.short, check!), ...fightOf(content) }, armed, setup };
@@ -656,7 +678,7 @@ async function heldSetup(viewer: GuideViewer & { userId: number; accountId: numb
  * loadout becomes a new setup), 'trip-forget', 'trip-raid' and 'trip-plan'.
  */
 export async function tripAct(request: Request, act: string, args: Args, fields: Args = {}): Promise<View | null> {
-  if (act !== 'trip-save' && act !== 'trip-setup' && act !== 'trip-forget' && act !== 'trip-raid' && act !== 'trip-plan') return null;
+  if (act !== 'trip-save' && act !== 'trip-setup' && act !== 'trip-forget' && act !== 'trip-raid' && act !== 'trip-plan' && act !== 'trip-ca') return null;
   const viewer = await tripViewer(request);
   if (viewer === 'not-yours' || !viewer.userId || !viewer.accountId) return message('Sign in with the plugin, on your own character, to save a setup.');
   const me = viewer as GuideViewer & { userId: number; accountId: number };
@@ -681,6 +703,15 @@ export async function tripAct(request: Request, act: string, args: Args, fields:
     if (plan && hasProfile(content.key)) await saveTripPlan(viewer.accountId, content.key, plan);
     return tripView(request, again);
   }
+  if (act === 'trip-ca') {
+    // "Going for a CA?": the task picked, remembered per character and trip; 'none' clears it. Only a
+    // task the rules know for this boss (fields come from the panel's select, args from chips).
+    const v = fields.ca ?? args.ca ?? '';
+    const id = Number(v);
+    if (v === 'none' || v === '') await saveTripCa(viewer.accountId, content.key, null);
+    else if (Number.isInteger(id) && hasProfile(content.key) && casFor(content.key, null).some((o) => o.id === id)) await saveTripCa(viewer.accountId, content.key, id);
+    return tripView(request, again);
+  }
   const ownKeys = await ownTripKeys(viewer.accountId);
   const mine = await ownSetupsFor(viewer.userId, viewer.accountId, content.key, ownKeys);
   if (act === 'trip-forget') {
@@ -702,7 +733,20 @@ export async function tripAct(request: Request, act: string, args: Args, fields:
       await saveTripSetupPick(viewer.accountId, content.key, 'anvil');
       return tripView(request, again);
     }
+    if (v === 'clan-head') return tripView(request, again);
+    if (isClanPick(v)) {
+      // A clanmate's shared setup, read-only: checked against, never written to. Re-read through the clan.
+      const [row] = await clanSharedSetups(me.userId, me.accountId, [content.key], clanPickId(v));
+      if (row) await saveTripSetupPick(me.accountId, content.key, v);
+      return tripView(request, again, row ? null : 'That setup isn’t shared with your clan any more.');
+    }
     if (v === 'new') {
+      // With a clanmate's setup picked, "Save current as new" copies it into your own.
+      const prev = await tripSetupPickFor(me.accountId, content.key);
+      if (isClanPick(prev)) {
+        const [row] = await clanSharedSetups(me.userId, me.accountId, [content.key], clanPickId(prev));
+        if (row) return asNew({ ...row.setup, tier: 'advanced' }, `Copied ${row.name} from ${row.rsn}`);
+      }
       const held = await heldSetup(me, `My ${content.short} setup`);
       return held ? asNew(held, 'Saved what you wear and carry') : tripView(request, again, 'Nothing worn or packed to save yet.');
     }
@@ -718,7 +762,7 @@ export async function tripAct(request: Request, act: string, args: Args, fields:
     const built = await build(request, { ...again, ...(args.swap ? { swap: args.swap } : {}) }, viewer, null);
     if (built.setup) {
       const setup: GearSetup = { ...built.setup, tier: 'advanced' };
-      if (!into) return asNew(setup, args.swap ? 'Saved this setup with your picks' : 'Saved Anvil’s loadout');
+      if (!into) return asNew(setup, args.swap ? 'Saved this setup with your picks' : isClanPick(await tripSetupPickFor(me.accountId, content.key)) ? 'Copied the clan setup' : 'Saved Anvil’s loadout');
       await saveOwnTripSetup(viewer.userId, viewer.accountId, into.content, setup, into.id);
       return tripView(request, again, `Saved your picks into ${into.name}.`);
     }

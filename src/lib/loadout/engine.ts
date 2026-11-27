@@ -30,7 +30,7 @@ import { POWERED_MAX, SLOTS, spellByName, stylesFor, type AttackType, type Slot 
 import type { GearIndex } from '../dps/summary';
 import { SPELL_RUNES, ammoFits, calcSpell, isSpecWeapon, raidScaled, staffRunes, usableHeld } from '../tripCheck';
 import { SUPPLY_FORMS, SUPPLY_LABEL, pickSupplies } from './supplies';
-import { STYLES, type BossProfile, type InvSlot, type Loadout, type LoadoutPhase, type PhaseProfile, type PlayerInput, type Preset, type Style, type Unmet, type Why } from './types';
+import { STYLES, type BossProfile, type InvSlot, type Loadout, type LoadoutPhase, type PhaseProfile, type PlayerInput, type Preset, type Style, type SupplyLine, type Unmet, type Why } from './types';
 
 export interface EngineInput {
   profile: BossProfile;
@@ -241,7 +241,13 @@ export function buildLoadout(input: EngineInput): Loadout {
   const raidLevel = profile.modes?.some((m) => m.key === 'raidLevel') ? (player.mode?.raidLevel ?? profile.modes.find((m) => m.key === 'raidLevel')!.default) : null;
   const variant = profile.variants?.find((v) => v.key === player.mode?.variant) ?? profile.variants?.[0] ?? null;
   const targets: Target[] = [];
-  for (const p of profile.phases) {
+  const phaseStyles = player.constraints?.phaseStyles ?? {};
+  for (const raw of profile.phases) {
+    // A CA's "this phase with melee only": those styles are the phase's, the others ruled out there.
+    const only = phaseStyles[raw.key];
+    const p: PhaseProfile = only?.length
+      ? { ...raw, allowed: [...only], required: (raw.required ?? []).filter((s) => only.includes(s)), immune: STYLES.filter((s) => !only.includes(s)), prefer: undefined }
+      : raw;
     const base = idx.monster(variant?.monsters[p.key] ?? p.monster);
     if (!base) {
       unmet.push({ code: 'nothing', message: `${p.name}: the gear data has no ${p.monster}` });
@@ -254,10 +260,13 @@ export function buildLoadout(input: EngineInput): Loadout {
   }
 
   // The pool: what the player holds that main-game PvM can use.
+  const bannedNames = (player.constraints?.bannedNames ?? []).map((p) => new RegExp(p, 'i'));
+  const weaponsOnly = player.constraints?.weaponsOnly?.length ? player.constraints.weaponsOnly.map((p) => new RegExp(p, 'i')) : null;
   const pool = [...new Set(player.owned)]
     .filter((id) => !banned.has(id))
     .map((id) => idx.item(id))
-    .filter((x): x is GearItem => !!x && !x.hid && usableHeld(x.n));
+    .filter((x): x is GearItem => !!x && !x.hid && usableHeld(x.n))
+    .filter((x) => !bannedNames.some((re) => re.test(x.n)) && (!weaponsOnly || slotOf(x) !== 'weapon' || weaponsOnly.some((re) => re.test(x.n))));
   const weapons = pool.filter((x) => slotOf(x) === 'weapon');
   const ammoPool = pool.filter((x) => x.s === 'ammo');
   const darts = pool.filter((x) => /dart$/i.test(x.n) && x.c === 'Thrown').sort((a, b) => b.b[6] - a.b[6]);
@@ -757,17 +766,26 @@ export function buildLoadout(input: EngineInput): Loadout {
     else if (SUPPLY_FORMS[kind].length) warnings.push(`No ${SUPPLY_LABEL[kind]} in your bank (${SUPPLY_FORMS[kind][0].name})`);
     return got.length;
   };
-  for (const line of plan.supplies.filter((l) => !l.fill && !l.reserve)) {
+  // A CA's limits on the plan: lines dropped, room for raid supplies dropped, extra lines added.
+  const cons = player.constraints ?? {};
+  const FOODS = new Set(['food', 'karambwan', 'brew']);
+  const PRAYERS = new Set(['prayer', 'restore']);
+  const lines: SupplyLine[] = [
+    ...plan.supplies.filter((l) => !l.fill),
+    ...(cons.moreSupplies ?? []).map((m): SupplyLine => ({ kind: m.kind, count: m.count })),
+    ...plan.supplies.filter((l) => l.fill),
+  ].filter((l) => (l.reserve ? !cons.ownSupplies : !cons.noSupplies && !(cons.noFood && FOODS.has(l.kind)) && !(cons.noPrayerPots && PRAYERS.has(l.kind))));
+  for (const line of lines.filter((l) => !l.fill && !l.reserve)) {
     if (line.kind === 'antivenom' && venomCovered) continue;
     if (room() < line.count) warnings.push(`Only room for ${room()} of ${line.count} ${SUPPLY_LABEL[line.kind]}`);
     addLine(line.kind, line.count);
   }
-  for (const line of plan.supplies.filter((l) => l.reserve)) {
+  for (const line of lines.filter((l) => l.reserve)) {
     const n = Math.min(line.count, room());
     for (let i = 0; i < n; i++) inventory.push({ id: null, name: 'Free slot (raid supplies)', kind: 'reserved' });
     if (n) why.push({ pick: `${n} free slots`, why: `${SUPPLY_LABEL[line.kind]} picked up inside` });
   }
-  for (const line of plan.supplies.filter((l) => l.fill)) addLine(line.kind, line.count);
+  for (const line of lines.filter((l) => l.fill)) addLine(line.kind, line.count);
   while (inventory.length < INV) inventory.push(null);
   if (inventory.length > INV) unmet.push({ code: 'budget', message: `The inventory needs ${inventory.length} slots` });
 
@@ -803,7 +821,7 @@ export function buildLoadout(input: EngineInput): Loadout {
       unmet.push({ code: 'spellbook', message: `This fight wants the ${r.book} spellbook` });
     }
   }
-  for (const s of bannedStyles) if (carriedKits.some((k) => k.style === s)) unmet.push({ code: 'constraint', message: `${s} is ruled out but carried` });
+  for (const s of bannedStyles) if (carriedKits.some((k) => k.style === s && !k.cast)) unmet.push({ code: 'constraint', message: `${s} is ruled out but carried` });
 
   const killsPerTrip = profile.incomingPerKill && healing > 0 ? Math.max(1, Math.floor(healing / profile.incomingPerKill)) : null;
   return {

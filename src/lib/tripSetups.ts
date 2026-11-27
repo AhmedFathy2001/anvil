@@ -9,10 +9,10 @@
 // with the person (lib/personData); turning item sharing off leaves them, since they were saved on purpose.
 
 import { randomBytes } from 'node:crypto';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, tripSetups, users } from '@/db/schema';
+import { accounts, clanMemberships, tripSetups, users } from '@/db/schema';
 import { parseGearBlock, type GearSetup } from '@/lib/guideTiers';
 import { ownsAccount } from '@/lib/playerItems';
 import { cleanSetupName, cleanTag, newSetupName } from '@/lib/tripSetupNames';
@@ -228,4 +228,61 @@ export async function sharedSetup(token: string): Promise<{ name: string; conten
   const [row] = await db.select().from(tripSetups).where(eq(tripSetups.shareToken, token)).limit(1);
   const s = row ? toSaved(row) : null;
   return s ? { name: s.name, content: s.content, setup: s.setup } : null;
+}
+
+// ── Shared with the clan: the panel's "From your clan" options ─────────────────────────────────
+
+/** A clanmate's setup shared with the clan: the setup only (name, gear, inventory, pouch), and who shared it. */
+export interface ClanSetup {
+  id: number;
+  name: string;
+  /** The sharer's RSN: on the clan's own in-game roster (a live member seat), so already public in the clan. */
+  rsn: string;
+  setup: GearSetup;
+}
+
+/**
+ * The clan this character holds a live member seat in (OSRS lets an account be in one clan), from
+ * the seat itself: never from anything the caller sends. Null when it has none.
+ */
+export async function memberClanOf(accountId: number): Promise<number | null> {
+  // clan-scope: global -- the character's own seat decides the clan.
+  const [row] = await db
+    .select({ clanId: clanMemberships.clanId })
+    .from(clanMemberships)
+    .where(and(eq(clanMemberships.accountId, accountId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)))
+    .limit(1);
+  return row?.clanId ?? null;
+}
+
+const MAX_CLAN_SETUPS = 20;
+
+/**
+ * Setups clanmates shared with the clan for these trips, for the person playing `accountId` (which
+ * the caller has proven is theirs). Only sharers with a live member seat in the same clan, never the
+ * person's own characters; only the setup itself, never a bank or stats. `id` narrows it to one.
+ */
+export async function clanSharedSetups(userId: number, accountId: number, contents: readonly string[], id?: number): Promise<ClanSetup[]> {
+  const keys = contents.filter(validKey);
+  if (!keys.length || !(await ownsAccount(userId, accountId))) return [];
+  const clanId = await memberClanOf(accountId);
+  if (clanId == null) return [];
+  // clan-scope: global -- the viewer's own person, to leave their own characters out.
+  const [me] = await db.select({ playerId: accounts.playerId }).from(accounts).where(eq(accounts.id, accountId)).limit(1);
+  if (!me) return [];
+  // clan-scope: clan -- pinned to the viewer's own member clan by the sharer's live member seat.
+  const rows = await db
+    .select({ s: tripSetups, rsn: accounts.rsn })
+    .from(tripSetups)
+    .innerJoin(accounts, eq(accounts.id, tripSetups.accountId))
+    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), eq(clanMemberships.clanId, clanId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)))
+    .where(and(eq(tripSetups.shareClan, true), inArray(tripSetups.content, keys), ne(accounts.playerId, me.playerId), id != null ? eq(tripSetups.id, id) : undefined))
+    .orderBy(asc(tripSetups.name), asc(tripSetups.id))
+    .limit(MAX_CLAN_SETUPS);
+  return rows
+    .map((r) => {
+      const saved = toSaved(r.s);
+      return saved ? { id: saved.id, name: saved.name || saved.setup.name, rsn: r.rsn, setup: saved.setup } : null;
+    })
+    .filter((x): x is ClanSetup => !!x);
 }

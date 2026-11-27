@@ -1,243 +1,130 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
-import Input from '@/components/Input';
 import Select from '@/components/Select';
-import Switch from '@/components/Switch';
 import { useDialog } from '@/components/Confirm';
-import { InventoryGrid, PaperDoll, RunePouchBox, StonePanel, type Names } from '@/components/guides/osrs';
+import { ItemSprite, type Names } from '@/components/guides/osrs';
 import { clanFetch } from '@/lib/clanFetch';
-import type { InvItem } from '@/lib/guideTiers';
-import { bankTagString, type EquipSlot } from '@/lib/runeliteExport';
-import { SETUP_NAME_MAX } from '@/lib/tripSetupNames';
+import type { SetupCard } from './cards';
 
-export interface SetupCard {
-  id: number;
-  accountId: number;
-  content: string;
-  contentName: string;
-  contentShort: string;
-  raid: boolean;
-  name: string;
-  tag: string | null;
-  presets: string[];
-  isDefault: boolean;
-  shareClan: boolean;
-  shareToken: string | null;
-  gear: Record<string, number>;
-  inventory: (InvItem | null)[];
-  runePouch: InvItem[];
-  spellbook: number | null;
-  /** "3 days ago", worked out on the server. */
-  saved: string;
-}
+export type { SetupCard } from './cards';
 
 type Filter = 'all' | 'raids' | 'bosses' | 'clan';
 
-const btn = 'inline-flex min-h-9 items-center rounded-lg border px-3 text-[13px] transition-colors disabled:opacity-50';
+const btn = 'inline-flex min-h-10 items-center justify-center rounded-lg border px-3.5 text-[13px] transition-colors disabled:opacity-50';
+const goldBtn = `${btn} border-transparent bg-gold font-semibold text-brown-dark hover:bg-gold-light`;
 const plainBtn = `${btn} border-card-border bg-brown-dark/40 text-foreground hover:border-gold/40`;
-const goldLink = `${btn} border-transparent text-gold hover:text-gold-light`;
 
-async function call(id: number, method: 'PATCH' | 'POST' | 'DELETE', body?: unknown): Promise<{ ok: boolean; data: Record<string, unknown> }> {
-  const res = await clanFetch(`/api/profile/setups/${id}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  return { ok: res.ok, data };
+const PLANS = [
+  { value: 'learner', label: 'Learner' },
+  { value: 'experienced', label: 'Experienced' },
+  { value: 'max', label: 'Max DPS' },
+];
+/** The worn pieces a row shows, in the order they say the most about a setup. */
+const STRIP = ['weapon', 'head', 'body', 'legs', 'shield', 'cape'] as const;
+
+function Badge({ children, tone = 'muted' }: { children: React.ReactNode; tone?: 'muted' | 'gold' | 'green' }) {
+  const cls = tone === 'gold' ? 'bg-gold/15 text-gold-light' : tone === 'green' ? 'bg-emerald-400/10 text-emerald-300' : 'bg-brown-dark text-text-muted';
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{children}</span>;
 }
 
-function Preview({ s, names }: { s: SetupCard; names: Names }) {
+/** One setup as a row: its worn gear in a strip, the name and badges, when it was saved; opens its page. */
+function SetupRow({ s, names }: { s: SetupCard; names: Names }) {
+  const strip = STRIP.map((slot) => s.gear[slot]).filter((id): id is number => typeof id === 'number');
+  const packed = s.inventory.filter(Boolean).length;
   return (
-    <div className="flex flex-wrap items-start gap-3">
-      <StonePanel className="inline-flex p-2.5">
-        <PaperDoll gear={s.gear} hasQuiver={false} twoHanded={false} names={names} size={34} />
-      </StonePanel>
-      <div className="flex flex-col gap-2">
-        <InventoryGrid inventory={s.inventory} names={names} size={30} />
-        {s.runePouch.length > 0 && <RunePouchBox runes={s.runePouch} divine={s.runePouch.length > 3} names={names} />}
+    <ClanLink
+      href={`/profile/setups/${s.id}`}
+      className={`group flex items-center gap-3 rounded-xl border bg-card-bg px-3 py-2.5 transition-colors hover:border-gold/50 ${s.isDefault ? 'border-gold/35' : 'border-card-border'}`}
+    >
+      <span className="flex shrink-0 items-center gap-0.5 rounded-lg bg-[#3e3529] p-1 shadow-[inset_0_0_0_1px_#14100b]">
+        {strip.slice(0, 4).map((id) => (
+          <ItemSprite key={id} id={id} name={names[id]} size={26} />
+        ))}
+        {strip.length === 0 && <span className="px-2 text-xs text-text-muted">Empty</span>}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-[15px] font-semibold text-white group-hover:text-gold-light">{s.name}</span>
+          {s.tag && <Badge>{s.tag}</Badge>}
+          {s.isDefault && <Badge tone="gold">Default</Badge>}
+          {s.shareClan && <Badge tone="green">Clan</Badge>}
+          {s.shareToken && <Badge tone="green">Link</Badge>}
+        </span>
+        <span className="text-xs text-text-muted">
+          {packed} in the inventory, saved {s.saved}
+        </span>
+      </span>
+      <span aria-hidden className="text-lg text-text-muted group-hover:text-gold">
+        ›
+      </span>
+    </ClanLink>
+  );
+}
+
+/** "Start from Anvil's loadout": a boss and a plan, worked out from the character's bank into a new setup. */
+function StartFromAnvil({ characters, bosses, account }: { characters: { id: number; rsn: string }[]; bosses: { key: string; name: string }[]; account: string }) {
+  const dialog = useDialog();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [who, setWho] = useState(account !== 'all' ? account : String(characters[0]?.id ?? ''));
+  const [boss, setBoss] = useState(bosses[0]?.key ?? '');
+  const [plan, setPlan] = useState('experienced');
+  const [busy, setBusy] = useState(false);
+  if (!characters.length || !bosses.length) return null;
+  const build = async () => {
+    setBusy(true);
+    const res = await clanFetch('/api/profile/setups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountId: Number(who), content: boss, plan }) });
+    const data = (await res.json().catch(() => ({}))) as { id?: number; name?: string; error?: string };
+    setBusy(false);
+    if (!res.ok || typeof data.id !== 'number') return dialog.notify(data.error ?? 'Couldn’t build it.', 'error');
+    router.push(`${window.location.pathname.replace(/\/$/, '')}/${data.id}`);
+  };
+  if (!open) {
+    return (
+      <button type="button" className={plainBtn} onClick={() => setOpen(true)}>
+        Start from Anvil’s loadout
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-gold/30 bg-card-bg p-4">
+      <div>
+        <h2 className="text-base font-semibold text-white">Start from Anvil’s loadout</h2>
+        <p className="text-sm text-text-muted">Anvil works a setup out from your bank for the boss and plan, the same one the plugin’s pre-trip check shows, and saves it as a new setup you can rename.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {characters.length > 1 && (
+          <label className="flex flex-col gap-1 text-xs text-text-muted">
+            Character
+            <Select value={who} onChange={setWho} options={characters.map((c) => ({ value: String(c.id), label: c.rsn }))} ariaLabel="Character" />
+          </label>
+        )}
+        <label className="flex flex-col gap-1 text-xs text-text-muted">
+          Boss
+          <Select value={boss} onChange={setBoss} options={bosses.map((b) => ({ value: b.key, label: b.name }))} ariaLabel="Boss" />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-text-muted">
+          Plan
+          <Select value={plan} onChange={setPlan} options={PLANS} ariaLabel="Plan" />
+        </label>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={goldBtn} onClick={build} disabled={busy}>
+          {busy ? 'Working it out…' : 'Build the setup'}
+        </button>
+        <button type="button" className={plainBtn} onClick={() => setOpen(false)} disabled={busy}>
+          Cancel
+        </button>
       </div>
     </div>
   );
 }
 
-function SetupArticle({ s, names, shortOf, onChanged }: { s: SetupCard; names: Names; shortOf: string; onChanged: (patch: Partial<SetupCard> | null) => void }) {
-  const dialog = useDialog();
-  const [renaming, setRenaming] = useState(false);
-  const [draft, setDraft] = useState(s.name);
-  const [deleting, setDeleting] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  const patch = async (body: Record<string, unknown>, local: Partial<SetupCard>) => {
-    setBusy(true);
-    const r = await call(s.id, 'PATCH', body);
-    setBusy(false);
-    if (!r.ok) return dialog.notify(String(r.data.error ?? 'That didn’t save.'), 'error');
-    onChanged(local);
-  };
-
-  const copy = async (text: string, done: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      dialog.notify(done);
-    } catch {
-      await dialog.ask({ title: 'Copy this', label: 'Select it and copy', initial: text });
-    }
-  };
-
-  const shareLink = async () => {
-    setBusy(true);
-    const r = await call(s.id, 'POST', { share: 'link' });
-    setBusy(false);
-    if (!r.ok || typeof r.data.path !== 'string') return dialog.notify(String(r.data.error ?? 'Couldn’t make a link.'), 'error');
-    onChanged({ shareToken: String(r.data.token) });
-    await copy(`${window.location.origin}${r.data.path}`, 'Share link copied. Anyone with it sees this setup, never your bank.');
-  };
-
-  const stopShare = async () => {
-    setBusy(true);
-    const r = await call(s.id, 'POST', { share: 'stop' });
-    setBusy(false);
-    if (r.ok) onChanged({ shareToken: null });
-  };
-
-  const bankTag = () =>
-    copy(
-      bankTagString({ name: s.name, gear: s.gear as Partial<Record<EquipSlot, number>>, inventory: s.inventory, runePouch: s.runePouch, ...(s.spellbook != null ? { spellbook: s.spellbook } : {}) }),
-      'Bank tag copied. In the game, right-click a bank tag tab and import it.',
-    );
-
-  const remove = async () => {
-    setBusy(true);
-    const r = await call(s.id, 'DELETE');
-    setBusy(false);
-    if (!r.ok) return dialog.notify(String(r.data.error ?? 'Couldn’t delete it.'), 'error');
-    onChanged(null);
-  };
-
-  const saveName = async () => {
-    const name = draft.replace(/\s+/g, ' ').trim();
-    if (!name || name.length > SETUP_NAME_MAX) return dialog.notify(`A name is 1 to ${SETUP_NAME_MAX} characters.`, 'error');
-    await patch({ name }, { name });
-    setRenaming(false);
-  };
-
-  if (deleting) {
-    return (
-      <article className="flex flex-wrap items-center gap-3 self-start rounded-xl border border-red-400/40 bg-card-bg p-4">
-        <div className="min-w-[220px] flex-1">
-          <h3 className="text-base font-semibold text-white">Delete {s.name}?</h3>
-          <p className="text-sm text-text-muted">It leaves your plugin’s Setup list{s.shareToken ? ' and its share link stops working' : ''}. This can’t be undone.</p>
-        </div>
-        <button type="button" className={plainBtn} onClick={() => setDeleting(false)} disabled={busy}>
-          Keep it
-        </button>
-        <button type="button" className={`${btn} border-transparent bg-red-500/80 font-semibold text-white hover:bg-red-500`} onClick={remove} disabled={busy}>
-          Delete setup
-        </button>
-      </article>
-    );
-  }
-
-  return (
-    <article className={`flex flex-col gap-3 rounded-xl border bg-card-bg p-4 ${s.isDefault ? 'border-gold/50' : 'border-card-border'}`}>
-      {renaming ? (
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-text-muted">Renaming</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              value={draft}
-              maxLength={SETUP_NAME_MAX}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void saveName();
-                if (e.key === 'Escape') setRenaming(false);
-              }}
-              aria-label="Setup name"
-              autoFocus
-              className="min-w-[180px] flex-1"
-            />
-            <button type="button" className={`${btn} border-transparent bg-gold font-semibold text-brown-dark hover:bg-gold-light`} onClick={saveName} disabled={busy}>
-              Save name
-            </button>
-            <button type="button" className={plainBtn} onClick={() => setRenaming(false)}>
-              Cancel
-            </button>
-          </div>
-          <p className="text-xs text-text-muted">
-            Up to {SETUP_NAME_MAX} characters, {SETUP_NAME_MAX - draft.trim().length} left. This is what the plugin’s Setup list shows.
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-[17px] font-semibold text-white">{s.name}</h3>
-          {s.tag && <span className="rounded-full bg-brown-dark px-2 py-0.5 text-xs text-text-muted">{s.tag}</span>}
-          {s.isDefault && <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold-light">Default for {shortOf}</span>}
-        </div>
-      )}
-      <Preview s={s} names={names} />
-      <p className="text-xs text-text-muted">Saved from the plugin {s.saved}.</p>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {s.presets.length > 0 && (
-          <label className="flex items-center gap-2 text-xs text-text-muted">
-            Tag
-            <Select
-              value={s.tag ?? ''}
-              onChange={(v) => void patch({ tag: v || null }, { tag: v || null })}
-              options={[{ value: '', label: 'No tag' }, ...s.presets.map((p) => ({ value: p, label: p }))]}
-              ariaLabel={`Tag for ${s.name}`}
-              className="w-32"
-              disabled={busy}
-            />
-          </label>
-        )}
-        <Switch checked={s.shareClan} onChange={(v) => void patch({ shareClan: v }, { shareClan: v })} disabled={busy}>
-          Share with clan
-        </Switch>
-      </div>
-      {s.shareToken && <p className="text-xs text-text-muted">Shared by link. Anyone with the link sees the setup, never your bank.</p>}
-      <div className="flex flex-wrap gap-2">
-        {!renaming && (
-          <button
-            type="button"
-            className={plainBtn}
-            onClick={() => {
-              setDraft(s.name);
-              setRenaming(true);
-            }}
-          >
-            Rename
-          </button>
-        )}
-        {!s.isDefault && (
-          <button type="button" className={goldLink} onClick={() => void patch({ isDefault: true }, { isDefault: true })} disabled={busy}>
-            Make default
-          </button>
-        )}
-        <button type="button" className={plainBtn} onClick={shareLink} disabled={busy}>
-          Copy share link
-        </button>
-        {s.shareToken && (
-          <button type="button" className={plainBtn} onClick={stopShare} disabled={busy}>
-            Stop sharing
-          </button>
-        )}
-        <button type="button" className={plainBtn} onClick={bankTag}>
-          Copy bank tag
-        </button>
-        <button type="button" className={`${btn} border-red-400/30 text-red-300 hover:border-red-400/60`} onClick={() => setDeleting(true)} disabled={busy}>
-          Delete
-        </button>
-      </div>
-    </article>
-  );
-}
-
-export default function MySetupsClient({ setups: initial, characters, names }: { setups: SetupCard[]; characters: { id: number; rsn: string }[]; names: Names }) {
-  const [setups, setSetups] = useState(initial);
+export default function MySetupsClient({ setups, characters, names, bosses }: { setups: SetupCard[]; characters: { id: number; rsn: string }[]; names: Names; bosses: { key: string; name: string }[] }) {
   const withSetups = characters.filter((c) => setups.some((s) => s.accountId === c.id));
   const [account, setAccount] = useState<string>(withSetups.length > 1 ? 'all' : String(withSetups[0]?.id ?? 'all'));
   const [filter, setFilter] = useState<Filter>('all');
@@ -253,29 +140,8 @@ export default function MySetupsClient({ setups: initial, characters, names }: {
     }
     return [...m.values()];
   }, [shown]);
-  const bosses = new Set(setups.filter((s) => account === 'all' || String(s.accountId) === account).map((s) => s.content)).size;
+  const bossCount = new Set(setups.filter((s) => account === 'all' || String(s.accountId) === account).map((s) => s.content)).size;
   const rsnOf = (id: number) => characters.find((c) => c.id === id)?.rsn ?? '';
-
-  const changed = (id: number, patch: Partial<SetupCard> | null) => {
-    setSetups((all) => {
-      const me = all.find((s) => s.id === id);
-      if (!me) return all;
-      if (patch === null) {
-        const rest = all.filter((s) => s.id !== id);
-        // The trip's oldest setup left becomes its default (as the server does).
-        if (me.isDefault) {
-          const next = rest.filter((s) => s.accountId === me.accountId && s.content === me.content).sort((a, b) => a.id - b.id)[0];
-          if (next) return rest.map((s) => (s.id === next.id ? { ...s, isDefault: true } : s));
-        }
-        return rest;
-      }
-      return all.map((s) => {
-        if (s.id === id) return { ...s, ...patch };
-        if (patch.isDefault && s.accountId === me.accountId && s.content === me.content) return { ...s, isDefault: false };
-        return s;
-      });
-    });
-  };
 
   const chip = (k: Filter, label: string) => (
     <button
@@ -290,7 +156,7 @@ export default function MySetupsClient({ setups: initial, characters, names }: {
   );
 
   return (
-    <div className="flex flex-col gap-6 pb-12">
+    <div className="flex flex-col gap-5 pb-12">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex max-w-2xl flex-col gap-1.5">
           <p className="text-[13px] text-text-muted">
@@ -303,9 +169,7 @@ export default function MySetupsClient({ setups: initial, characters, names }: {
             <span className="h-7 w-1 rounded-full bg-gold" />
             My setups
           </h1>
-          <p className="text-sm text-text-muted">
-            Only you see these. The pre-trip check in the plugin lists them in its Setup dropdown. Save new ones from the plugin, then name and tidy them here.
-          </p>
+          <p className="text-sm text-text-muted">Only you see these. The plugin’s pre-trip check lists them in its Setup dropdown. Open one to rename, share or copy it.</p>
         </div>
         {withSetups.length > 1 && (
           <label className="flex flex-col gap-1 text-xs text-text-muted">
@@ -321,15 +185,17 @@ export default function MySetupsClient({ setups: initial, characters, names }: {
         )}
       </div>
 
+      <StartFromAnvil characters={characters} bosses={bosses} account={account} />
+
       {setups.length === 0 ? (
         <div className="rounded-xl border border-dashed border-card-border p-6 text-sm text-text-muted">
           <h2 className="mb-1 text-base font-semibold text-foreground">No saved setups yet</h2>
-          Gear up in game, open the pre-trip check in the Anvil plugin and pick “Save current as new” in its Setup dropdown. It shows up here to name and share.
+          Gear up in game, open the pre-trip check in the Anvil plugin and pick “Save current as new” in its Setup dropdown, or start from Anvil’s loadout above.
         </div>
       ) : (
         <>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filter setups">
-            {chip('all', `All ${bosses} boss${bosses === 1 ? '' : 'es'}`)}
+            {chip('all', `All ${bossCount} boss${bossCount === 1 ? '' : 'es'}`)}
             {chip('raids', 'Raids')}
             {chip('bosses', 'Bosses')}
             {chip('clan', 'Shared with clan')}
@@ -338,7 +204,7 @@ export default function MySetupsClient({ setups: initial, characters, names }: {
           {groups.map((g) => {
             const first = g[0];
             return (
-              <section key={`${first.accountId}:${first.content}`} className="flex flex-col gap-3">
+              <section key={`${first.accountId}:${first.content}`} className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <span className="h-5 w-1 rounded-full bg-gold" />
                   <h2 className="text-lg font-semibold text-white">{first.contentName}</h2>
@@ -347,9 +213,9 @@ export default function MySetupsClient({ setups: initial, characters, names }: {
                     {account === 'all' && withSetups.length > 1 ? `, ${rsnOf(first.accountId)}` : ''}
                   </span>
                 </div>
-                <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr))]">
+                <div className="grid gap-2 md:grid-cols-2">
                   {g.map((s) => (
-                    <SetupArticle key={s.id} s={s} names={names} shortOf={s.contentShort} onChanged={(p) => changed(s.id, p)} />
+                    <SetupRow key={s.id} s={s} names={names} />
                   ))}
                 </div>
               </section>

@@ -67,13 +67,33 @@ export async function saveTripPlan(accountId: number, contentKey: string, plan: 
 /** A trip key as the prefs field of the setup picked in the panel's Setup dropdown: "setup:toa". */
 const setupKey = (contentKey: string) => `setup:${contentKey.slice(0, 90)}`;
 
-/** The Setup dropdown's pick for this trip: a saved setup's id, 'anvil' (Anvil's loadout), or null (the default). */
-export async function tripSetupPickFor(accountId: number, contentKey: string): Promise<number | 'anvil' | null> {
+/** A clanmate's shared setup picked in the dropdown: "c:<setup id>" (checked against the clan on every read). */
+export type ClanPick = `c:${number}`;
+export type SetupPick = number | 'anvil' | ClanPick;
+export const isClanPick = (v: unknown): v is ClanPick => typeof v === 'string' && /^c:[1-9]\d{0,9}$/.test(v);
+export const clanPickId = (v: ClanPick): number => Number(v.slice(2));
+
+/** The Setup dropdown's pick for this trip: a saved setup's id, 'anvil' (Anvil's loadout), a clan setup, or null (the default). */
+export async function tripSetupPickFor(accountId: number, contentKey: string): Promise<SetupPick | null> {
   const v = (await prefsOf(accountId))[setupKey(contentKey)];
-  return v === 'anvil' ? 'anvil' : typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null;
+  return v === 'anvil' ? 'anvil' : isClanPick(v) ? v : typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null;
 }
 
 /** Remembers the dropdown's pick for the trip; null goes back to the trip's default setup. */
-export async function saveTripSetupPick(accountId: number, contentKey: string, pick: number | 'anvil' | null): Promise<void> {
+export async function saveTripSetupPick(accountId: number, contentKey: string, pick: SetupPick | null): Promise<void> {
   await savePrefs(accountId, { [setupKey(contentKey)]: pick });
+}
+
+/** A trip key as the prefs field of the Combat Achievement picked on the card: "ca:zulrah". */
+const caKey = (contentKey: string) => `ca:${contentKey.slice(0, 40)}`;
+
+/** The CA task id picked for this trip ("Going for a CA?"), or null (none). Checked against the rules by the caller. */
+export async function tripCaFor(accountId: number, contentKey: string): Promise<number | null> {
+  const v = (await prefsOf(accountId))[caKey(contentKey)];
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 100_000 ? v : null;
+}
+
+/** Remembers the CA picked for the trip; null goes back to none. */
+export async function saveTripCa(accountId: number, contentKey: string, ca: number | null): Promise<void> {
+  await savePrefs(accountId, { [caKey(contentKey)]: ca });
 }
