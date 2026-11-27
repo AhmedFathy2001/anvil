@@ -30,7 +30,7 @@ export interface TripLayout {
   /** The quiver slot holds the quiver's own ammo (state.quiver): it comes with the quiver. */
   quiverRides?: boolean;
   /** Supplies a failing row wants packed that no slot shows (Doom's food and prayer restore). */
-  extra: LayoutItem[];
+  extra?: LayoutItem[];
   /** Distinct items to take from the bank / not owned at all. */
   inBank: number;
   notOwned: number;
@@ -248,7 +248,7 @@ export function layoutBanks(l: TripLayout, o: LayoutBankInput): { missing: BankL
   // to take when any of its slots is in the bank.
   const rank: Record<Have, number> = { here: 0, none: 1, bank: 2 };
   const byKey = new Map<string, { it: LayoutItem; group: TripRow['group'] }>();
-  for (const it of [...l.inventory.filter((x): x is LayoutItem => !!x), ...l.pouch, ...l.extra]) {
+  for (const it of [...l.inventory.filter((x): x is LayoutItem => !!x), ...l.pouch, ...(l.extra ?? [])]) {
     const n = o.nameOf(it.id);
     const group: TripRow['group'] = isGear(it.id) ? (o.isSpec(it.id) ? 'spec' : 'gear') : isStackable(n) || o.isRunePouch(it.id) ? 'pouch' : 'supplies';
     const key = group === 'supplies' ? `kind:${supplyKind(n)}` : `id:${it.id}`;
