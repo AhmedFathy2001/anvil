@@ -10,7 +10,8 @@
 //
 // Hand-kept: the wiki drop data has no list of a raid's monsters (most of them drop nothing). Names
 // are matched lower-case, whole or as the start of the name ("Great Olm (Left claw)", "Baboon
-// Brawler"). A name that is also something outside a raid stays off the list.
+// Brawler"). A name that is also something outside a raid stays off the list (Lizardman shaman: Kebos,
+// Molch; Scarab swarm: Sophanem), so an older client's death there is never guessed into a raid.
 //
 // Pure: the moments ingest and the tests read it.
 
@@ -35,7 +36,6 @@ const NPCS: Record<RaidFamily, string[]> = {
     'muttadile',
     'vanguard',
     'ice demon',
-    'lizardman shaman',
     'skeletal mystic',
     'deathly ranger',
     'deathly mage',
@@ -61,7 +61,6 @@ const NPCS: Record<RaidFamily, string[]> = {
     'arcane scarab',
     'spitting scarab',
     'soldier scarab',
-    'scarab swarm',
     'akkha',
     'zebak',
     "tumeken's warden",

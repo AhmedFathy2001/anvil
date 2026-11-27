@@ -65,7 +65,11 @@ export function settleDeathSource(raw: Record<string, unknown>): void {
   // deaths nothing is behind (Warden skulls, Zebak's waves, Olm's crystals). An older one only names
   // a killer, so it is read off the name before anything below blanks it (lib/raidNpcs).
   // "toa-entry"/"tob-entry": the Entry Modes, their own targets (lib/bossRushRules RUSH_RAID_TARGETS).
-  const raid = raw.raid === 'toa-entry' || raw.raid === 'tob-entry' || isRaidFamily(raw.raid) ? raw.raid : raw.sourceKind === 'player' ? null : raidOfNpc(raw.source);
+  // A client that says where it stood (regionId) also checked the raid state there: no tag from it
+  // means no raid, so its killer's name is never a reason to guess one (a Lizardman shaman under the
+  // Farming Guild is not Chambers of Xeric).
+  const placed = typeof raw.regionId === 'number';
+  const raid = raw.raid === 'toa-entry' || raw.raid === 'tob-entry' || isRaidFamily(raw.raid) ? raw.raid : placed || raw.sourceKind === 'player' ? null : raidOfNpc(raw.source);
   if (raid) raw.raid = raid;
   else delete raw.raid;
   if (typeof raw.source === 'string' && raw.sourceKind !== 'player' && neverKiller(raw.source)) {
