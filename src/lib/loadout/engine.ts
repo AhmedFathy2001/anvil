@@ -770,10 +770,13 @@ export function buildLoadout(input: EngineInput): Loadout {
   const cons = player.constraints ?? {};
   const FOODS = new Set(['food', 'karambwan', 'brew']);
   const PRAYERS = new Set(['prayer', 'restore']);
+  // Bringing your own instead of the raid's: the kept room becomes a third restores, the rest food.
+  const kept = cons.ownSupplies ? plan.supplies.filter((l) => l.reserve).reduce((n, l) => n + l.count, 0) : 0;
   const lines: SupplyLine[] = [
     ...plan.supplies.filter((l) => !l.fill),
+    ...(kept ? [{ kind: 'restore' as const, count: Math.floor(kept / 3) }] : []),
     ...(cons.moreSupplies ?? []).map((m): SupplyLine => ({ kind: m.kind, count: m.count })),
-    ...plan.supplies.filter((l) => l.fill),
+    ...plan.supplies.filter((l) => l.fill).map((l) => (kept ? { ...l, count: l.count + kept - Math.floor(kept / 3) } : l)),
   ].filter((l) => (l.reserve ? !cons.ownSupplies : !cons.noSupplies && !(cons.noFood && FOODS.has(l.kind)) && !(cons.noPrayerPots && PRAYERS.has(l.kind))));
   for (const line of lines.filter((l) => !l.fill && !l.reserve)) {
     if (line.kind === 'antivenom' && venomCovered) continue;

@@ -85,7 +85,7 @@ function StartFromAnvil({ characters, bosses, account }: { characters: { id: num
   };
   if (!open) {
     return (
-      <button type="button" className={plainBtn} onClick={() => setOpen(true)}>
+      <button type="button" className={`${plainBtn} self-start`} onClick={() => setOpen(true)}>
         Start from Anvil’s loadout
       </button>
     );

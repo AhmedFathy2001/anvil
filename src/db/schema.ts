@@ -1706,6 +1706,11 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
   title: text('title').notNull(),
   startDate: text('start_date').notNull(),
   endDate: text('end_date').notNull(),
+  // Item hunts / Boss Rushes: their drop screenshots go 90 days after the end, owners and admins
+  // reminded first (lib/huntMediaRetention, same rules as an event's: lib/eventMediaRetentionRules).
+  mediaPurgedAt: text('media_purged_at'),
+  mediaPurgeNoticeAt: text('media_purge_notice_at'),
+  mediaPurgeFinalNoticeAt: text('media_purge_final_notice_at'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   status: text('status').notNull().default('upcoming'), // 'upcoming' | 'active' | 'completed'

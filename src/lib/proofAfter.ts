@@ -35,8 +35,11 @@ export function parseProofKey(raw: unknown): string | null {
  * screenshot (the plugin never heard the first answer) is still answered ok — while the key itself is
  * gone and nothing can be attached with it again.
  */
+/** The start of every used proof key (attachedKeyMark): the server stored that row's image itself. */
+export const ATTACHED_PREFIX = 'done:';
+
 export function attachedKeyMark(key: string): string {
-  return `done:${crypto.createHash('sha256').update(key).digest('base64url')}`;
+  return `${ATTACHED_PREFIX}${crypto.createHash('sha256').update(key).digest('base64url')}`;
 }
 
 /** When a credit filed at `filedAt` (epoch ms) is reversed, as stored (ISO). */

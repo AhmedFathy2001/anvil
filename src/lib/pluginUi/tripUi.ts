@@ -441,10 +441,11 @@ function actionRow(d: TripPanelData, c: TripCheck | null, hasLayout: boolean): N
           sid ? `Save into ${d.setupName ?? 'this setup'}: ${d.swap ? 'this setup with your picks' : 'what you wear and carry now'}. Only you see it.` : d.swap ? 'Save this setup with your picks as a new setup. Only you see it.' : 'Save Anvil’s loadout as a new setup of yours. Only you see it.',
         )
       : null;
-  const guide = d.guide ? boxed('Guide ↗', { a: 'load', v: 'guide', args: regionArgs(d, { id: String(d.guide.id) }) }, `The ${d.guide.title} guide and its setups`) : null;
   // The whole setup in the open bank, when the primary button isn't already showing what to take.
   const setupIds = c?.layouts?.setup;
   const bank = d.bankFilter && hasLayout && setupIds?.ids.length && !(d.layout?.inBank && c?.bank?.length) ? boxed('Bank', bankAction(setupIds.ids, setupIds), 'Your open bank shows the whole setup, laid out: worn, switches, supplies') : null;
+  // Four cells leave no room for the arrow.
+  const guide = d.guide ? boxed(bank ? 'Guide' : 'Guide ↗', { a: 'load', v: 'guide', args: regionArgs(d, { id: String(d.guide.id) }) }, `The ${d.guide.title} guide and its setups`) : null;
   const listRows = c && hasLayout ? c.rows.map((r) => row(icon({ glyph: r.ok ? 'check' : 'close', w: 9, h: 9, color: r.ok ? GREEN : CORAL }), small(r.line, r.ok ? SOFT : 'white', { wrap: W - 16, ...(r.detail ? { tip: r.detail } : {}) }), undefined, { gap: 5 })) : [];
   const grid = (open: boolean): Node | null => {
     const cells = [listRows.length ? boxed(open ? 'List ▴' : 'List', { a: 'flip', key: LIST_KEY }, open ? 'Fold' : 'The check as a list') : null, save, bank, guide].filter((x): x is Node => !!x);

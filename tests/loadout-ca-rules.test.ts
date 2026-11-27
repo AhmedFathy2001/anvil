@@ -75,6 +75,9 @@ test('a speed task builds the Max DPS plan', () => {
 test('ToA: Zebak with melee only; only the tomb’s supplies leaves every supply slot free', () => {
   const chomp = trip('toa', 428, 300);
   assert.equal(kit(chomp.loadout, 'zebak'), 'melee');
+  const own = trip('toa', 425, 300);
+  assert.ok(!own.loadout.inventory.some((s) => s?.kind === 'reserved'), 'no room kept for the spirit’s supplies');
+  assert.match(own.caLine!, /free slots swapped for \d+ restores and \d+ food$/);
   const bare = trip('toa', 424, 300);
   assert.ok(!bare.loadout.inventory.some((s) => s?.kind === 'supply'));
 });
