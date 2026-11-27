@@ -1,3 +1,4 @@
+import { tripEnabled } from '@/lib/serverInfo';
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
@@ -14,6 +15,7 @@ import { startFromAnvil } from '@/lib/tripLoadoutStart';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  if (!tripEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const session = await verifyUser();
   if (!session?.userId || session.playerId == null) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
   const rl = await rateLimit(request, `profile-setups-start:${session.userId}`, { limit: 6, windowMs: 10 * 60_000 });

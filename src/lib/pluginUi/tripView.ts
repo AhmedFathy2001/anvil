@@ -11,6 +11,7 @@
 // Everything read here is the token owner's own (lib/playerItems snapshotForViewer and
 // tripStateForViewer check the account is theirs); nothing about another player's bank is ever shown.
 
+import { tripEnabled } from '@/lib/serverInfo';
 import { createHash } from 'node:crypto';
 
 import { BOSSES } from '@/lib/constants';
@@ -626,6 +627,7 @@ async function tripViewer(request: Request): Promise<GuideViewer | 'not-yours'> 
 
 /** View 'trip': the check for the trip this region (or the player's pick) starts. */
 export async function tripView(request: Request, args: Args, note: string | null = null): Promise<View> {
+  if (!tripEnabled()) return { ...message('The pre-trip check is coming soon.'), warn: null, armed: false };
   const t = phases();
   const viewer = await tripViewer(request);
   t.mark('viewer');
@@ -679,6 +681,7 @@ async function heldSetup(viewer: GuideViewer & { userId: number; accountId: numb
  */
 export async function tripAct(request: Request, act: string, args: Args, fields: Args = {}): Promise<View | null> {
   if (act !== 'trip-save' && act !== 'trip-setup' && act !== 'trip-forget' && act !== 'trip-raid' && act !== 'trip-plan' && act !== 'trip-ca') return null;
+  if (!tripEnabled()) return message('The pre-trip check is coming soon.');
   const viewer = await tripViewer(request);
   if (viewer === 'not-yours' || !viewer.userId || !viewer.accountId) return message('Sign in with the plugin, on your own character, to save a setup.');
   const me = viewer as GuideViewer & { userId: number; accountId: number };

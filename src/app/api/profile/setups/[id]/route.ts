@@ -1,3 +1,4 @@
+import { tripEnabled } from '@/lib/serverInfo';
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
@@ -28,6 +29,7 @@ async function gate(request: Request, params: Promise<{ id: string }>): Promise<
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!tripEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const g = await gate(request, params);
   if (g instanceof NextResponse) return g;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -38,6 +40,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!tripEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const g = await gate(request, params);
   if (g instanceof NextResponse) return g;
   const body = (await request.json().catch(() => null)) as { share?: unknown } | null;
@@ -48,6 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!tripEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const g = await gate(request, params);
   if (g instanceof NextResponse) return g;
   return NextResponse.json({ ok: await deleteSetupOfUser(g.userId, g.id) });
