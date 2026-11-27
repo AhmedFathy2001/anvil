@@ -4,13 +4,23 @@
 # There is no dispatcher any more: it existed to fan a job out across one container per clan, and one
 # database now holds every clan. Each job runs ONCE, total. This is the exact script the box runs;
 # deploy.sh does not install it, so after editing here, copy it to the box by hand (see README).
+#
+# A second argument "beta" runs the job against beta.anvilosrs.com with beta's own secret, so beta
+# competitions start and finish too (without it they stay 'upcoming' forever).
 LOG=/opt/anvil/cron.log
 job="$1"
-S=$(grep -m1 "^CRON_SECRET=" /opt/anvil/site.env | cut -d= -f2-)
+HOST=anvilosrs.com
+ENVF=/opt/anvil/site.env
+if [ "$2" = "beta" ]; then
+  HOST=beta.anvilosrs.com
+  ENVF=/opt/anvil/beta/site-beta.env
+  job_tag="beta:$job"
+fi
+S=$(grep -m1 "^CRON_SECRET=" "$ENVF" | cut -d= -f2-)
 start=$(date +%s)
 code=$(curl -sS -m 900 -o /dev/null -w "%{http_code}" \
-  -H "Authorization: Bearer $S" "https://anvilosrs.com/api/cron/$job" 2>>"$LOG" || echo 000)
-printf "%s job=%s status=%s dur=%ss\n" "$(date -u +%FT%TZ)" "$job" "$code" "$(( $(date +%s) - start ))" >> "$LOG"
+  -H "Authorization: Bearer $S" "https://$HOST/api/cron/$job" 2>>"$LOG" || echo 000)
+printf "%s job=%s status=%s dur=%ss\n" "$(date -u +%FT%TZ)" "${job_tag:-$job}" "$code" "$(( $(date +%s) - start ))" >> "$LOG"
 if [ "$(wc -l < "$LOG" 2>/dev/null || echo 0)" -gt 10000 ]; then
   tail -n 5000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 fi
@@ -21,7 +31,7 @@ fi
 case "$code" in
   2??) exit 0 ;;
   *)
-    echo "anvil cron job '$job' failed with HTTP $code" >&2
+    echo "anvil cron job '${job_tag:-$job}' failed with HTTP $code" >&2
     exit 1
     ;;
 esac
