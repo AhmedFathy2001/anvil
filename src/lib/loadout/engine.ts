@@ -2,41 +2,42 @@
 // a 28-slot inventory, rune pouch, spellbook), each pick with a short reason. PURE: the gear index
 // comes in, nothing reads the database.
 //
-// It is meant to replace the pre-trip check's per-target calc (lib/tripCheck bestLoadout) later,
-// and differs from it on purpose: it scores the WHOLE fight (each phase's damage over that phase's
-// DPS, summed), not one target's DPS, so a switch is only packed when it saves time somewhere.
+// The profile is a reviewed REFERENCE loadout (lib/loadout/types): a main style, switches as named
+// jobs, spec weapons in order, a supply plan. The engine steps it down to the player's bank:
+//   1. the worn kit: for the main style, the owned weapons that can hurt the phases it fights (ammo
+//      paired, darts, an autocast spell), then armour by coordinate ascent over each slot's shortlist,
+//      with SETS (Void, Inquisitor's, crystal) tried as whole units; empty slots filled with the best
+//      defence that costs nothing. Our own ladder: DPS within the style, first owned wins.
+//   2. each job: its ladder (DPS on its phases within its style, the profile's order, or its own
+//      rule) walked to the first owned item the player can equip; the worn weapon may already do it;
+//      nothing owned drops the job with a card line. Then armour pieces for each switch style, by
+//      seconds saved, within the plan's piece caps and switch budget.
+//   3. each phase: the profile's job for it, another listed one only when at least 15% faster (with a
+//      why line). Attack style (stance) is worked out from the assembled gear, every weapon style tried.
+//   4. each allowed main style is built this way; another is worn only when at least 15% faster.
+//   5. the inventory: specs, switches, the plan's supplies, the rest empty; the rune pouch from the
+//      spells carried; then the hard rules (gates, immunities, the profile's rules), never dropped.
 //
-// The search, in order:
-//   1. kits: per style, the owned weapons that can hurt the phases allowing it (ammo paired, darts,
-//      an autocast spell), the best few by weapon alone; then armour by coordinate ascent over each
-//      slot's shortlist, with SETS (Void, Inquisitor's, crystal) tried as whole units; empty slots
-//      filled with the best defence that costs nothing. A phase that must be cast (Crumble Undead)
-//      gets a weapon-only caster kit.
-//   2. for each style as the WORN kit: spec weapons first, then a weapon switch for every required
-//      style, then pieces packed greedily by seconds saved per inventory slot (a switch costs a
-//      tick per phase entry) under the preset's switch budget, never two pieces of one family.
-//      The worn style with the shortest fight wins.
-//   3. the inventory: switches, then the preset's supply plan from what the player holds, the rest
-//      empty; the rune pouch from the spells carried.
-//   4. the hard rules (required styles, immunities, the profile's rules): a break is an entry in
-//      `requirementsUnmet`, never dropped.
-//
-// Helpers copied from lib/tripCheck (not exported there, and that file is being edited elsewhere):
-// slotOf, shortlist/kindScore and SETS. Imported from it: ammoFits, isSpecWeapon, usableHeld,
-// raidScaled, calcSpell, SPELL_RUNES, staffRunes.
+// Helpers copied from lib/tripCheck (not exported there): slotOf, shortlist/kindScore and SETS.
+// Imported from it: ammoFits, isSpecWeapon, usableHeld, raidScaled, calcSpell, SPELL_RUNES, staffRunes.
 
 import { calculate, type DpsResult, type GearItem, type Monster, type Stats } from '../dps/engine';
-import { POWERED_MAX, SLOTS, spellByName, stylesFor, type AttackType, type Slot } from '../dps/tables';
+import { POWERED_MAX, SLOTS, spellByName, stylesFor, type AttackStyle, type AttackType, type Slot } from '../dps/tables';
 import type { GearIndex } from '../dps/summary';
 import { SPELL_RUNES, ammoFits, calcSpell, isSpecWeapon, raidScaled, staffRunes, usableHeld } from '../tripCheck';
 import { SUPPLY_FORMS, SUPPLY_LABEL, pickSupplies } from './supplies';
-import { STYLES, type BossProfile, type InvSlot, type Loadout, type LoadoutPhase, type PhaseProfile, type PlayerInput, type Preset, type Style, type SupplyLine, type Unmet, type Why } from './types';
+import { STYLES, type BossProfile, type InvSlot, type JobProfile, type Loadout, type LoadoutJob, type LoadoutPhase, type PhaseProfile, type PlayerInput, type Preset, type SpecSlot, type Style, type SupplyLine, type Unmet, type Why } from './types';
 
 export interface EngineInput {
   profile: BossProfile;
   preset: Preset;
   player: PlayerInput;
   idx: GearIndex;
+  /**
+   * Whether the player can wear an item with their levels: null when they can, else the reason
+   * ("needs 75 Attack"). Unset: everything is wearable.
+   */
+  canEquip?: (it: GearItem) => string | null;
 }
 
 type Gear = Partial<Record<Slot, number>>;
@@ -50,6 +51,8 @@ interface Kit {
   spell: string | null;
   dart: number | null;
   cast?: string;
+  /** Only these attack types count (a stab switch). */
+  types?: AttackType[];
   /** Which set unit the ascent settled on, for the reasons. */
   set?: string;
 }
@@ -66,6 +69,8 @@ interface Ctx {
   stats: Stats;
   prayers: string[];
   boosts: Partial<Record<Style, string>>;
+  /** Controlled, defensive and longrange stances (and defensive autocast) left out. */
+  avoidDefence: boolean;
   /** dpsOn's answers for this run, by phase, style, spell, darts and gear. */
   memo: Map<string, { dps: number; r: DpsResult } | null>;
 }
@@ -158,20 +163,30 @@ function gearKey(gear: Gear): string {
 }
 
 /** `gk`: the gear's key when the caller already has it (one gear set over many phases). */
-function dpsOn(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, t: Target, ctx: Ctx, gk = gearKey(gear)): { dps: number; r: DpsResult } | null {
-  const key = `${t.p.key}|${kit.style}|${kit.spell ?? ''}|${kit.dart ?? ''}|${gk}`;
+type KitLike = Pick<Kit, 'style' | 'spell' | 'dart' | 'types'>;
+
+function dpsOn(gear: Gear, kit: KitLike, t: Target, ctx: Ctx, gk = gearKey(gear)): { dps: number; r: DpsResult } | null {
+  const key = `${t.p.key}|${kit.style}|${kit.spell ?? ''}|${kit.dart ?? ''}|${kit.types?.join('/') ?? ''}|${gk}`;
   if (ctx.memo.has(key)) return ctx.memo.get(key)!;
   const out = dpsOnUncached(gear, kit, t, ctx);
   ctx.memo.set(key, out);
   return out;
 }
 
-function dpsOnUncached(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, t: Target, ctx: Ctx): { dps: number; r: DpsResult } | null {
+/** Stances that give Defence experience. */
+const DEFENCE_XP = (s: AttackStyle) => s.stance === 'controlled' || s.stance === 'defensive' || s.stance === 'longrange' || /^defensive autocast$/i.test(s.name);
+
+function dpsOnUncached(gear: Gear, kit: KitLike, t: Target, ctx: Ctx): { dps: number; r: DpsResult } | null {
   const weapon = ctx.idx.item(gear.weapon);
   if (!weapon) return null;
   let best: { dps: number; r: DpsResult } | null = null;
+  // The phase's own cut on this style (the Olm's head takes a third from melee and magic).
+  const taken = t.p.taken?.[kit.style] ?? 1;
+  if (taken <= 0) return null;
   stylesFor(weapon.c).forEach((s, i) => {
     if (kindOfType(s.type) !== kit.style) return;
+    if (kit.types && !kit.types.includes(s.type)) return;
+    if (ctx.avoidDefence && DEFENCE_XP(s)) return;
     const r = calculate(
       { gear, style: i, spell: kit.spell, dart: kit.dart, stats: ctx.stats, prayer: ctx.prayers, boost: ctx.boosts[kit.style] ?? null, onTask: false },
       t.m,
@@ -182,7 +197,9 @@ function dpsOnUncached(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, t
     // Osmumten's fang's second accuracy roll is the DPS engine's own (lib/dps/engine).
     let dps = r.dps;
     if (t.p.alwaysMaxHit) dps = r.maxHit / (r.speed * TICK);
+    else if (t.p.alwaysHits && r.accuracy > 0) dps = r.dps / r.accuracy;
     else if (t.p.maxHitCap && r.maxHit > t.p.maxHitCap && r.maxHit > 0) dps *= cappedMean(r.maxHit, t.p.maxHitCap) / (r.maxHit / 2);
+    dps *= taken;
     if (!best || dps > best.dps) best = { dps, r };
   });
   return best;
@@ -195,7 +212,7 @@ const usable = (kit: Pick<Kit, 'style' | 'cast'>, p: PhaseProfile) =>
  * Seconds a gear set needs over the phases it is meant for (Infinity if it can't hurt one). With a
  * `limit`, Infinity as soon as the sum passes it: a trial that can't beat the best so far stops early.
  */
-function phaseCost(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, targets: Target[], ctx: Ctx, limit = Infinity): number {
+function phaseCost(gear: Gear, kit: KitLike, targets: Target[], ctx: Ctx, limit = Infinity): number {
   let total = 0;
   const gk = gearKey(gear);
   for (const t of targets) {
@@ -208,6 +225,66 @@ function phaseCost(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, targe
 }
 
 // ── The engine ──────────────────────────────────────────────────────────────────────────────
+
+/** Another job (or main style) takes over only when it is at least this much faster. */
+export const SWITCH_MARGIN = 1.15;
+
+/** Magic levels for the spells a job may ask for by name. */
+const SPELL_LEVEL: Record<string, number> = { 'dark demonbane': 82, 'superior demonbane': 62, 'inferior demonbane': 44, 'crumble undead': 39, 'ice barrage': 94, 'fire surge': 95, 'earth surge': 90 };
+
+/** Hitsplats one swing lands on a target of this size (Doom's punish counts each). */
+const hitsplats = (w: GearItem, size: number) => (/^scythe of vitur/i.test(w.n) ? Math.min(3, Math.max(1, size - 1)) : /^dual macuahuitl/i.test(w.n) || /^(dragon|burning) claws/i.test(w.n) ? 2 : 1);
+
+/** A name pattern as words: "^(burning|dragon) claws" → "Burning claws". */
+const pretty = (pat: string) => {
+  const t = pat
+    .replace(/^\^/, '')
+    .replace(/\(([^()|]*)\|[^()]*\)/g, '$1')
+    .replace(/\\([()])/g, '$1')
+    .replace(/[\\$?*+[\]]/g, '')
+    .trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : pat;
+};
+
+interface Job extends Omit<JobProfile, 'style'> {
+  style: Style;
+}
+
+interface Filled {
+  job: Job;
+  /** The weapon kit doing it (null: a piece job, or nothing owned). */
+  kit: Kit | null;
+  /** A piece job's item. */
+  piece?: { slot: Slot; id: number };
+  /** The worn kit does it: nothing packed. */
+  byWorn: boolean;
+  stepDown?: string;
+  blocked?: string;
+}
+
+interface Packed {
+  id: number;
+  slot: Slot;
+  /** The style kit it belongs to ('cast:<spell>' for a caster). */
+  kit: string;
+  job: string;
+  why: string;
+}
+
+interface Build {
+  main: Style;
+  wornKit: Kit;
+  worn: Gear;
+  filled: Filled[];
+  packed: Packed[];
+  specs: { it: GearItem; why: string; stepDown?: string }[];
+  notes: string[];
+  /** Supplies that take the slots of what is missing. */
+  extra: { kind: SupplyLine['kind']; count: number }[];
+  phases: LoadoutPhase[];
+  time: number;
+  over: number;
+}
 
 export function buildLoadout(input: EngineInput): Loadout {
   const { profile, preset, player, idx } = input;
@@ -234,6 +311,7 @@ export function buildLoadout(input: EngineInput): Loadout {
     stats: { attack: lv.attack, strength: lv.strength, ranged: lv.ranged, magic: lv.magic, hitpoints: lv.hitpoints },
     prayers,
     boosts: profile.boosts ?? {},
+    avoidDefence: !!player.avoidDefenceXp,
     memo: new Map(),
   };
 
@@ -246,7 +324,7 @@ export function buildLoadout(input: EngineInput): Loadout {
     // A CA's "this phase with melee only": those styles are the phase's, the others ruled out there.
     const only = phaseStyles[raw.key];
     const p: PhaseProfile = only?.length
-      ? { ...raw, allowed: [...only], required: (raw.required ?? []).filter((s) => only.includes(s)), immune: STYLES.filter((s) => !only.includes(s)), prefer: undefined }
+      ? { ...raw, allowed: [...only], required: (raw.required ?? []).filter((s) => only.includes(s)), immune: STYLES.filter((s) => !only.includes(s)), prefer: undefined, taken: undefined }
       : raw;
     const base = idx.monster(variant?.monsters[p.key] ?? p.monster);
     if (!base) {
@@ -258,55 +336,80 @@ export function buildLoadout(input: EngineInput): Loadout {
     if (raidLevel) m = raidScaled(m, raidLevel);
     targets.push({ p, m, damage: m.hp * p.share });
   }
+  const targetOf = new Map(targets.map((t) => [t.p.key, t]));
 
-  // The pool: what the player holds that main-game PvM can use.
+  // The pool: what the player holds that main-game PvM can use, and can wear.
   const bannedNames = (player.constraints?.bannedNames ?? []).map((p) => new RegExp(p, 'i'));
   const weaponsOnly = player.constraints?.weaponsOnly?.length ? player.constraints.weaponsOnly.map((p) => new RegExp(p, 'i')) : null;
-  const pool = [...new Set(player.owned)]
+  const held = [...new Set(player.owned)]
     .filter((id) => !banned.has(id))
     .map((id) => idx.item(id))
     .filter((x): x is GearItem => !!x && !x.hid && usableHeld(x.n))
     .filter((x) => !bannedNames.some((re) => re.test(x.n)) && (!weaponsOnly || slotOf(x) !== 'weapon' || weaponsOnly.some((re) => re.test(x.n))));
+  const blockedWhy = new Map<number, string>();
+  for (const it of held) {
+    const r = input.canEquip?.(it) ?? null;
+    if (r) blockedWhy.set(it.id, r);
+  }
+  const pool = held.filter((x) => !blockedWhy.has(x.id));
   const weapons = pool.filter((x) => slotOf(x) === 'weapon');
   const ammoPool = pool.filter((x) => x.s === 'ammo');
   const darts = pool.filter((x) => /dart$/i.test(x.n) && x.c === 'Thrown').sort((a, b) => b.b[6] - a.b[6]);
-
-  // ── 1. Kits ──
-  const styleTargets = (style: Style) => targets.filter((t) => usable({ style }, t.p));
-  const kits = new Map<string, Kit>();
   const lists = { melee: shortlist(pool, 'melee'), ranged: shortlist(pool, 'ranged'), magic: shortlist(pool, 'magic') };
+  /** The player holds the reference item (any form), wearable or not: a lesser pick is no step-down then. */
+  const ownsRef = (ref: string) => held.some((it) => defaultFamily(it.n).startsWith(ref.toLowerCase()));
+
+  const ofStyle = (w: GearItem, style: Style) => stylesFor(w.c).some((s) => kindOfType(s.type) === style) && !(style === 'melee' && (canAutocast(w) || isPowered(w)));
+  const typesOk = (w: GearItem, types?: AttackType[]) => !types || stylesFor(w.c).some((s) => types.includes(s.type));
+  const pats = (list?: string[]) => (list ?? []).map((p) => new RegExp(p, 'i'));
+  const jobSpell = (job: Pick<Job, 'spells'> | undefined, w: GearItem, ts: Target[]): string | null => {
+    if (isPowered(w)) return null;
+    if (job?.spells?.length) {
+      // Demonbane spells only work on demons: the job's spells are for its own phases.
+      for (const sp of job.spells) if (lv.magic >= (SPELL_LEVEL[sp.toLowerCase()] ?? 1)) return sp;
+      return null;
+    }
+    const heaviest = [...ts].sort((a, b) => b.damage - a.damage)[0];
+    return calcSpell(0, lv.magic, heaviest?.m.ew);
+  };
+
+  /** A kit for one weapon: its ammo (best for these targets), darts, spell. Null when it can't fire. */
+  function kitOf(w: GearItem, style: Style, ts: Target[], job?: Job): Kit | null {
+    const dart = /blowpipe/i.test(w.n) ? (darts[0]?.id ?? null) : null;
+    if (/blowpipe/i.test(w.n) && dart == null) return null;
+    let spell: string | null = null;
+    if (style === 'magic' && !isPowered(w)) {
+      if (!canAutocast(w) && w.c !== 'Salamander') return null;
+      spell = job?.cast ?? jobSpell(job, w, ts);
+      if (!spell) return null;
+    }
+    const base = { key: job?.cast ? `cast:${job.cast}` : style, style, weapon: w, spell, dart, ...(job?.cast ? { cast: job.cast } : {}), ...(job?.types ? { types: job.types } : {}) };
+    let gear: Gear = { weapon: w.id };
+    if (style === 'ranged' && needsAmmo(w)) {
+      const fits = ammoPool.filter((a) => ammoFits(w, a)).sort((a, b) => b.b[6] - a.b[6]).slice(0, 6);
+      let bestA: { id: number; cost: number } | null = null;
+      for (const a of fits) {
+        const c = ts.length ? phaseCost({ weapon: w.id, ammo: a.id }, base, ts, ctx) : -a.b[6];
+        if (!bestA || c < bestA.cost) bestA = { id: a.id, cost: c };
+      }
+      if (!bestA) return null;
+      gear = { ...gear, ammo: bestA.id };
+    }
+    return { ...base, gear };
+  }
 
   /** The best kit of one style over these targets: weapon candidates, then armour by ascent. */
-  function kitFor(style: Style, ts: Target[]): Kit | null {
+  function kitFor(style: Style, ts: Target[], filter: (w: GearItem) => boolean = () => true, job?: Job): Kit | null {
     if (!ts.length) return null;
-    const heaviest = [...ts].sort((a, b) => b.damage - a.damage)[0];
-    // A staff's bash is no melee weapon.
-    const ofStyle = weapons.filter((w) => stylesFor(w.c).some((s) => kindOfType(s.type) === style) && !(style === 'melee' && (canAutocast(w) || isPowered(w))));
-    const plain = ofStyle.filter((w) => !isSpecWeapon(w.n));
+    const cands0 = weapons.filter((w) => ofStyle(w, style) && filter(w) && typesOk(w, job?.types));
+    // Spec weapons are carried for their spec, not to fight with, unless nothing else does it.
+    const plain = cands0.filter((w) => !isSpecWeapon(w.n));
     const cands: { kit: Kit; cost: number }[] = [];
-    for (const w of plain.length ? plain : ofStyle) {
-      const dart = /blowpipe/i.test(w.n) ? (darts[0]?.id ?? null) : null;
-      if (/blowpipe/i.test(w.n) && dart == null) continue;
-      let spell: string | null = null;
-      if (style === 'magic' && !isPowered(w)) {
-        if (!canAutocast(w) && w.c !== 'Salamander') continue;
-        spell = calcSpell(0, lv.magic, heaviest.m.ew);
-        if (!spell) continue;
-      }
-      const base = { key: style, style, weapon: w, spell, dart } as const;
-      let gear: Gear = { weapon: w.id };
-      if (style === 'ranged' && needsAmmo(w)) {
-        const fits = ammoPool.filter((a) => ammoFits(w, a)).sort((a, b) => b.b[6] - a.b[6]).slice(0, 6);
-        let bestA: { id: number; cost: number } | null = null;
-        for (const a of fits) {
-          const c = phaseCost({ weapon: w.id, ammo: a.id }, base, ts, ctx);
-          if (!bestA || c < bestA.cost) bestA = { id: a.id, cost: c };
-        }
-        if (!bestA) continue;
-        gear = { ...gear, ammo: bestA.id };
-      }
-      const cost = phaseCost(gear, base, ts, ctx);
-      if (Number.isFinite(cost)) cands.push({ kit: { ...base, gear }, cost });
+    for (const w of plain.length ? plain : cands0) {
+      const k = kitOf(w, style, ts, job);
+      if (!k) continue;
+      const cost = phaseCost(k.gear, k, ts, ctx);
+      if (Number.isFinite(cost)) cands.push({ kit: k, cost });
     }
     let best: { kit: Kit; cost: number } | null = null;
     for (const c of cands.sort((a, b) => a.cost - b.cost).slice(0, 3)) {
@@ -315,31 +418,6 @@ export function buildLoadout(input: EngineInput): Loadout {
       if (!best || cost < best.cost) best = { kit: k, cost };
     }
     return best?.kit ?? null;
-  }
-
-  for (const style of ['melee', 'ranged', 'magic'] as const) {
-    if (bannedStyles.has(style)) continue;
-    const k = kitFor(style, styleTargets(style));
-    if (k) kits.set(style, k);
-  }
-
-  // Caster kits: a staff that autocasts the phase's spell, weapon only.
-  for (const t of targets.filter((x) => x.p.cast)) {
-    const spell = t.p.cast!;
-    const key = `cast:${spell}`;
-    if (kits.has(key)) continue;
-    const rule = profile.rules.find((r) => r.kind === 'spell' && r.spell === spell);
-    if (rule && rule.kind === 'spell' && lv.magic < rule.magic) {
-      unmet.push({ code: 'spell', message: `${spell} needs ${rule.magic} Magic (you have ${lv.magic})` });
-      continue;
-    }
-    let best: { kit: Kit; dps: number } | null = null;
-    for (const w of weapons.filter(canAutocast)) {
-      const kit: Kit = { key, style: 'magic', weapon: w, gear: { weapon: w.id }, spell, dart: null, cast: spell };
-      const d = dpsOn(kit.gear, kit, t, ctx);
-      if (d && d.dps > 0 && (!best || d.dps > best.dps)) best = { kit, dps: d.dps };
-    }
-    if (best) kits.set(key, best.kit);
   }
 
   function ascend(kit: Kit, all: Target[]): Kit {
@@ -399,262 +477,339 @@ export function buildLoadout(input: EngineInput): Loadout {
     return { ...kit, gear, ...(set ? { set } : {}) };
   }
 
-  // ── 2. Worn kit + switches ──
-  const budget = Math.min(plan.switchBudget, player.constraints?.maxSwitches ?? Infinity);
-  const specCount = player.constraints?.noSpec ? 0 : plan.specs;
+  // ── The reference's jobs, for one main style ──
+  const mainStyles = (): Style[] => {
+    const list = profile.main ?? (profile.worn ? [profile.worn] : STYLES.filter((s) => targets.some((t) => usable({ style: s }, t.p))));
+    // A CA's ruled-out style can't be worn; another allowed one can.
+    const ok = list.filter((s) => !bannedStyles.has(s));
+    return ok.length ? ok : STYLES.filter((s) => !bannedStyles.has(s) && targets.some((t) => usable({ style: s }, t.p)));
+  };
+  const usesOf = (p: PhaseProfile): string[] => p.use ?? ['main'];
+  const styles = mainStyles();
 
-  interface Packed {
-    id: number;
-    slot: Slot;
-    kit: string;
-    why: string;
-  }
-  interface Assembly {
-    wornKit: Kit;
-    worn: Gear;
-    packed: Packed[];
-    specs: GearItem[];
-    time: number;
-    phases: LoadoutPhase[];
-    /** Slots the required switches went over the budget by. */
-    over: number;
-  }
-
-  const specPicks = (wornWeapon: GearItem): GearItem[] => {
-    if (!specCount || !profile.spec) return [];
-    const out: GearItem[] = [];
-    for (const pat of profile.spec.prefer) {
-      const re = new RegExp(pat, 'i');
-      const it = weapons.find((w) => re.test(w.n) && fam(w.id) !== fam(wornWeapon.id) && !out.some((o) => fam(o.id) === fam(w.id)));
-      if (it && out.length < specCount) out.push(it);
+  function jobsFor(main: Style): Job[] {
+    const raw = profile.jobs ?? [];
+    const out: Job[] = [];
+    if (!raw.some((j) => j.key === 'main')) out.push({ key: 'main', label: 'Main', style: main });
+    for (const j of raw) {
+      if (j.presets && !j.presets.includes(preset)) continue;
+      const style = j.style === 'main' ? main : j.style;
+      if (bannedStyles.has(style) && !j.cast) continue;
+      out.push({ ...j, style });
+    }
+    // A CA's "this phase with melee only" needs a job of that style for it, if the reference has none.
+    for (const [key, styles] of Object.entries(phaseStyles)) {
+      const p = profile.phases.find((x) => x.key === key);
+      if (!p) continue;
+      for (const st of styles) if (!out.some((j) => j.style === st && (j.key === 'main' || (j.phases ?? []).includes(key) || usesOf(p).includes(j.key)))) out.push({ key: `only-${key}-${st}`, label: `${st[0].toUpperCase()}${st.slice(1)} for ${p.name}`, style: st, phases: [key] });
     }
     return out;
+  }
+  /** The jobs a phase may use: the profile's list, a CA's styles only. */
+  function phaseJobs(t: Target, jobs: Job[]): Job[] {
+    const only = phaseStyles[t.p.key];
+    let keys = usesOf(t.p);
+    if (only?.length) keys = [...keys, ...jobs.filter((j) => j.key.startsWith(`only-${t.p.key}-`)).map((j) => j.key)];
+    const list = keys.map((k) => jobs.find((j) => j.key === k)).filter((j): j is Job => !!j);
+    return only?.length ? list.filter((j) => only.includes(j.style)) : list;
+  }
+  /** The phases a job is ranked on: its own list, else every phase that lists it. */
+  const jobTargets = (job: Job, jobs: Job[]): Target[] => {
+    const keys = job.phases ?? targets.filter((t) => phaseJobs(t, jobs).some((j) => j.key === job.key)).map((t) => t.p.key);
+    return keys.map((k) => targetOf.get(k)).filter((t): t is Target => !!t && usable({ style: job.style, cast: job.cast }, t.p));
   };
 
-  function effective(kit: Kit, a: Pick<Assembly, 'wornKit' | 'worn' | 'packed'>): Gear | null {
-    if (kit === a.wornKit) return a.worn;
-    const ids = new Set(a.packed.map((p) => p.id));
-    if (!ids.has(kit.weapon.id)) return null;
-    const g: Gear = { ...a.worn };
-    for (const slot of SLOTS) {
-      const id = kit.gear[slot];
-      if (id != null && ids.has(id)) g[slot] = id;
+  /** A better owned weapon for the job that the levels don't allow: "Scythe of vitur needs 75 Attack, using …". */
+  function blockedFor(job: Job, kit: Kit, ts: Target[], filter: (w: GearItem) => boolean, wornGear: Gear): string | undefined {
+    if (!blockedWhy.size) return undefined;
+    // Weapon against weapon, in the same armour.
+    const armed = (k: Kit): Gear => {
+      const g: Gear = { ...wornGear, weapon: k.weapon.id };
+      if (k.gear.ammo != null) g.ammo = k.gear.ammo;
+      else delete g.ammo;
+      if (k.weapon.h2) delete g.shield;
+      return g;
+    };
+    const mine = ts.length ? phaseCost(armed(kit), kit, ts, ctx) : -kindScore(kit.weapon.b, job.style);
+    for (const it of held) {
+      const reason = blockedWhy.get(it.id);
+      if (!reason || slotOf(it) !== 'weapon' || !ofStyle(it, job.style) || !filter(it)) continue;
+      const k = kitOf(it, job.style, ts, job);
+      if (!k) continue;
+      const theirs = ts.length ? phaseCost(armed(k), k, ts, ctx) : -kindScore(it.b, job.style);
+      if (theirs < mine - EPS) return `${it.n} ${reason}, using ${kit.weapon.n}`;
     }
-    if (kit.weapon.h2) delete g.shield;
-    if (kit.style === 'ranged' && needsAmmo(kit.weapon) && (g.ammo == null || !ammoFits(kit.weapon, idx.item(g.ammo)!))) return null;
-    return g;
+    return undefined;
   }
 
-  function evaluate(a: Pick<Assembly, 'wornKit' | 'worn' | 'packed'>): { time: number; phases: LoadoutPhase[] } {
-    const carried = [...kits.values()].map((k) => ({ k, g: effective(k, a) })).filter((x): x is { k: Kit; g: Gear } => !!x.g).map((x) => ({ ...x, gk: gearKey(x.g) }));
+  /** Each job's pick: its ladder walked to the first owned, wearable item. */
+  function fillJob(job: Job, jobs: Job[], wornKit: Kit): Filled {
+    const ts = jobTargets(job, jobs);
+    const allow = pats(job.weapons);
+    const filter = (w: GearItem) => !allow.length || allow.some((re) => re.test(w.n));
+    const ladderOrder = (list: GearItem[]) => {
+      for (const re of allow) {
+        const hit = list.find((w) => re.test(w.n));
+        if (hit) return hit;
+      }
+      return null;
+    };
+    let kit: Kit | null = null;
+    if (job.piece) {
+      const items = pats(job.piece.items);
+      for (const re of items) {
+        const it = pool.find((x) => slotOf(x) === job.piece!.slot && re.test(x.n));
+        if (it) return { job, kit: null, piece: { slot: job.piece.slot, id: it.id }, byWorn: wornKit.gear[job.piece.slot] === it.id };
+      }
+      return { job, kit: null, byWorn: false };
+    }
+    if (job.cast) {
+      // A staff that autocasts the spell: weapon only.
+      const casters = weapons.filter(canAutocast).filter(filter);
+      let best: { k: Kit; d: number } | null = null;
+      for (const w of casters) {
+        const k = kitOf(w, 'magic', ts, job);
+        if (!k) continue;
+        const d = ts.length ? (dpsOn(k.gear, k, ts[0], ctx)?.dps ?? 0) : 1;
+        if (d > 0 && (!best || d > best.d)) best = { k, d };
+      }
+      kit = best?.k ?? null;
+    } else if (job.rank === 'order') {
+      const list = weapons.filter((w) => ofStyle(w, job.style) && typesOk(w, job.types));
+      const w = ladderOrder(list);
+      kit = w ? kitOf(w, job.style, ts, job) : null;
+    } else if (job.rank === 'punish') {
+      const size = ts[0]?.m.sz ?? 1;
+      const list = weapons.filter((w) => ofStyle(w, 'melee') && filter(w)).sort((a, b) => b.b[5] * hitsplats(b, size) - a.b[5] * hitsplats(a, size) || (a.sp ?? 4) - (b.sp ?? 4));
+      kit = list[0] ? kitOf(list[0], 'melee', ts, job) : null;
+    } else if (ts.length) {
+      kit = kitFor(job.style, ts, filter, job);
+    } else {
+      // No phase to rank on: the strongest by the bonuses the style reads.
+      const list = weapons.filter((w) => ofStyle(w, job.style) && filter(w) && typesOk(w, job.types)).sort((a, b) => kindScore(b.b, job.style) - kindScore(a.b, job.style));
+      for (const w of list) if ((kit = kitOf(w, job.style, ts, job))) break;
+    }
+    if (!kit) return { job, kit: null, byWorn: false };
+    const byWorn = !job.cast && kit.style === wornKit.style && fam(kit.weapon.id) === fam(wornKit.weapon.id);
+    // The reference pick, when the player's is a lesser one.
+    const stepDown = job.ref && !defaultFamily(kit.weapon.n).startsWith(job.ref.toLowerCase()) && !ownsRef(job.ref) ? job.ref : undefined;
+    const blocked = blockedFor(job, kit, ts, filter, wornKit.gear);
+    return { job, kit, byWorn, ...(stepDown ? { stepDown } : {}), ...(blocked ? { blocked } : {}) };
+  }
+
+  const budget = Math.min(plan.switchBudget, player.constraints?.maxSwitches ?? Infinity);
+  const specCount = player.constraints?.noSpec ? 0 : plan.specs;
+  const specSlots: SpecSlot[] = profile.specs ?? (profile.spec ? Array.from({ length: specCount }, () => ({ weapons: profile.spec!.prefer, why: profile.spec!.why })) : []);
+
+  /**
+   * A main style's build, twice: switches no part of the fight ended up using (the Arclight when the
+   * Scorching bow does the shield better) are left in the bank and the slots go back to the rest.
+   */
+  function build(main: Style): Build | null {
+    const first = buildOnce(main, new Set());
+    if (!first) return null;
+    const used = new Set(first.phases.map((p) => p.job));
+    const idle = new Set(first.filled.filter((f) => f.kit && !f.byWorn && f.job.phases?.length && f.job.rank !== 'punish' && !used.has(f.job.key) && !first.filled.some((g) => g !== f && used.has(g.job.key) && g.kit?.weapon.id === f.kit!.weapon.id)).map((f) => f.job.key));
+    return idle.size ? (buildOnce(main, idle) ?? first) : first;
+  }
+
+  function buildOnce(main: Style, idle: Set<string>): Build | null {
+    const jobs = jobsFor(main).filter((j) => !idle.has(j.key));
+    const mainJob0 = jobs.find((j) => j.key === 'main')!;
+    // The reference item is the reference style's: another main style has its own ladder.
+    const mainJob = main === styles[0] ? mainJob0 : { ...mainJob0, ref: undefined };
+    const mainTs = jobTargets(mainJob, jobs);
+    const mainAllow = pats(mainJob.weapons);
+    const wornKit = kitFor(main, mainTs.length ? mainTs : targets.filter((t) => usable({ style: main }, t.p)), (w) => !mainAllow.length || mainAllow.some((re) => re.test(w.n)), mainJob);
+    if (!wornKit) return null;
+    const worn: Gear = { ...wornKit.gear };
+    const notes: string[] = [];
+    const extra: Build['extra'] = [];
+
+    // Spec weapons, in the order players use them.
+    const specs: { it: GearItem; why: string; stepDown?: string }[] = [];
+    for (const slot of specSlots.slice(0, specCount)) {
+      const res = pats(slot.weapons);
+      let it: GearItem | undefined;
+      for (const re of res) {
+        it = weapons.find((w) => re.test(w.n) && fam(w.id) !== fam(wornKit.weapon.id) && !specs.some((s) => fam(s.it.id) === fam(w.id)));
+        if (it) break;
+      }
+      if (it) specs.push({ it, why: slot.why, ...(slot.ref && !defaultFamily(it.n).startsWith(slot.ref.toLowerCase()) && !ownsRef(slot.ref) ? { stepDown: slot.ref } : {}) });
+      else {
+        notes.push(slot.missing ?? `No ${pretty(slot.weapons[0])} for the spec`);
+        if (slot.instead) extra.push(slot.instead);
+      }
+    }
+    if (plan.lightbearer && specs.length) {
+      const lb = pool.find((x) => LIGHTBEARER.test(x.n));
+      if (lb) worn.ring = lb.id;
+    }
+
+    // The jobs' picks.
+    const filled = jobs.filter((j) => j.key !== 'main').map((j) => fillJob(j, jobs, { ...wornKit, gear: worn }));
+    const packed: Packed[] = [];
+    const isNew = (id: number) => !packed.some((p) => p.id === id) && !Object.values(worn).includes(id) && !specs.some((s) => s.it.id === id);
+    const famTaken = (id: number) => [...Object.values(worn), ...packed.map((p) => p.id), ...specs.map((s) => s.it.id)].some((x) => x != null && x !== id && fam(x) === fam(id));
+    for (const f of filled) {
+      if (!f.kit && !f.piece) {
+        if (!f.job.optional || f.job.missing) notes.push(f.job.missing ?? `${f.job.label}: nothing in your bank does it`);
+        if (f.job.required) unmetJobs.add(f.job.key);
+        continue;
+      }
+      if (f.byWorn) continue;
+      if (f.piece) {
+        if (isNew(f.piece.id) && !famTaken(f.piece.id)) packed.push({ id: f.piece.id, slot: f.piece.slot, kit: 'piece', job: f.job.key, why: `${f.job.label}` });
+        continue;
+      }
+      const k = f.kit!;
+      const ids = [k.weapon.id, ...(k.style === 'ranged' && k.gear.ammo != null && k.gear.ammo !== worn.ammo ? [k.gear.ammo] : [])];
+      for (const id of ids) if (isNew(id) && !famTaken(id)) packed.push({ id, slot: slotOf(idx.item(id))!, kit: k.key, job: f.job.key, why: f.job.label });
+    }
+    const weaponSlots = packed.length + specs.length;
+    const over = Math.max(0, weaponSlots - budget);
+    let piecesLeft = budget - weaponSlots;
+
+    /** The gear a job fights in: the worn kit, its weapon, every packed piece of its style, piece swaps for the phase. */
+    const effective = (f: Filled, t: Target | null): Gear | null => {
+      if (!f.kit) return null;
+      const g: Gear = { ...worn };
+      if (!f.byWorn) {
+        for (const p of packed) if (p.kit === f.kit.key && slotOf(idx.item(p.id)) !== 'weapon' && slotOf(idx.item(p.id)) !== 'ammo') g[p.slot] = p.id;
+        g.weapon = f.kit.weapon.id;
+        if (f.kit.gear.ammo != null) g.ammo = f.kit.gear.ammo;
+      }
+      if (t) for (const pf of filled) if (pf.piece && (pf.job.phases ?? []).includes(t.p.key)) g[pf.piece.slot] = pf.piece.id;
+      if (idx.item(g.weapon)?.h2) delete g.shield;
+      if (f.kit.style === 'ranged' && needsAmmo(f.kit.weapon) && (g.ammo == null || !ammoFits(f.kit.weapon, idx.item(g.ammo)!))) return null;
+      return g;
+    };
+    const mainBlocked = blockedFor(mainJob, wornKit, mainTs, (w) => !mainAllow.length || mainAllow.some((re) => re.test(w.n)), wornKit.gear);
+    const mainFilled: Filled = {
+      job: mainJob,
+      kit: wornKit,
+      byWorn: true,
+      ...(mainJob.ref && !defaultFamily(wornKit.weapon.n).startsWith(mainJob.ref.toLowerCase()) && !ownsRef(mainJob.ref) ? { stepDown: mainJob.ref } : {}),
+      ...(mainBlocked ? { blocked: mainBlocked } : {}),
+    };
+
+    // Armour for each switch: the pieces that save the most seconds on the job's phases, within caps.
+    // A switch that can't hurt its phases in the worn armour (a Shadow in Torva) goes first.
+    const helpless = (f: Filled) => !Number.isFinite(phaseCost(effective(f, null) ?? {}, f.kit!, jobTargets(f.job, jobs), ctx));
+    const order = filled.filter((f) => f.kit && !f.byWorn && !f.job.cast);
+    order.sort((a, b) => Number(helpless(b)) - Number(helpless(a)));
+    for (const f of order) {
+      if (!f.kit || f.byWorn || f.job.cast || piecesLeft <= 0) continue;
+      const cap = f.job.pieces?.[preset] ?? plan.kitPieces?.[f.kit.style] ?? 0;
+      const ts = jobTargets(f.job, jobs);
+      if (!cap || !ts.length) continue;
+      const full = f.job.rank === 'dps' || !f.job.rank ? f.kit : ascend(f.kit, ts);
+      let n = packed.filter((p) => p.kit === f.kit!.key && p.slot !== 'weapon' && p.slot !== 'ammo').length;
+      for (;;) {
+        if (n >= cap || piecesLeft <= 0) break;
+        const base = effective(f, null)!;
+        const cur = phaseCost(base, f.kit, ts, ctx);
+        let best: { id: number; slot: Slot; gain: number } | null = null;
+        for (const slot of SLOTS) {
+          if (slot === 'weapon' || slot === 'ammo') continue;
+          const id = full.gear[slot];
+          if (id == null || base[slot] === id || !isNew(id) || famTaken(id)) continue;
+          // Another switch of this style already carries that slot.
+          if (packed.some((p) => p.kit === f.kit!.key && p.slot === slot)) continue;
+          const c = phaseCost({ ...base, [slot]: id }, f.kit, ts, ctx);
+          // Still helpless: the piece that adds the most of what the style reads.
+          const gain = Number.isFinite(cur) ? cur - c : Number.isFinite(c) ? 1e6 - c : kindScore(idx.item(id)!.b, f.kit.style) - kindScore(idx.item(base[slot])?.b ?? [0, 0, 0, 0, 0, 0, 0, 0, 0], f.kit.style);
+          if (gain > 0.05 && (!best || gain > best.gain)) best = { id, slot, gain };
+        }
+        if (!best) break;
+        packed.push({ id: best.id, slot: best.slot, kit: f.kit.key, job: f.job.key, why: Number.isFinite(cur) ? `${f.job.label}: saves ${best.gain.toFixed(1)}s a kill` : `${f.job.label}: the worn armour leaves it unable to hit` });
+        n++;
+        piecesLeft--;
+      }
+    }
+
+    // Each phase: the reference job, another listed one only when clearly faster.
+    const all: Filled[] = [mainFilled, ...filled];
+    const byKey = new Map(all.map((f) => [f.job.key, f]));
     let time = 0;
     const phases: LoadoutPhase[] = [];
     for (const t of targets) {
-      let best: { kit: string; dps: number; s: number } | null = null;
-      for (const { k, g, gk } of carried) {
-        if (!usable(k, t.p)) continue;
-        const d = dpsOn(g, k, t, ctx, gk);
-        if (!d || d.dps <= 0) continue;
-        const off = t.p.prefer && !t.p.prefer.includes(k.style) ? (t.p.offStyle ?? 1.5) : 1;
-        // A switch costs a tick per three pieces put on (about three clicks a tick), each entry.
-        const swap = k === a.wornKit ? 0 : TICK * Math.ceil(a.packed.filter((p) => p.kit === k.key).length / 3) * (t.p.entries ?? 1);
-        const s = (t.damage / d.dps) * off + swap;
-        if (!best || s < best.s) best = { kit: k.key, dps: d.dps, s };
+      const opts: { f: Filled; s: number; dps: number; r: DpsResult }[] = [];
+      const listed = phaseJobs(t, jobs).map((j) => byKey.get(j.key)).filter((f): f is Filled => !!f && !!f.kit);
+      const fallback = all.filter((f) => f.kit && !listed.includes(f));
+      const score = (f: Filled) => {
+        if (!f.kit || !usable(f.kit, t.p)) return null;
+        const g = effective(f, t);
+        if (!g) return null;
+        const d = dpsOn(g, f.kit, t, ctx);
+        if (!d || d.dps <= 0) return null;
+        const items = f.byWorn ? 0 : packed.filter((p) => p.kit === f.kit!.key).length + 1;
+        const swap = f.byWorn ? 0 : TICK * Math.ceil(items / 3) * (t.p.entries ?? 1);
+        return { f, s: t.damage / d.dps + swap, dps: d.dps, r: d.r };
+      };
+      for (const f of listed) {
+        const o = score(f);
+        if (o) opts.push(o);
       }
-      const s = (best?.s ?? Infinity) + (t.p.downtime ?? 0);
+      let pick = opts[0] ?? null;
+      let reason: string | undefined;
+      // The reviewed pick stands when the player holds the reference item: another style takes over
+      // only from a stepped-down reference (or one the profile names no reference item for).
+      const locked = !!pick && !!pick.f.job.ref && !pick.f.stepDown;
+      if (pick && !locked) {
+        const best = [...opts].sort((a, b) => a.s - b.s)[0];
+        if (best !== pick && best.s * SWITCH_MARGIN <= pick.s) {
+          const lacks = pick.f.stepDown ? `no ${pick.f.stepDown}, so ` : '';
+          reason = `${lacks}your ${best.f.kit!.style} setup is faster here${lacks ? '' : ` (${Math.round((pick.s / best.s - 1) * 100)}%)`}`;
+          pick = best;
+        }
+      } else if (!pick && !t.p.gate && !phaseJobs(t, jobs).some((j) => j.required)) {
+        // Nothing the profile lists for it can be filled: the fastest carried kit that can (a gate,
+        // like the Guardians' pickaxe, has no stand-in).
+        const alt = fallback.map(score).filter((o): o is NonNullable<typeof o> => !!o).sort((a, b) => a.s - b.s)[0];
+        if (alt) {
+          pick = alt;
+          const firstListed = phaseJobs(t, jobs)[0];
+          reason = firstListed ? `no ${firstListed.label.toLowerCase()} pick, so your ${alt.f.kit!.style} setup` : undefined;
+        }
+      }
+      const s = (pick?.s ?? Infinity) + (t.p.downtime ?? 0);
       time += s;
-      phases.push({ key: t.p.key, name: t.p.name, kit: best?.kit ?? null, dps: best?.dps ?? 0, seconds: s, timeShare: 0 });
+      const w = pick ? idx.item(effective(pick.f, t)?.weapon) : null;
+      phases.push({
+        key: t.p.key,
+        name: t.p.name,
+        kit: pick?.f.kit?.key ?? null,
+        job: pick?.f.job.key ?? null,
+        stance: pick && w ? { weapon: w.n, type: pick.r.style.type, name: pick.r.style.name } : null,
+        ...(reason ? { why: reason } : {}),
+        dps: pick?.dps ?? 0,
+        seconds: s,
+        timeShare: 0,
+      });
     }
     for (const ph of phases) ph.timeShare = Number.isFinite(time) && time > 0 ? ph.seconds / time : 0;
-    return { time, phases };
+    return { main, wornKit, worn, filled: [mainFilled, ...filled], packed, specs, notes, extra, phases, time, over };
   }
+  const unmetJobs = new Set<string>();
 
-  /** Strongest pieces first (by the bonuses the style reads). */
-  const strongest = (ids: number[], style: Style) => [...ids].sort((x, y) => kindScore(idx.item(y)!.b, style) - kindScore(idx.item(x)!.b, style));
-
-  /**
-   * The worn kit plus switches. `seed`: a kit's weapon and its `n` strongest pieces packed before
-   * the greedy, so a kit that only pays with many pieces on gets a fair try (a knapsack the
-   * one-step greedy can't see).
-   */
-  function assemble(wornKit: Kit, seed?: { key: string; n: number }): Assembly {
-    const worn: Gear = { ...wornKit.gear };
-    const specs = specPicks(wornKit.weapon);
-    const lightbearer = plan.lightbearer && specs.length ? pool.find((x) => LIGHTBEARER.test(x.n)) : undefined;
-    if (lightbearer) worn.ring = lightbearer.id;
-    const packed: Packed[] = [];
-    const a = { wornKit, worn, packed };
-    let slotsLeft = budget - specs.length;
-    const families = () => new Set([...Object.values(worn), ...packed.map((p) => p.id), ...specs.map((s) => s.id)].filter((x): x is number => x != null).map(fam));
-    const isNew = (id: number) => !packed.some((p) => p.id === id) && !Object.values(worn).includes(id);
-    const famOk = (ids: number[]) => {
-      const f = families();
-      return ids.every((id) => !f.has(fam(id)));
-    };
-    const bundle = (k: Kit) => {
-      const ids = [k.weapon.id];
-      if (k.style === 'ranged' && k.gear.ammo != null && k.gear.ammo !== worn.ammo) ids.push(k.gear.ammo);
-      return ids.filter(isNew);
-    };
-    const pack = (k: Kit, ids: number[], reason: string) => {
-      for (const id of ids) packed.push({ id, slot: slotOf(idx.item(id))!, kit: k.key, why: reason });
-      slotsLeft -= ids.length;
-    };
-
-    // Required styles (and casts) get their weapon whatever the budget.
-    const others = [...kits.values()].filter((k) => k !== wornKit);
-    for (const t of targets) {
-      const need = [...(t.p.required ?? [])].filter((s) => !(t.p.cast && s === 'magic'));
-      for (const s of need) {
-        if (wornKit.key === s || packed.some((p) => p.kit === s)) continue;
-        const k = kits.get(s);
-        if (!k) continue;
-        const ids = bundle(k);
-        if (!famOk(ids)) continue;
-        pack(k, ids, `needed: ${t.p.name} can't be done without ${s}`);
-      }
-    }
-    for (const t of targets) {
-      if (t.p.cast) {
-        const k = kits.get(`cast:${t.p.cast}`);
-        if (k && !packed.some((p) => p.kit === k.key)) {
-          const ids = bundle(k);
-          // A worn staff that casts it already: nothing to pack.
-          if (ids.length) pack(k, ids, `needed: ${t.p.name} dies only to ${t.p.cast}`);
-        }
-      }
-    }
-    for (const t of targets) {
-      // Two styles for a boss that prays against one: the best other one it can use.
-      if (t.p.minStyles && t.p.minStyles > 1) {
-        const have = () => new Set([wornKit, ...others.filter((k) => packed.some((p) => p.id === k.weapon.id))].filter((k) => usable(k, t.p)).map((k) => k.style));
-        while (have().size < t.p.minStyles) {
-          const opts = others
-            .filter((k) => usable(k, t.p) && !have().has(k.style))
-            .map((k) => ({ k, d: dpsOn({ ...worn, ...k.gear }, k, t, ctx)?.dps ?? 0 }))
-            .sort((x, y) => y.d - x.d);
-          const pick = opts.find((o) => famOk(bundle(o.k)));
-          if (!pick) break;
-          pack(pick.k, bundle(pick.k), `needed: ${t.p.name} prays against one style, so a second one comes along`);
-        }
-      }
-    }
-    const over = Math.max(0, -slotsLeft);
-    const capOf = (k: Kit) => plan.kitPieces?.[k.style] ?? Infinity;
-    const isPiece = (id: number) => {
-      const s = slotOf(idx.item(id));
-      return s !== 'weapon' && s !== 'ammo';
-    };
-    /** The kit's armour pieces stay within the plan's cap for its style. */
-    const capOk = (k: Kit, ids: number[]) => packed.filter((p) => p.kit === k.key && isPiece(p.id)).length + ids.filter(isPiece).length <= capOf(k);
-    const restOf = (k: Kit) => SLOTS.filter((s) => s !== 'weapon' && s !== 'ammo').map((s) => k.gear[s]).filter((id): id is number => id != null && isNew(id) && famOk([id]));
-    const sk = seed ? kits.get(seed.key) : undefined;
-    if (sk && sk !== wornKit) {
-      const carried = packed.some((p) => p.id === sk.weapon.id);
-      const ids = [...(carried ? [] : bundle(sk)), ...strongest(restOf(sk), sk.style).slice(0, Math.min(seed!.n, capOf(sk)))];
-      if (ids.length && ids.length <= slotsLeft && capOk(sk, ids) && famOk(ids) && new Set(ids.map(fam)).size === ids.length) {
-        const before = evaluate(a).time;
-        const after = evaluate({ wornKit, worn, packed: [...packed, ...ids.map((id) => ({ id, slot: slotOf(idx.item(id))!, kit: sk.key, why: '' }))] }).time;
-        if (after < before - EPS) pack(sk, ids, Number.isFinite(before) ? `${sk.key} switch: saves ${(before - after).toFixed(1)}s a kill with the rest of the ${sk.key} kit` : `${sk.key} switch`);
-      }
-    }
-
-    // From here the answer depends only on the worn kit and what is packed: a seed that packed the
-    // same pieces as another (or nothing) gives the same assembly, worked out once.
-    const cacheKey = `${wornKit.key}|${packed.map((p) => p.id).join(',')}`;
-    const hit = assembled.get(cacheKey);
-    if (hit) return hit;
-
-    // Greedy: the pack that saves the most seconds per slot, while it saves any.
-    let cur = evaluate(a).time;
-    for (;;) {
-      if (slotsLeft <= 0) break;
-      let best: { k: Kit; ids: number[]; gain: number; time: number } | null = null;
-      for (const k of others) {
-        const carried = packed.some((p) => p.id === k.weapon.id) || k === wornKit;
-        // Single pieces, and the whole rest of the kit at once: a kit often pays only with
-        // several pieces on (a melee weapon in robes is no melee setup).
-        const rest = restOf(k);
-        const ranked = strongest(rest, k.style);
-        const lead = carried ? [] : bundle(k);
-        const options: number[][] = [...(carried ? rest.map((id) => [id]) : [lead])];
-        // The kit's strongest pieces together, as many as fit.
-        for (let n = 2; n <= ranked.length; n++) if (lead.length + n <= slotsLeft) options.push([...lead, ...ranked.slice(0, n)]);
-        for (const ids of options) {
-          if (!ids.length || ids.length > slotsLeft || !capOk(k, ids) || !famOk(ids) || new Set(ids.map(fam)).size < ids.length) continue;
-          const trial = { wornKit, worn, packed: [...packed, ...ids.map((id) => ({ id, slot: slotOf(idx.item(id))!, kit: k.key, why: '' }))] };
-          const time = evaluate(trial).time;
-          const gain = Number.isFinite(cur) ? (cur - time) / ids.length : Number.isFinite(time) ? 1e9 : 0;
-          if (gain > 0.2 && (!best || gain > best.gain)) best = { k, ids, gain, time };
-        }
-      }
-      if (!best) break;
-      const saved = Number.isFinite(cur) ? cur - best.time : Infinity;
-      pack(best.k, best.ids, Number.isFinite(saved) ? `${best.k.key} switch: saves ${saved.toFixed(1)}s a kill` : `${best.k.key} switch: the only way to hurt a phase`);
-      cur = best.time;
-    }
-    const ev = evaluate(a);
-    const out = { wornKit, worn, packed, specs, time: ev.time, phases: ev.phases, over };
-    assembled.set(cacheKey, out);
-    return out;
-  }
-  /** Assemblies by worn kit and seeded packing, for one set of kits (cleared when they change). */
-  const assembled = new Map<string, Assembly>();
-
-  const pickWorn = (): Assembly | null => {
-    assembled.clear();
-    let best: Assembly | null = null;
-    // Within 2% of the fastest, wear the style that fights the most: fewer swaps than the numbers show.
-    // The fastest assembly per worn style; the tolerance below only chooses between styles.
-    const all: Assembly[] = [];
-    const main = [...kits.values()].filter((x) => !x.cast);
-    const wearable = profile.worn && main.some((x) => x.style === profile.worn) ? main.filter((x) => x.style === profile.worn) : main;
-    for (const w of wearable) {
-      let top = assemble(w);
-      for (const k of main) {
-        if (k === w) continue;
-        for (const n of [2, 4, 6, 8]) {
-          const x = assemble(w, { key: k.key, n });
-          if (x.time < top.time - EPS) top = x;
-        }
-      }
-      all.push(top);
-    }
-    const fastest = Math.min(...all.map((x) => x.time));
-    const covered = (x: Assembly) => x.phases.filter((p) => p.kit === x.wornKit.key).reduce((acc, p) => acc + p.timeShare, 0);
-    for (const asm of all) {
-      if (!(asm.time <= fastest * 1.02 + EPS)) continue;
-      if (!best || covered(asm) > covered(best) + EPS || (Math.abs(covered(asm) - covered(best)) <= EPS && asm.time < best.time)) best = asm;
-    }
-    return best ?? all[0] ?? null;
-  };
-  let chosen = pickWorn();
-  // Each kit was tuned on every phase its style may fight; re-tune it on the phases it ends up
-  // doing (a melee switch carried only for the Wardens' core wants the core's weapon, not Ba-Ba's)
-  // and keep the result when the whole fight gets faster.
-  for (let round = 0; chosen && round < 2; round++) {
-    const before = new Map(kits);
-    let changed = false;
-    for (const style of STYLES) {
-      const k = kits.get(style);
-      const used = targets.filter((t) => chosen!.phases.find((p) => p.key === t.p.key)?.kit === style);
-      if (!k || !used.length) continue;
-      const nk = kitFor(style, used);
-      if (nk && JSON.stringify(nk.gear) !== JSON.stringify(k.gear)) {
-        kits.set(style, nk);
-        changed = true;
-      }
-    }
-    if (!changed) break;
-    const next = pickWorn();
-    if (next && next.time < chosen.time - EPS) chosen = next;
-    else {
-      kits.clear();
-      before.forEach((v, key) => kits.set(key, v));
-      break;
+  // Every allowed main style, the reference first; another only when clearly faster.
+  const builds = styles.map((m) => ({ m, b: build(m) }));
+  const refB = builds.find((x) => x.b && Number.isFinite(x.b.time))?.b ?? builds.find((x) => x.b)?.b ?? null;
+  let chosen = refB;
+  let mainWhy: string | null = null;
+  if (refB) {
+    const alt = builds.map((x) => x.b).filter((b): b is Build => !!b && b !== refB && Number.isFinite(b.time)).sort((a, b) => a.time - b.time)[0];
+    const refLocked = !!refB.filled[0].job.ref && !refB.filled[0].stepDown && Number.isFinite(refB.time);
+    if (alt && !refLocked && alt.time * SWITCH_MARGIN <= refB.time) chosen = alt;
+    if (chosen !== refB) {
+      const lack = refB.filled[0].stepDown;
+      mainWhy = `${lack ? `No ${lack}: your` : 'Your'} ${chosen!.main} setup is faster here than ${refB.main} (${Math.round((refB.time / chosen!.time - 1) * 100)}%)`;
+    } else if (styles[0] !== refB.main) {
+      mainWhy = `Nothing you own fights it with ${styles[0]}: ${refB.main} instead`;
     }
   }
-  if (chosen && chosen.over) warnings.push(`The required switches go ${chosen.over} slot${chosen.over > 1 ? 's' : ''} over the ${preset} budget of ${budget}`);
+  if (chosen && chosen.over) warnings.push(`The switches go ${chosen.over} slot${chosen.over > 1 ? 's' : ''} over the ${preset} budget of ${budget}`);
 
   if (!chosen) {
     unmet.push({ code: 'nothing', message: `Nothing you own can fight ${profile.name}` });
@@ -670,15 +825,22 @@ export function buildLoadout(input: EngineInput): Loadout {
       spells: [],
       spellbook: 'standard',
       quiverAmmo: null,
-      phases: targets.map((t) => ({ key: t.p.key, name: t.p.name, kit: null, dps: 0, seconds: Infinity, timeShare: 0 })),
+      phases: targets.map((t) => ({ key: t.p.key, name: t.p.name, kit: null, job: null, stance: null, dps: 0, seconds: Infinity, timeShare: 0 })),
       expectedTime: Infinity,
       killsPerTrip: null,
       why,
+      jobs: [],
+      notes: [],
       requirementsUnmet: unmet,
       warnings,
     };
   }
-  const { wornKit, worn, packed, specs } = chosen;
+  // Only the chosen build's missing gates count.
+  unmetJobs.clear();
+  for (const f of chosen.filled) if (!f.kit && !f.piece && f.job.required) unmetJobs.add(f.job.key);
+  const { wornKit, worn, packed } = chosen;
+  const specs = chosen.specs.map((s) => s.it);
+  const notes = [...(mainWhy ? [mainWhy] : []), ...chosen.notes];
 
   // A worn Dizana's quiver holds a switch's ammo: one slot back.
   let quiverAmmo: number | null = null;
@@ -691,11 +853,11 @@ export function buildLoadout(input: EngineInput): Loadout {
   }
 
   // ── Reasons for the worn kit ──
-  const wornTargets = targets.filter((t) => chosen!.phases.find((p) => p.key === t.p.key)?.kit === wornKit.key);
+  const wornTargets = targets.filter((t) => chosen!.phases.find((p) => p.key === t.p.key)?.job === 'main');
   const wornCost = phaseCost(worn, wornKit, wornTargets, ctx);
   const main = wornTargets.length ? [...wornTargets].sort((x, y) => y.damage - x.damage)[0] : null;
-  const mainDps = main ? dpsOn(worn, wornKit, main, ctx)?.dps ?? 0 : 0;
-  why.push({ pick: wornKit.weapon.n, why: `worn ${wornKit.style}: the fastest style you own for ${wornTargets.map((t) => t.p.name).join(', ') || 'this fight'}${main ? ` (${fmt(mainDps)} DPS on ${main.p.name})` : ''}` });
+  const mainDps = main ? (dpsOn(worn, wornKit, main, ctx)?.dps ?? 0) : 0;
+  why.push({ pick: wornKit.weapon.n, why: `worn ${wornKit.style}: the best you own for ${wornTargets.map((t) => t.p.name).join(', ') || 'this fight'}${main ? ` (${fmt(mainDps)} DPS on ${main.p.name})` : ''}` });
   if (wornKit.set) why.push({ pick: `${wornKit.set} set`, why: 'worn whole: its set bonus beats the best single pieces' });
   for (const slot of SLOTS) {
     const id = worn[slot];
@@ -713,7 +875,7 @@ export function buildLoadout(input: EngineInput): Loadout {
     else if (slot === 'shield' && DRAGONFIRE_SHIELD.test(n)) why.push({ pick: n, why: `dragonfire protection, and ${pct > 0.05 ? `${pct.toFixed(1)}% faster than an empty hand` : 'free in the off-hand'}` });
     else why.push({ pick: n, why: pct > 0.05 ? `${slot}: ${pct.toFixed(1)}% slower without it` : `${slot}: no damage to gain here, the sturdiest piece you own` });
   }
-  for (const s of specs) why.push({ pick: s.n, why: profile.spec?.why ?? 'spec weapon' });
+  for (const s of chosen.specs) why.push({ pick: s.it.n, why: s.why });
   for (const p of packed) why.push({ pick: nameOf(p.id), why: p.why });
 
   // ── 3. Inventory ──
@@ -722,7 +884,8 @@ export function buildLoadout(input: EngineInput): Loadout {
   for (const p of packed) inventory.push({ id: p.id, name: nameOf(p.id), kind: 'switch' });
 
   // Spells carried → rune pouch and spellbook.
-  const carriedKits = [...kits.values()].filter((k) => k === wornKit || packed.some((p) => p.id === k.weapon.id));
+  const carriedKits = chosen.filled.filter((f) => f.kit && (f.byWorn || packed.some((p) => p.id === f.kit!.weapon.id) || f.kit === wornKit)).map((f) => f.kit!);
+  const usedJobs = new Set(chosen.phases.map((p) => p.job));
   const spells = carriedKits.filter((k) => k.spell).map((k) => ({ spell: k.spell!, staff: k.weapon.n }));
   const ruleSpell = profile.rules.find((r) => r.kind === 'spell');
   const books = new Set(spells.map((s) => spellByName(s.spell)?.book ?? 'standard'));
@@ -743,12 +906,12 @@ export function buildLoadout(input: EngineInput): Loadout {
   if (books.size > 1) unmet.push({ code: 'spellbook', message: `The spells carried need different spellbooks: ${[...books].join(', ')}` });
 
   // Supplies: the plan's lines, in order; reserved room; then food into what is left.
-  const wearsAny = (pats: string[]) => [...Object.values(worn), ...packed.map((p) => p.id)].some((id) => id != null && pats.some((p) => new RegExp(p, 'i').test(nameOf(id))));
+  const wearsAny = (pp: string[]) => [...Object.values(worn), ...packed.map((p) => p.id)].some((id) => id != null && pp.some((p) => new RegExp(p, 'i').test(nameOf(id))));
   const venomRule = profile.rules.find((r) => r.kind === 'antivenom');
   const venomCovered = venomRule?.kind === 'antivenom' && wearsAny(venomRule.coveredBy);
   if (venomCovered) why.push({ pick: 'No anti-venom', why: 'the helm you wear blocks venom' });
-  const held = player.supplies ?? null;
-  if (!held) warnings.push('Supplies not known: the best form of each is assumed');
+  const heldSup = player.supplies ?? null;
+  if (!heldSup) warnings.push('Supplies not known: the best form of each is assumed');
   const used = new Map<number, number>();
   let healing = 0;
   const picked = new Map<string, number>();
@@ -756,7 +919,7 @@ export function buildLoadout(input: EngineInput): Loadout {
   const addLine = (kind: (typeof plan.supplies)[number]['kind'], count: number) => {
     const n = Math.min(count, room());
     if (n <= 0) return 0;
-    const got = pickSupplies(kind, n, held, used);
+    const got = pickSupplies(kind, n, heldSup, used);
     for (const g of got) {
       inventory.push({ id: g.id, name: g.name, kind: 'supply' });
       healing += g.heals;
@@ -776,6 +939,7 @@ export function buildLoadout(input: EngineInput): Loadout {
     ...plan.supplies.filter((l) => !l.fill),
     ...(kept ? [{ kind: 'restore' as const, count: Math.floor(kept / 3) }] : []),
     ...(cons.moreSupplies ?? []).map((m): SupplyLine => ({ kind: m.kind, count: m.count })),
+    ...chosen.extra.map((m): SupplyLine => ({ kind: m.kind, count: m.count })),
     ...plan.supplies.filter((l) => l.fill).map((l) => (kept ? { ...l, count: l.count + kept - Math.floor(kept / 3) } : l)),
   ].filter((l) => (l.reserve ? !cons.ownSupplies : !cons.noSupplies && !(cons.noFood && FOODS.has(l.kind)) && !(cons.noPrayerPots && PRAYERS.has(l.kind))));
   for (const line of lines.filter((l) => !l.fill && !l.reserve)) {
@@ -794,10 +958,15 @@ export function buildLoadout(input: EngineInput): Loadout {
 
   // ── 4. Hard rules ──
   const phaseOf = new Map(chosen.phases.map((p) => [p.key, p]));
+  for (const key of unmetJobs) {
+    const f = chosen.filled.find((x) => x.job.key === key)!;
+    unmet.push({ code: 'style', message: f.job.missing ?? `${f.job.label}: nothing in your bank does it` });
+  }
   for (const t of targets) {
     const ph = phaseOf.get(t.p.key)!;
-    if (ph.kit == null) unmet.push({ code: 'nothing', message: `${t.p.name}: nothing you carry can damage it${t.p.cast ? ` (needs ${t.p.cast} from a staff)` : ` (${t.p.allowed.join(' or ')})`}` });
-    const kit = ph.kit ? kits.get(ph.kit) : null;
+    if (ph.kit == null && t.p.gate) unmet.push({ code: 'style', message: t.p.gate });
+    else if (ph.kit == null && !phaseJobs(t, jobsFor(chosen.main)).some((j) => unmetJobs.has(j.key))) unmet.push({ code: 'nothing', message: `${t.p.name}: nothing you carry can damage it${t.p.cast ? ` (needs ${t.p.cast} from a staff)` : ` (${t.p.allowed.join(' or ')})`}` });
+    const kit = ph.job ? chosen.filled.find((f) => f.job.key === ph.job)?.kit : null;
     if (kit && (t.p.immune ?? []).includes(kit.style)) unmet.push({ code: 'immune', message: `${t.p.name} is immune to ${kit.style}` });
     for (const s of t.p.required ?? []) {
       if (t.p.cast && s === 'magic') continue;
@@ -818,13 +987,24 @@ export function buildLoadout(input: EngineInput): Loadout {
       if (!venomCovered && !(picked.get('antivenom') ?? 0)) unmet.push({ code: 'antivenom', message: 'Venom: no anti-venom packed and no helm that blocks it' });
     } else if (r.kind === 'spell') {
       const ok = carriedKits.some((k) => k.spell === r.spell);
-      if (!ok) unmet.push({ code: 'spell', message: `${r.spell}: no staff that can autocast it is carried` });
+      if (!ok) unmet.push({ code: 'spell', message: lv.magic < r.magic ? `${r.spell} needs ${r.magic} Magic (you have ${lv.magic})` : `${r.spell}: no staff that can autocast it is carried` });
       if (spellbook !== r.book) unmet.push({ code: 'spellbook', message: `${r.spell} needs the ${r.book} spellbook` });
     } else if (r.kind === 'spellbook' && [...books].some((b) => b !== r.book)) {
       unmet.push({ code: 'spellbook', message: `This fight wants the ${r.book} spellbook` });
     }
   }
-  for (const s of bannedStyles) if (carriedKits.some((k) => k.style === s && !k.cast)) unmet.push({ code: 'constraint', message: `${s} is ruled out but carried` });
+  for (const s of bannedStyles) if (carriedKits.some((k) => k.style === s && !k.cast && usedJobs.has(chosen.filled.find((f) => f.kit === k)?.job.key ?? ''))) unmet.push({ code: 'constraint', message: `${s} is ruled out but carried` });
+
+  const jobsOut: LoadoutJob[] = chosen.filled.map((f) => ({
+    key: f.job.key,
+    label: f.job.label,
+    style: f.job.style,
+    pick: f.kit ? { id: f.kit.weapon.id, name: f.kit.weapon.n } : f.piece ? { id: f.piece.id, name: nameOf(f.piece.id) } : null,
+    ...(f.byWorn && f.job.key !== 'main' ? { byWorn: true } : {}),
+    pieces: packed.filter((p) => p.job === f.job.key && p.slot !== 'weapon' && p.slot !== 'ammo' && !f.piece).map((p) => ({ id: p.id, name: nameOf(p.id) })),
+    ...(f.stepDown ? { stepDown: f.stepDown } : {}),
+    ...(f.blocked ? { blocked: f.blocked } : {}),
+  }));
 
   const killsPerTrip = profile.incomingPerKill && healing > 0 ? Math.max(1, Math.floor(healing / profile.incomingPerKill)) : null;
   return {
@@ -832,8 +1012,8 @@ export function buildLoadout(input: EngineInput): Loadout {
     preset,
     wornStyle: wornKit.style,
     worn,
-    switches: packed.map((p) => ({ id: p.id, name: nameOf(p.id), slot: p.slot, kit: p.kit })),
-    specs: specs.map((s) => ({ id: s.id, name: s.n })),
+    switches: packed.map((p) => ({ id: p.id, name: nameOf(p.id), slot: p.slot, kit: p.kit === 'piece' ? (chosen!.filled.find((f) => f.job.key === p.job)?.job.style ?? wornKit.style) : p.kit, job: p.job })),
+    specs: chosen.specs.map((s) => ({ id: s.it.id, name: s.it.n, ...(s.stepDown ? { stepDown: s.stepDown } : {}) })),
     inventory: inventory.slice(0, INV),
     runePouch,
     spells: [...new Set(spells.map((s) => s.spell))],
@@ -843,6 +1023,8 @@ export function buildLoadout(input: EngineInput): Loadout {
     expectedTime: chosen.time,
     killsPerTrip,
     why,
+    jobs: jobsOut,
+    notes,
     requirementsUnmet: unmet,
     warnings,
   };
