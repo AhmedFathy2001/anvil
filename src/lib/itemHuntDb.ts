@@ -69,6 +69,7 @@ import { killTargetKeys } from '@/lib/pluginFacts/match';
 import { claimTileFacts, type FactOwner } from '@/lib/pluginFacts/factIdStore';
 import type { KillRule } from '@/lib/pluginFacts/rules';
 import { log } from '@/lib/logger';
+import { deathCause } from '@/lib/deathSource';
 import { newProofKey } from '@/lib/proofAfter';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { clogItemIdByName } from '@/lib/moments';
@@ -537,6 +538,7 @@ async function recordRushDeath(
     clanMemberId: seat.clanMemberId,
     occurredAt: at,
     source: report.source?.trim() || null,
+    sourceKind: report.sourceKind ?? null,
     proofKey,
   });
   return proofKey;
@@ -1022,13 +1024,14 @@ export async function rushDeathShotsOf(competitionId: number, memberIds?: number
   if (memberIds && memberIds.length === 0) return new Map();
   // clan-scope: global -- one competition the caller already resolved for its clan.
   const rows = await db
-    .select({ rsn: weeklyParticipants.rsn, at: rushDeathShots.occurredAt, source: rushDeathShots.source, url: rushDeathShots.screenshotUrl })
+    .select({ rsn: weeklyParticipants.rsn, at: rushDeathShots.occurredAt, source: rushDeathShots.source, sourceKind: rushDeathShots.sourceKind, url: rushDeathShots.screenshotUrl })
     .from(rushDeathShots)
     .innerJoin(weeklyParticipants, eq(weeklyParticipants.id, rushDeathShots.participantId))
     .where(and(eq(rushDeathShots.competitionId, competitionId), memberIds ? inArray(weeklyParticipants.clanMemberId, memberIds) : undefined))
     .orderBy(desc(rushDeathShots.occurredAt));
   const out = new Map<string, { at: string; source: string | null; url: string | null }[]>();
-  for (const r of rows) out.set(r.rsn, [...(out.get(r.rsn) ?? []), { at: r.at, source: r.source, url: r.url }]);
+  // `source` reads as the cause: "Zebak", "poison (Lizardman shaman)" (lib/deathSource deathCause).
+  for (const r of rows) out.set(r.rsn, [...(out.get(r.rsn) ?? []), { at: r.at, source: deathCause(r.source, r.sourceKind), url: r.url }]);
   return out;
 }
 
@@ -1046,12 +1049,12 @@ export async function rushFeedFacts(competitionId: number): Promise<{ deaths: { 
   const rsnOf = new Map(live.map((s) => [s.id, s.rsn]));
   // clan-scope: global -- the same competition's own rows.
   const shots = await db
-    .select({ participantId: rushDeathShots.participantId, source: rushDeathShots.source, at: rushDeathShots.occurredAt })
+    .select({ participantId: rushDeathShots.participantId, source: rushDeathShots.source, sourceKind: rushDeathShots.sourceKind, at: rushDeathShots.occurredAt })
     .from(rushDeathShots)
     .where(eq(rushDeathShots.competitionId, competitionId))
     .orderBy(desc(rushDeathShots.occurredAt))
     .limit(40);
-  const deaths = shots.flatMap((d) => (rsnOf.has(d.participantId) ? [{ rsn: rsnOf.get(d.participantId)!, source: d.source, at: d.at }] : []));
+  const deaths = shots.flatMap((d) => (rsnOf.has(d.participantId) ? [{ rsn: rsnOf.get(d.participantId)!, source: deathCause(d.source, d.sourceKind), at: d.at }] : []));
   const runs = togetherRuns(new Map(live.map((s) => [s.rsn, s.raids ?? []])));
   const together = runs.slice(-40).map((r) => ({ target: r.target, at: new Date(r.at).toISOString(), who: r.who }));
   return { deaths, together };

@@ -12,6 +12,7 @@
  *
  * Every Discord failure is logged and swallowed: no plugin request ever fails because Discord did.
  */
+import { deathCause } from '@/lib/deathSource';
 import crypto from 'crypto';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
@@ -232,7 +233,7 @@ async function rushDeathShotUpload(request: Request, key: string, file: File | n
   const [seat] = await db.select({ rsn: weeklyParticipants.rsn }).from(weeklyParticipants).where(eq(weeklyParticipants.id, row.participantId)).limit(1);
   const stored = await storeHuntShot(comp.clanId, member.userId, file, (sha256) =>
     huntStampModel({
-      kind: 'death', competition: comp.title, rush: true, rsn: seat?.rsn ?? 'Unknown', source: row.source,
+      kind: 'death', competition: comp.title, rush: true, rsn: seat?.rsn ?? 'Unknown', source: deathCause(row.source, row.sourceKind),
       recordedAt: parseStamp(row.createdAt) ?? Date.now(), stampedAt: Date.now(), id: row.id, sha256, split: null,
     }),
   );

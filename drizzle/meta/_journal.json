@@ -1660,6 +1660,13 @@
       "when": 1795768145213,
       "tag": "0300_hunt_clean_shots",
       "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1795772147174,
+      "tag": "0301_rush_death_cause",
+      "breakpoints": true
     }
   ]
 }
