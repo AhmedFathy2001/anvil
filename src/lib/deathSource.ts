@@ -58,6 +58,19 @@ export function shownKiller(source: string | null | undefined): string | null {
   return source && !neverKiller(source) ? source : null;
 }
 
+/** The plugin's mark on a death nobody dealt: the player died poisoned or venomed; `source` is the likely culprit. */
+export const POISON_KINDS: ReadonlySet<string> = new Set(['poison', 'venom']);
+
+/**
+ * What a death reads as after "died to": the killer ("Vorkath"), the poison and who left it
+ * ("poison (Lizardman shaman)"), the poison alone, or null when nothing can be named.
+ */
+export function deathCause(source: string | null | undefined, sourceKind: string | null | undefined): string | null {
+  const who = shownKiller(source);
+  if (sourceKind && POISON_KINDS.has(sourceKind)) return who ? `${sourceKind} (${who})` : sourceKind;
+  return who;
+}
+
 export function settleDeathSource(raw: Record<string, unknown>): void {
   if (raw.kind !== 'death') return;
   // Which raid it was: a Boss Rush over a raid counts the raid's deaths, whatever killed them. A
@@ -74,7 +87,8 @@ export function settleDeathSource(raw: Record<string, unknown>): void {
   else delete raw.raid;
   if (typeof raw.source === 'string' && raw.sourceKind !== 'player' && neverKiller(raw.source)) {
     raw.source = null;
-    raw.sourceKind = null;
+    // A poison death stays one, whoever is blanked from it.
+    if (!(typeof raw.sourceKind === 'string' && POISON_KINDS.has(raw.sourceKind))) raw.sourceKind = null;
     return;
   }
   if (raw.sourceKind !== FOUGHT_SOURCE_KIND) return;

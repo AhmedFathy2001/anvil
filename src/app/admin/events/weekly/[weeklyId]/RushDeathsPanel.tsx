@@ -23,17 +23,17 @@ export default async function RushDeathsPanel({ competitionId }: { competitionId
           {[...byRsn.entries()].map(([rsn, deaths]) => (
             <li key={rsn}>
               <p className="text-sm font-semibold">
-                {rsn} <span className="font-normal text-text-muted">· {deaths.length}</span>
+                {rsn} <span className="font-normal text-text-muted">({deaths.length})</span>
               </p>
               <ul className="mt-1 space-y-0.5 text-xs text-text-muted">
                 {deaths.map((d) => (
                   <li key={d.at}>
                     <LocalTime date={d.at} format="short" />
-                    {d.source && <> · {d.source}</>}
+                    {d.source && <>, {d.source}</>}
                     {d.url ? (
-                      <> · <a href={d.url} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
+                      <>, <a href={d.url} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
                     ) : (
-                      <> · no screenshot</>
+                      <>, no screenshot</>
                     )}
                   </li>
                 ))}
