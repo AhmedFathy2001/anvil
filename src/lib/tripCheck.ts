@@ -28,6 +28,7 @@ import { ownStats, withSlot } from './gearNow';
 import { personalSetup, resolveSetup, type Equivalents, type Prefs, type Snapshot } from './gearOwnership';
 import type { GearSetup, InvItem } from './guideTiers';
 import type { TripContent } from './tripContent';
+import { DEFAULT_SUPPLIES, ownedSupply, SUPPLY_ITEMS } from './tripSupplies';
 import type { TripState } from './tripState';
 
 export type TripSource = 'own' | 'guide' | 'calc';
@@ -48,6 +49,10 @@ export interface TripRow {
   bank?: number[];
   /** The equipment slot a worn piece goes in: its place in the bank layout's paper doll. */
   slot?: string;
+  /** A supply the calc packs: how many (doses of a potion count as one each). */
+  need?: number;
+  /** A rune the calc puts in the rune pouch (else in the inventory). */
+  inPouch?: boolean;
 }
 
 export interface TripCheck {
@@ -165,6 +170,21 @@ const RUNE_NAME: Record<Rune, string> = Object.fromEntries(Object.keys(RUNE).map
 export const SPELL_RUNES: Record<string, Partial<Record<Rune, number>>> = {
   'ice barrage': { death: 4, blood: 2, water: 6 },
   'ice blitz': { death: 2, blood: 2, water: 3 },
+  'blood blitz': { death: 2, blood: 4 },
+  'ice burst': { death: 2, chaos: 4, water: 4 },
+  'blood burst': { death: 2, chaos: 4, blood: 2 },
+  'ice rush': { death: 2, chaos: 2, water: 2 },
+  'blood rush': { death: 2, chaos: 2, blood: 1 },
+  'smoke barrage': { fire: 4, air: 4, blood: 2, death: 4 },
+  'water surge': { water: 10, air: 7, wrath: 1 },
+  'earth surge': { earth: 10, air: 7, wrath: 1 },
+  'wind surge': { air: 7, wrath: 1 },
+  'water wave': { water: 7, air: 5, blood: 1 },
+  'earth wave': { earth: 7, air: 5, blood: 1 },
+  'wind wave': { air: 5, blood: 1 },
+  'inferior demonbane': { fire: 4, chaos: 2 },
+  'superior demonbane': { fire: 5, soul: 2 },
+  'dark demonbane': { fire: 6, soul: 2 },
   'blood barrage': { death: 4, blood: 4, soul: 1 },
   'shadow barrage': { air: 4, soul: 3, blood: 2, death: 4 },
   vengeance: { astral: 4, earth: 10, death: 2 },
@@ -341,11 +361,30 @@ export interface Best {
   weapon: number;
 }
 
+type Kind = 'melee' | 'ranged' | 'magic';
 interface CalcCtx {
   idx: GearIndex;
   stats: GearSetup['stats'];
   prayer: string[];
   spell: string | null;
+  /** The boost each kind fights with (a raid's own: ToA's smelling salts, CoX's overloads). */
+  boosts?: Partial<Record<Kind, string>>;
+  /** Only this kind of attack. */
+  only?: Kind;
+  /** Spells an autocasting weapon may cast (lib/tripCheck calcSpells): the best is taken. */
+  spells?: string[];
+}
+
+/** What the raid's own supplies boost by: every style alike. */
+const RAID_BOOSTS: Record<string, Record<Kind, string>> = {
+  toa: { melee: 'salts_melee', ranged: 'salts_ranged', magic: 'salts_magic' },
+  cox: { melee: 'overload', ranged: 'overload_ranged', magic: 'overload_magic' },
+};
+
+/** The kind of attack a weapon makes (a bow ranged, a powered staff magic). */
+function weaponKind(w: GearItem | null): Kind {
+  const types = stylesFor(w?.c).map((x) => x.type);
+  return types.includes('ranged') ? 'ranged' : types.includes('magic') ? 'magic' : 'melee';
 }
 
 const kindOfType = (t: string): 'melee' | 'ranged' | 'magic' => (t === 'ranged' ? 'ranged' : t === 'magic' ? 'magic' : 'melee');
@@ -403,8 +442,42 @@ function shortlist(pool: GearItem[], kind: 'melee' | 'ranged' | 'magic'): Map<Sl
   return by;
 }
 
-const tryGear = (gear: Record<string, number>, m: Monster, ctx: CalcCtx, dart: number | null): DpsResult | null =>
-  bestStyle({ gear, style: 0, spell: ctx.spell, dart, stats: ctx.stats, prayer: ctx.prayer, boost: null, onTask: false }, m, ctx.idx.item, ctx.idx.rules)?.result ?? null;
+/**
+ * A loadout's DPS against `m`, and the spell it casts (null: a powered staff's own, or no magic). An
+ * autocasting weapon tries each of the calc's spells and keeps the best.
+ */
+function trySpell(gear: Record<string, number>, m: Monster, ctx: CalcCtx, dart: number | null): { r: DpsResult; spell: string | null } | null {
+  const kind = weaponKind(ctx.idx.item(gear.weapon));
+  const spells = kind === 'magic' && ctx.spells?.length ? ctx.spells : [ctx.spell];
+  let best: { r: DpsResult; spell: string | null } | null = null;
+  for (const spell of spells) {
+    const r = bestStyle({ gear, style: 0, spell, dart, stats: ctx.stats, prayer: ctx.prayer, boost: ctx.boosts?.[kind] ?? null, onTask: false }, m, ctx.idx.item, ctx.idx.rules)?.result ?? null;
+    if (r && (!best || r.dps > best.r.dps)) best = { r, spell: r.style.stance === 'autocast' ? spell : null };
+    // A powered staff's own spell ignores the pick: no need to try the rest.
+    if (/^powered/i.test(ctx.idx.item(gear.weapon)?.c ?? '')) break;
+  }
+  return best;
+}
+const tryGear = (gear: Record<string, number>, m: Monster, ctx: CalcCtx, dart: number | null): DpsResult | null => trySpell(gear, m, ctx, dart)?.r ?? null;
+
+/** Each book's combat spells the calc tries, best first, for this Magic level and target. */
+export function calcSpells(book: number | null, magic: number, m: Pick<Monster, 'ew' | 'a'>): string[] {
+  const attrs = new Set((m.a ?? []).map((x) => x.toLowerCase()));
+  if (book === 1) {
+    const tiers: [string, number][] = [['Barrage', 94], ['Blitz', 82], ['Burst', 70], ['Rush', 58]];
+    const lv: Record<string, [number, number, number, number]> = { Ice: [94, 82, 70, 58], Blood: [92, 80, 68, 56], Shadow: [88, 76, 64, 52], Smoke: [86, 74, 62, 50] };
+    const out: string[] = [];
+    for (const [i] of tiers.entries()) for (const e of ['Ice', 'Blood']) if (magic >= lv[e][i] && out.length < 2) out.push(`${e} ${tiers[i][0]}`);
+    return out;
+  }
+  if (book === 3) {
+    if (!attrs.has('demon')) return [];
+    return magic >= 82 ? ['Dark Demonbane'] : magic >= 62 ? ['Superior Demonbane'] : magic >= 44 ? ['Inferior Demonbane'] : [];
+  }
+  if (book === 2) return [];
+  const one = calcSpell(0, magic, m.ew);
+  return [...(one ? [one] : []), ...(attrs.has('undead') && magic >= 39 ? ['Crumble Undead'] : [])];
+}
 
 /** Sets whose bonus no single swap shows: tried whole, per kind, after the slot-by-slot fill. */
 const SETS: { kind: 'melee' | 'ranged' | 'magic'; pieces: [Slot, RegExp][] }[] = [
@@ -438,7 +511,7 @@ const SETS: { kind: 'melee' | 'ranged' | 'magic'; pieces: [Slot, RegExp][] }[] =
  */
 export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): Best | null {
   const memo = bestMemo(ctx.idx);
-  const key = `${m.n}#${m.v ?? ''}|${m.raidLevel ?? 0}|${m.hp}|${JSON.stringify(ctx.stats)}|${ctx.prayer.join()}|${ctx.spell ?? ''}|${[...new Set(ids)].sort((x, y) => x - y).join()}`;
+  const key = `${m.n}#${m.v ?? ''}|${m.raidLevel ?? 0}|${m.hp}|${JSON.stringify(ctx.stats)}|${ctx.prayer.join()}|${ctx.spell ?? ''}|${(ctx.spells ?? []).join('/')}|${JSON.stringify(ctx.boosts ?? null)}|${ctx.only ?? ''}|${[...new Set(ids)].sort((x, y) => x - y).join()}`;
   if (memo.has(key)) return memo.get(key)!;
   const pool = [...new Set(ids)].map((id) => ctx.idx.item(id)).filter((x): x is GearItem => !!x && !x.hid && usableHeld(x.n));
   const weapons = pool.filter((x) => slotOf(x) === 'weapon');
@@ -464,7 +537,7 @@ export function bestLoadout(m: Monster, ids: readonly number[], ctx: CalcCtx): B
       const r = tryGear(gear, m, ctx, dartFor(w));
       return r ? { w, gear, r } : null;
     })
-    .filter((x): x is { w: GearItem; gear: Record<string, number>; r: DpsResult } => !!x && x.r.dps > 0 && (melee || x.r.kind !== 'melee'));
+    .filter((x): x is { w: GearItem; gear: Record<string, number>; r: DpsResult } => !!x && x.r.dps > 0 && (melee || x.r.kind !== 'melee') && (!ctx.only || x.r.kind === ctx.only));
   const top: typeof quick = [];
   for (const kind of ['melee', 'ranged', 'magic'] as const) top.push(...quick.filter((q) => q.r.kind === kind).sort((a, b) => b.r.dps - a.r.dps).slice(0, 3));
   const lists = { melee: shortlist(pool, 'melee'), ranged: shortlist(pool, 'ranged'), magic: shortlist(pool, 'magic') };
@@ -613,45 +686,98 @@ function calcHeld(inp: TripInput, h: Held, qv: { id: number; q: number } | null,
   return { along, bankOf, needsCharge, row, inQuiver, isQuiver };
 }
 
+/** What the calc's gear found, for the supplies after it. */
+interface CalcOut {
+  kinds: Set<Kind>;
+  switchSlots: number;
+  lightbearerWorn?: boolean;
+  /** Combat spells cast, and about how many times a trip. */
+  casts: Map<string, number>;
+  /** The worn kit and the casting weapon (and shield): what gives runes without end. */
+  wornIds: number[];
+  castIds: number[];
+}
+
+/** Casts to kill `m` with result `r` (a margin for misses and phases), at least 20. */
+const castsFor = (m: Monster, r: DpsResult) => Math.max(20, Math.ceil((1.25 * m.hp) / Math.max(0.5, r.dps * r.speed * 0.6)));
+
+/** "Infernal cape (l)" and "Infernal cape" are one piece to a switch list: the name less its tags. */
+const family = (n: string) => n.toLowerCase().replace(/\s*\([^()]*\)\s*/g, ' ').trim();
+/** A switch piece that adds less than this share of the style's DPS isn't worth its inventory slot. */
+const SWITCH_GAIN = 0.02;
+/** A damage ring that adds less than this share is worn as Lightbearer instead on a spec trip. */
+const RING_GAIN = 0.03;
+const KINDS: readonly Kind[] = ['melee', 'ranged', 'magic'];
+
 /**
- * The calc for a raid: ONE setup for every boss. Each boss's best loadout from the bank names the
- * style it wants; per style the kit that does best across that style's bosses (each boss's share of
- * its own best, summed) is chosen; the style most bosses want is worn and the others are switches.
+ * The calc for a raid: ONE setup for every boss, worn plus a few switches, the way it is played.
+ *  - Each boss's best loadout from the bank names the style it wants. Per style the kit that does best
+ *    across that style's bosses (each boss's share of its own best, summed) is chosen; the style most
+ *    bosses want is worn.
+ *  - Every other style a boss wants, and every style a phase requires (lib/tripContent `requires`:
+ *    the Wardens' P2 rotates styles), is a switch: its weapon first (and the ammo it fires), then the
+ *    kit's pieces with the most DPS per inventory slot, while they add SWITCH_GAIN and the trip's
+ *    switch slots last. A piece already worn, or the same piece by another name, is never packed.
+ *  - On a spec trip a worn ring that adds little gives way to Lightbearer.
  * Rows: each worn piece and each switch, carried or "in your bank: take it". When what is carried
  * already does nearly as well against every boss, one passing row says so.
  */
-function raidRows(inp: TripInput, c: CalcHeld & { stats: CalcCtx['stats']; prayer: string[]; ownedIds: number[]; carriedIds: number[] }, info: string[]): TripRow[] {
+function raidRows(inp: TripInput, c: CalcHeld & { stats: CalcCtx['stats']; prayer: string[]; ownedIds: number[]; carriedIds: number[] }, info: string[], out: CalcOut): TripRow[] {
+  const boosts = RAID_BOOSTS[inp.content.key];
   const per = inp.monsters
     .map((m) => {
-      const ctx: CalcCtx = { idx: inp.idx, stats: c.stats, prayer: c.prayer, spell: calcSpell(inp.state?.book ?? 0, c.stats.magic, m.ew) };
+      const ctx: CalcCtx = { idx: inp.idx, stats: c.stats, prayer: c.prayer, spell: calcSpell(inp.state?.book ?? 0, c.stats.magic, m.ew), spells: calcSpells(inp.state?.book ?? 0, c.stats.magic, m), ...(boosts ? { boosts } : {}) };
       return { m, ctx, best: bestLoadout(m, c.ownedIds, ctx), carried: bestLoadout(m, c.carriedIds, ctx) };
     })
     .filter((p): p is typeof p & { best: Best } => !!p.best && p.best.result.dps > 0);
   if (!per.length) return [];
   const bosses = per.map((p) => shortTarget(p.m.n));
-  if (per.every((p) => p.carried && p.carried.result.dps >= CALC_FLOOR * p.best.result.dps)) {
+  const required = inp.content.requires ?? [];
+  const requiredKinds = new Set(required.flatMap((r) => r.styles));
+  const name = (id: number) => inp.idx.item(id)?.n ?? inp.nameOf(id);
+  // A required style the bank can't fight with at all is left out (and said).
+  const kindBest = new Map<string, Best | null>();
+  const bestOf = (p: (typeof per)[number], kind: Kind) => {
+    const k = `${per.indexOf(p)}:${kind}`;
+    if (!kindBest.has(k)) kindBest.set(k, kindOfType(p.best.result.style.type) === kind ? p.best : bestLoadout(p.m, c.ownedIds, { ...p.ctx, only: kind }));
+    return kindBest.get(k) ?? null;
+  };
+  if (per.every((p) => p.carried && p.carried.result.dps >= CALC_FLOOR * p.best.result.dps) && [...requiredKinds].every((k) => per.some((p) => p.carried && bestLoadout(p.m, c.carriedIds, { ...p.ctx, only: k })))) {
     return [{ group: 'gear', ok: true, line: `Your setup covers all ${per.length} bosses`, detail: bosses.join(', ') }];
   }
-  const byKind = new Map<'melee' | 'ranged' | 'magic', typeof per>();
+  const wants = new Map<Kind, typeof per>();
   for (const p of per) {
     const k = kindOfType(p.best.result.style.type);
-    byKind.set(k, [...(byKind.get(k) ?? []), p]);
+    wants.set(k, [...(wants.get(k) ?? []), p]);
   }
-  const kits = [...byKind.entries()]
-    .map(([kind, ps]) => {
-      let pick = ps[0].best;
-      let top = -1;
-      for (const cand of ps) {
-        const score = ps.reduce((a, q) => a + (tryGear(cand.best.gear, q.m, q.ctx, null)?.dps ?? 0) / q.best.result.dps, 0);
-        if (score > top) [top, pick] = [score, cand.best];
-      }
-      return { kind, gear: pick.gear, bosses: ps.map((q) => shortTarget(q.m.n)) };
-    })
-    .sort((a, b) => b.bosses.length - a.bosses.length);
-  const [worn, ...switches] = kits;
+  // Each style's kit: the candidate best across the bosses it is for (a required style: all of them).
+  const kitOf = (kind: Kind) => {
+    const ps = wants.get(kind) ?? per;
+    const cands = ps.map((p) => bestOf(p, kind)).filter((b): b is Best => !!b);
+    if (!cands.length) return null;
+    const share = (gear: Record<string, number>) => ps.reduce((a, q) => a + (tryGear(gear, q.m, q.ctx, null)?.dps ?? 0) / Math.max(1e-9, bestOf(q, kind)?.result.dps ?? 1), 0);
+    let pick = cands[0];
+    let top = -1;
+    for (const cand of cands) {
+      const sc = share(cand.gear);
+      if (sc > top) [top, pick] = [sc, cand];
+    }
+    return { kind, gear: { ...pick.gear }, ps, share };
+  };
+  const order = KINDS.filter((k) => wants.has(k) || requiredKinds.has(k)).sort((a, b) => (wants.get(b)?.length ?? 0) - (wants.get(a)?.length ?? 0));
+  const kits = order.map(kitOf).filter((k): k is NonNullable<ReturnType<typeof kitOf>> => !!k);
+  if (!kits.length) return [];
+  const [worn, ...others] = kits;
+  // Lightbearer on a spec trip, when the worn ring adds little.
+  const lb = c.ownedIds.find((id) => LIGHTBEARER.test(name(id)));
+  if (inp.content.spec && lb != null && worn.gear.ring != null && worn.gear.ring !== lb) {
+    const without = { ...worn.gear, ring: lb };
+    if (worn.share(without) >= (1 - RING_GAIN) * worn.share(worn.gear)) {
+      worn.gear.ring = lb;
+      out.lightbearerWorn = true;
+    }
+  }
   const rows: TripRow[] = [];
-  const wornIds = new Set(Object.values(worn.gear));
-  // The quiver's arrows go on the quiver's row; the quiver names them.
   const quiverOf = (gear: Record<string, number>) => {
     const ammo = gear.ammo != null && c.inQuiver(gear.ammo) ? gear.ammo : null;
     return ammo != null && Object.values(gear).some(c.isQuiver) ? ammo : null;
@@ -660,19 +786,85 @@ function raidRows(inp: TripInput, c: CalcHeld & { stats: CalcCtx['stats']; praye
   for (const [slot, id] of Object.entries(worn.gear)) {
     if (id === wq) continue;
     const label = SLOT_LABEL[slot] ?? slot;
-    rows.push(c.row(id, { label, slot, detail: `${label} · your ${worn.kind} setup, worn`, ...(wq != null && c.isQuiver(id) ? { ammo: wq } : {}) }));
+    const detail = LIGHTBEARER.test(name(id)) ? `${label} · spec energy back twice as fast` : `${label} · your ${worn.kind} setup, worn`;
+    rows.push(c.row(id, { label, slot, detail, ...(wq != null && c.isQuiver(id) ? { ammo: wq } : {}) }));
   }
-  const listed = new Set(wornIds);
-  for (const k of switches) {
-    const q = quiverOf(k.gear);
-    for (const id of new Set(Object.values(k.gear))) {
-      // One row per item: a ring both switches wear is packed once.
-      if (listed.has(id) || id === q) continue;
-      listed.add(id);
-      rows.push(c.row(id, { detail: `${KIND_LABEL[k.kind]} switch for ${targetList(k.bosses)}`, ...(q != null && c.isQuiver(id) ? { ammo: q } : {}) }));
+  // The switches: weapons first, then the most DPS per slot, within the trip's switch slots.
+  const budget = inp.content.switchSlots ?? 8;
+  const packed = new Map<number, Kind>();
+  const wornFamilies = new Set(Object.values(worn.gear).map((id) => family(name(id))));
+  const isPacked = (id: number) => packed.has(id) || [...packed.keys()].some((x) => family(name(x)) === family(name(id)));
+  const cost = (id: number) => (wornFamilies.has(family(name(id))) || isPacked(id) || c.inQuiver(id) ? 0 : 1);
+  const plans = others.map((k) => {
+    const gear: Record<string, number> = { ...worn.gear, weapon: k.gear.weapon };
+    const w = inp.idx.item(k.gear.weapon);
+    // What the weapon fires comes with it; a two-hander leaves the shield off.
+    if (k.gear.ammo != null) gear.ammo = k.gear.ammo;
+    else if (gear.ammo != null && w && !ammoFits(w, inp.idx.item(gear.ammo)!)) delete gear.ammo;
+    if (w?.h2) delete gear.shield;
+    const pieces = [k.gear.weapon, ...(k.gear.ammo != null ? [k.gear.ammo] : [])];
+    // Arrows that live in the quiver come only with the quiver.
+    if (k.gear.ammo != null && c.inQuiver(k.gear.ammo) && k.gear.cape != null && c.isQuiver(k.gear.cape) && !Object.values(gear).some(c.isQuiver)) {
+      gear.cape = k.gear.cape;
+      pieces.push(k.gear.cape);
+    }
+    return { k, gear, pieces };
+  });
+  for (const pl of plans) for (const id of pl.pieces) if (cost(id)) packed.set(id, pl.k.kind);
+  for (;;) {
+    let best: { pl: (typeof plans)[number]; slot: string; id: number; gain: number } | null = null;
+    for (const pl of plans) {
+      const now = pl.k.share(pl.gear);
+      for (const [slot, id] of Object.entries(pl.k.gear)) {
+        if (slot === 'weapon' || slot === 'ammo' || pl.gear[slot] === id || (slot === 'shield' && inp.idx.item(pl.gear.weapon)?.h2)) continue;
+        const n = cost(id);
+        if (n && packed.size + n > budget) continue;
+        const gain = (pl.k.share({ ...pl.gear, [slot]: id }) - now) / Math.max(1e-9, now);
+        if (gain < SWITCH_GAIN) continue;
+        const per1 = gain / Math.max(1, n);
+        if (!best || per1 > best.gain) best = { pl, slot, id, gain: per1 };
+      }
+    }
+    if (!best) break;
+    const n = cost(best.id);
+    best.pl.gear[best.slot] = best.id;
+    if (n) {
+      best.pl.pieces.push(best.id);
+      packed.set(best.id, best.pl.k.kind);
     }
   }
-  info.push(`One setup for ${per.length} bosses: ${worn.kind} worn${switches.length ? `, ${switches.map((k) => k.kind).join(' and ')} switches` : ''}`);
+  const listed = new Set<number>();
+  for (const pl of plans) {
+    const q = quiverOf(pl.gear);
+    const forPhase = required.filter((r) => r.styles.includes(pl.k.kind)).map((r) => r.phase);
+    const why = wants.has(pl.k.kind) ? targetList(pl.k.ps.map((p) => shortTarget(p.m.n))) : forPhase.join(', ');
+    for (const id of pl.pieces) {
+      if (listed.has(id) || id === q || !packed.has(id)) continue;
+      listed.add(id);
+      rows.push(c.row(id, { detail: `${KIND_LABEL[pl.k.kind]} switch for ${why}`, ...(q != null && c.isQuiver(id) ? { ammo: q } : {}) }));
+    }
+  }
+  out.switchSlots = packed.size;
+  for (const k of kits) out.kinds.add(k.kind);
+  out.wornIds = Object.values(worn.gear);
+  // The spells the magic kit autocasts, at each boss it is for.
+  const magicGear = worn.kind === 'magic' ? worn.gear : plans.find((pl) => pl.k.kind === 'magic')?.gear;
+  const magicKit = kits.find((k) => k.kind === 'magic');
+  if (magicGear && magicKit) {
+    for (const p of wants.has('magic') ? magicKit.ps : per.slice(0, 1)) {
+      const t = trySpell(magicGear, p.m, p.ctx, null);
+      if (t?.spell) out.casts.set(t.spell, (out.casts.get(t.spell) ?? 0) + castsFor(p.m, t.r));
+    }
+    out.castIds = [magicGear.weapon, ...(magicGear.shield != null ? [magicGear.shield] : [])].filter((x): x is number => x != null);
+  }
+  info.push(`One setup for ${per.length} bosses: ${worn.kind} worn${plans.length ? `, ${plans.map((p) => p.k.kind).join(' and ')} switches` : ''} · Switches: ${packed.size} slot${packed.size === 1 ? '' : 's'}`);
+  for (const r of required) {
+    const need = r.styles.filter((k) => k !== worn.kind);
+    const missing = r.styles.filter((k) => !kits.some((x) => x.kind === k));
+    if (need.length) info.push(`${r.phase}: you'll need ${need.filter((k) => !missing.includes(k)).join(' and ')} switches${missing.length ? ` (nothing in your bank fights with ${missing.join(' or ')})` : ''}`);
+  }
+  // Why every boss is one style, when they are.
+  if (wants.size === 1 && per.length > 1) info.push(`${KIND_LABEL[worn.kind]} does the most damage at every boss here with your bank`);
   return rows;
 }
 
@@ -686,6 +878,125 @@ export function strengthWords(ratio: number): string {
 
 /** An item with no bonuses at all (Lightbearer, Ring of shadows): worn for what it does, never "will do" without. */
 const isUtility = (it: GearItem | null): boolean => !!it && it.b.every((x) => x === 0);
+
+const BOOK_NAME = ['Standard', 'Ancient', 'Lunar', 'Arceuus'];
+/** Thralls by the worn style: a ghost for magic, a skeleton for ranged, a zombie for melee. */
+const THRALL: Record<Kind, string> = { magic: 'Resurrect Greater Ghost', ranged: 'Resurrect Greater Skeleton', melee: 'Resurrect Greater Zombie' };
+
+/**
+ * The calc's spells and rune pouch. The combat spell an autocasting weapon casts (calc.casts) and the
+ * utility spells the trip uses on the player's book (lib/tripContent `spells`; thralls and Death
+ * Charge on Arceuus at a boss; Vengeance on Lunar where `veng`) are priced in runes (SPELL_RUNES).
+ * Runes a worn staff or tome gives without end drop out; a combination rune the player holds takes
+ * two runes' place; the most-needed fit the pouch (4 kinds in a divine pouch, 3 in a plain one) and
+ * the rest take inventory slots. Each rune is checked against the pouch (state.pouch) and inventory.
+ */
+function calcRunes(inp: TripInput, h: Held, calc: CalcOut, levels: Record<string, number> | null): { rows: TripRow[]; slots: number } {
+  const name = (id: number) => inp.nameOf(id);
+  const book = inp.state?.book ?? null;
+  const magic = levels?.magic ?? 99;
+  const spells = new Map(calc.casts);
+  for (const sp of inp.content.spells ?? []) if (book === sp.book && magic >= sp.level) spells.set(sp.name, (spells.get(sp.name) ?? 0) + sp.casts);
+  const boss = inp.content.spec || inp.content.instance;
+  if (book === 3 && boss && magic >= 76) {
+    const worn = [...calc.kinds][0] ?? 'melee';
+    spells.set(THRALL[worn], 10);
+    if (magic >= 80) spells.set('Death Charge', 4);
+  }
+  if (book === 2 && inp.content.veng && magic >= 94 && (levels?.defence ?? 99) >= 40) spells.set('Vengeance', 15);
+  const priced = [...spells].filter(([sp]) => SPELL_RUNES[sp.toLowerCase()]);
+  if (!priced.length) return { rows: [], slots: 0 };
+  const rows: TripRow[] = [];
+  const names = priced.map(([sp]) => sp);
+  rows.push(book == null ? { group: 'book', ok: true, line: `Spells: ${names.join(', ')}` } : { group: 'book', ok: true, line: `${BOOK_NAME[book]} spellbook`, detail: `For ${names.join(', ')}` });
+  // Runes for every cast, less what a worn staff or tome gives.
+  const free = new Set<Rune>();
+  for (const id of [...calc.wornIds, ...calc.castIds]) for (const r of staffRunes(name(id))) free.add(r);
+  const need = new Map<Rune, number>();
+  for (const [sp, n] of priced) for (const [r, q] of Object.entries(SPELL_RUNES[sp.toLowerCase()]) as [Rune, number][]) if (!free.has(r)) need.set(r, (need.get(r) ?? 0) + q * n);
+  // What is held of each rune (and combination rune): the pouch only when it is packed.
+  const pouchIn = inp.inventory.some((it) => inp.isRunePouch(it.id));
+  const carried = new Map<number, number>();
+  const add = (id: number, q: number) => carried.set(id, (carried.get(id) ?? 0) + q);
+  for (const it of inp.inventory) add(it.id, qty(it));
+  if (pouchIn) for (const p of inp.state?.pouch ?? []) add(p.id, p.q);
+  const ownedQ = (id: number) => (h.owned.get(id) ?? 0) + (inp.state?.pouch ?? []).filter((p) => p.id === id).reduce((a, p) => a + p.q, 0);
+  // A combination rune the player holds stands for two needed runes: one pouch kind less.
+  const slots: { id: number; n: number; runes: Rune[] }[] = [];
+  const left = new Map(need);
+  const combos = Object.entries(COMBO).map(([id, rs]) => ({ id: Number(id), rs })).filter((c) => c.rs.length === 2 && c.rs.every((r) => left.has(r)) && ownedQ(c.id) > 0);
+  for (const c of combos.sort((a, b) => ownedQ(b.id) - ownedQ(a.id))) {
+    if (!c.rs.every((r) => left.has(r))) continue;
+    slots.push({ id: c.id, n: Math.max(...c.rs.map((r) => left.get(r)!)), runes: c.rs });
+    for (const r of c.rs) left.delete(r);
+  }
+  for (const [r, n] of left) slots.push({ id: RUNE[r], n, runes: [r] });
+  // What the pouch already holds stays in it; then the most-needed.
+  const inPouchNow = new Set((inp.state?.pouch ?? []).map((p) => p.id));
+  slots.sort((a, b) => Number(inPouchNow.has(b.id)) - Number(inPouchNow.has(a.id)) || b.n - a.n);
+  // The pouch the player owns: a divine one holds four kinds.
+  const pouches = [...h.owned.keys()].filter((id) => inp.isRunePouch(id));
+  const divine = pouches.find((id) => /divine/i.test(name(id)));
+  const pouch = divine ?? pouches[0] ?? null;
+  const cap = pouch == null ? 0 : divine != null ? 4 : 3;
+  if (pouch != null) {
+    rows.push(pouchIn ? { group: 'pouch', ok: true, line: `${shortName(name(pouch))} packed`, item: pouch, need: 1 } : { group: 'pouch', ok: false, line: `${shortName(name(pouch))}: in your bank`, detail: `For ${names.join(', ')}`, item: pouch, need: 1, bank: h.inBank(pouch) });
+  } else rows.push({ group: 'pouch', ok: false, line: 'No rune pouch', detail: 'Runes take a slot each without one' });
+  slots.forEach((sl, i) => {
+    const inPouch = i < cap;
+    const have = carried.get(sl.id) ?? 0;
+    const label = `${shortName(name(sl.id))}s`;
+    const own = ownedQ(sl.id);
+    rows.push(
+      have >= sl.n
+        ? { group: 'pouch', ok: true, line: `${label} ${have}${inPouch ? ' in the pouch' : ''}`, item: sl.id, need: sl.n, inPouch }
+        : { group: 'pouch', ok: false, line: own >= sl.n ? `${label}: have ${have}, take ${sl.n}` : `${label}: ${own ? `only ${own}` : 'none'} owned, need ${sl.n}`, detail: `${inPouch ? 'In the rune pouch' : 'In your inventory'} · for ${names.filter((sp) => sl.runes.some((r) => SPELL_RUNES[sp.toLowerCase()]?.[r])).join(', ')}`, item: sl.id, need: sl.n, inPouch, bank: h.inBank(sl.id) },
+    );
+  });
+  // The pouch takes a slot, and each rune kind it can't hold another.
+  return { rows, slots: (pouch != null ? 1 : 0) + Math.max(0, slots.length - cap) };
+}
+
+/**
+ * The supplies a calc setup packs: the trip's template (lib/tripContent `supplies`, else a default),
+ * each kind's best item the player owns (lib/tripSupplies), a style's potion only when that style is
+ * used, and food for whatever room the switches and spec leave in 28. A kind the player owns none of
+ * is a red row naming the usual item.
+ */
+function calcSupplies(inp: TripInput, h: Held, gear: readonly TripRow[], calc: CalcOut, runeSlots: number): TripRow[] {
+  const name = (id: number) => inp.nameOf(id);
+  const owned = [...h.owned.keys()].map((id) => ({ id, name: name(id) }));
+  const carried = new Map<string, number>();
+  for (const it of inp.inventory) carried.set(supplyKind(name(it.id)), (carried.get(supplyKind(name(it.id))) ?? 0) + qty(it));
+  // Inventory slots the gear takes: each switch and the spec weapon (worn pieces take none).
+  const used = new Set(gear.filter((r) => r.item != null && ((r.group === 'gear' && !r.slot) || r.group === 'spec')).map((r) => r.item!));
+  // The rune pouch and runes that don't fit in it take `runeSlots`; else one slot is kept for a teleport.
+  let room = 28 - used.size - Math.max(1, runeSlots);
+  // Content with its own food-and-restore check (`basics`) keeps it; the calc adds the rest.
+  const template = (inp.content.supplies ?? DEFAULT_SUPPLIES).filter((t) => (!t.style || calc.kinds.has(t.style)) && !(inp.content.basics && ['Food', 'Restores', 'Brews'].includes(t.kind)));
+  const rows: TripRow[] = [];
+  const fixed = template.reduce((a, t) => a + (t.n === 'fill' ? 0 : t.n), 0);
+  const fill = Math.max(0, room - fixed);
+  for (const t of template) {
+    const n = Math.min(t.n === 'fill' ? fill : t.n, Math.max(0, room));
+    if (n <= 0) continue;
+    room -= n;
+    const own = ownedSupply(t.kind, owned);
+    const id = own?.id ?? SUPPLY_ITEMS[t.kind][0].id;
+    const kind = supplyKind(name(id));
+    const label = t.kind === 'Magic boost' ? shortName(name(id)) : t.kind;
+    const have = carried.get(kind) ?? 0;
+    const bank = [...new Set(inp.bank.map((it) => it.id).filter((b) => supplyKind(name(b)) === kind))];
+    rows.push(
+      !own
+        ? { group: 'supplies', ok: false, line: `${label}: none in your bank`, detail: `${n} ${shortName(name(id))}, or another of the kind`, item: id, need: n }
+        : have >= n
+          ? { group: 'supplies', ok: true, line: `${label} ${have}`, item: id, need: n, bank }
+          : { group: 'supplies', ok: false, line: `${label}: have ${have}, take ${n}`, detail: shortName(name(id)), item: id, need: n, bank },
+    );
+  }
+  return rows;
+}
 
 /**
  * A ToA boss at a raid level: every 5 levels add 2% to its hitpoints and its defence roll (the engine
@@ -714,6 +1025,8 @@ export function checkTrip(input: TripInput): TripCheck {
   const pouchIn = inp.inventory.some((it) => inp.isRunePouch(it.id));
   const packedNotWorn: string[] = [];
   const info0: string[] = [];
+  // The calc's gear (no setup): the styles it fights with and the switch slots, for its supplies.
+  let calc: CalcOut | null = null;
 
   // ── Gear ──
   const specIn = (ids: number[]) => ids.filter((id) => isSpecWeapon(inp.idx.item(id)?.n ?? name(id)));
@@ -800,11 +1113,19 @@ export function checkTrip(input: TripInput): TripCheck {
     const ch = calcHeld(inp, h, qv && typeof qv === 'object' ? qv : null, quiverIn);
     const short = new Map<string, { targets: string[]; row: TripRow }>();
     // A raid (several bosses) is ONE trip with one inventory: one setup, never a list per boss.
-    if (inp.monsters.length > 1) rows.push(...raidRows(inp, { ...ch, stats, prayer, ownedIds, carriedIds }, info0));
+    calc = { kinds: new Set(), switchSlots: 0, casts: new Map(), wornIds: [], castIds: [] };
+    if (inp.monsters.length > 1) rows.push(...raidRows(inp, { ...ch, stats, prayer, ownedIds, carriedIds }, info0, calc));
     else for (const m of inp.monsters) {
-      const ctx: CalcCtx = { idx: inp.idx, stats, prayer, spell: calcSpell(state?.book ?? 0, stats.magic, m.ew) };
+      const ctx: CalcCtx = { idx: inp.idx, stats, prayer, spell: calcSpell(state?.book ?? 0, stats.magic, m.ew), spells: calcSpells(state?.book ?? 0, stats.magic, m) };
       const o = bestLoadout(m, ownedIds, ctx);
       if (!o) continue;
+      calc.kinds.add(kindOfType(o.result.style.type));
+      calc.wornIds = Object.values(o.gear);
+      const cast = trySpell(o.gear, m, ctx, null);
+      if (cast?.spell) {
+        calc.casts.set(cast.spell, (calc.casts.get(cast.spell) ?? 0) + castsFor(m, cast.r));
+        calc.castIds = [o.gear.weapon, ...(o.gear.shield != null ? [o.gear.shield] : [])];
+      }
       const c = bestLoadout(m, carriedIds, ctx);
       const target = shortTarget(m.n);
       if (c && c.result.dps >= CALC_FLOOR * o.result.dps) {
@@ -860,6 +1181,13 @@ export function checkTrip(input: TripInput): TripCheck {
     rows.push(h.carries(lightbearer)
       ? { group: 'spec', ok: true, line: 'Lightbearer: spec energy back twice as fast', item: lightbearer }
       : { group: 'spec', ok: false, line: 'Lightbearer (ring switch): in your bank', detail: 'Spec energy back twice as fast: wear it between specs', item: lightbearer, bank: h.inBank(lightbearer) });
+  }
+
+  // ── The calc's supplies: the trip's template, filled from the bank, room left after the switches ──
+  if (calc) {
+    const runes = calcRunes(inp, h, calc, levels);
+    rows.push(...runes.rows);
+    rows.push(...calcSupplies(inp, h, rows, calc, runes.slots));
   }
 
   // ── Spellbook and runes ──

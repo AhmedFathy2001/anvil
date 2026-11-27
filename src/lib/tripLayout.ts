@@ -132,8 +132,12 @@ export function tripLayout(inp: LayoutInput): TripLayout {
       const n = name(id);
       return inp.isSpec(id) ? 1 : inp.slotOf(id) && !isStackable(n) ? 0 : POTION_RE.test(n) ? 2 : FOOD_RE.test(n) ? 3 : TELEPORT_RE.test(n) ? 5 : 4;
     };
-    const rest = inp.inventory.filter((it) => !picked.includes(it.id) && !wornIds.has(it.id));
-    const all: InvItem[] = [...picked.map((id) => ({ id })), ...rest];
+    // The calc's supplies (rows with a count): packed as many as it says; what is packed besides of
+    // the same kind is them, not extra.
+    const supplies: InvItem[] = inp.rows.filter((r) => (r.group === 'supplies' || (r.group === 'pouch' && !r.inPouch)) && r.item != null && r.need).map((r) => ({ id: r.item!, q: r.need }));
+    const supplyKinds = new Set(supplies.map((it) => supplyKind(name(it.id))));
+    const rest = inp.inventory.filter((it) => !picked.includes(it.id) && !wornIds.has(it.id) && !(supplyKinds.has(supplyKind(name(it.id))) && !inp.slotOf(it.id)));
+    const all: InvItem[] = [...picked.map((id) => ({ id })), ...supplies, ...rest];
     all.sort((a, b) => rank(a.id) - rank(b.id));
     for (const it of all) put(it);
   }
@@ -142,7 +146,9 @@ export function tripLayout(inp: LayoutInput): TripLayout {
   // ── Rune pouch and quiver ──
   const pouchPacked = inp.inventory.some((it) => inp.isRunePouch(it.id));
   const inPouch = new Map((pouchPacked ? inp.state?.pouch ?? [] : []).map((p) => [p.id, p.q]));
-  const pouch = (inp.setup?.runePouch ?? []).map((p): LayoutItem => ({ id: p.id, ...(p.q && p.q > 1 ? { q: p.q } : {}), have: (inPouch.get(p.id) ?? 0) >= Math.max(1, Math.min(p.q ?? 1, 100)) || inp.carries(p.id) ? 'here' : inp.owns(p.id) ? 'bank' : 'none' }));
+  // The calc's pouch: the runes its rows put there.
+  const calcPouch = inp.setup ? null : inp.rows.filter((r) => r.group === 'pouch' && r.inPouch && r.item != null).map((r) => ({ id: r.item!, q: r.need }));
+  const pouch = (calcPouch ?? inp.setup?.runePouch ?? []).map((p): LayoutItem => ({ id: p.id, ...(p.q && p.q > 1 ? { q: p.q } : {}), have: (inPouch.get(p.id) ?? 0) >= Math.max(1, calcPouch ? p.q ?? 1 : Math.min(p.q ?? 1, 100)) || (!calcPouch && inp.carries(p.id)) ? 'here' : inp.owns(p.id) ? 'bank' : 'none' }));
   const qid = inp.setup?.quiver ?? inp.setup?.gear.quiver ?? null;
   const qv = inp.state?.quiver;
   const quiver: LayoutItem | null = qid ? { id: qid, ...(qv && qv.id === qid ? { q: qv.q } : {}), have: qv && qv.id === qid ? 'here' : inp.owns(qid) ? 'bank' : 'none' } : null;

@@ -39,19 +39,72 @@ export interface TripContent {
   fightRegions?: number[];
   /** Any instance counts as the fight area too: a raid entered from its lobby or bank. */
   instance?: true;
+  /**
+   * Phases that need a style whatever the DPS says (the Wardens' P2 prays against the style just used,
+   * so players rotate): the calc always packs a weapon switch for each.
+   */
+  requires?: { phase: string; styles: ('melee' | 'ranged' | 'magic')[] }[];
+  /** Inventory slots the calc may spend on gear switches (weapons first); the rest go to supplies. */
+  switchSlots?: number;
+  /**
+   * The supplies the calc packs (lib/tripSupplies kinds and counts); 'fill' takes what is left.
+   * Absent: a default of restores, the style's potion and food to fill.
+   */
+  supplies?: { kind: SupplyKind; n: number | 'fill'; style?: 'melee' | 'ranged' | 'magic' }[];
+  /** Utility spells the trip casts (their runes go in the pouch): on `book` (0 standard … 3 Arceuus) only. */
+  spells?: { name: string; book: 0 | 1 | 2 | 3; level: number; casts: number }[];
+  /** Vengeance is cast here when the player is on Lunar. */
+  veng?: true;
 }
+
+/** A kind of supply the calc packs (lib/tripSupplies names each kind's items, best first). */
+export type SupplyKind = 'Restores' | 'Brews' | 'Combat potions' | 'Ranging potions' | 'Magic boost' | 'Antifires' | 'Anti-venoms' | 'Food';
 
 /** Mokhaiotl waystone: a one-use teleport to the Doom's ruins, carried for nothing else. */
 export const MOKHAIOTL_WAYSTONE = 31099;
 
 export const TRIP_CONTENT: TripContent[] = [
-  { key: 'toa', name: 'Tombs of Amascut', short: 'ToA', guide: 'tombs-of-amascut-entry', spec: true, instance: true, targets: ['Akkha', 'Ba-Ba', 'Kephri#Shielded', 'Zebak#Normal', "Tumeken's Warden#Damaged"] },
-  { key: 'tob', name: 'Theatre of Blood', short: 'ToB', spec: true, instance: true, targets: ['The Maiden of Sugadinti#Normal', 'Pestilent Bloat#Normal', 'Sotetseg#Normal', 'Xarpus', 'Verzik Vitur#Phase 3'] },
-  { key: 'cox', name: 'Chambers of Xeric', short: 'CoX', guide: 'chambers-of-xeric-learner', spec: true, instance: true, targets: ['Tekton#Normal', 'Vespula#Normal', 'Vasa Nistirio#Normal', 'Great Olm#Head (Normal)', 'Great Olm#Left claw (Normal)'] },
+  // The raid's own supplies (nectars, tears, salts, ambrosia) come from the Helpful Spirit: a few
+  // restores and brews, a boost per style and an anti-venom for Kephri are all that is brought.
+  {
+    key: 'toa', name: 'Tombs of Amascut', short: 'ToA', guide: 'tombs-of-amascut-entry', spec: true, instance: true,
+    targets: ['Akkha', 'Ba-Ba', 'Kephri#Shielded', 'Zebak#Normal', "Tumeken's Warden#Damaged"],
+    requires: [{ phase: 'Wardens P2', styles: ['magic', 'ranged', 'melee'] }],
+    switchSlots: 8,
+    supplies: [{ kind: 'Combat potions', n: 1, style: 'melee' }, { kind: 'Ranging potions', n: 1, style: 'ranged' }, { kind: 'Magic boost', n: 1, style: 'magic' }, { kind: 'Restores', n: 3 }, { kind: 'Brews', n: 2 }, { kind: 'Anti-venoms', n: 1 }, { kind: 'Food', n: 2 }],
+  },
+  {
+    key: 'tob', name: 'Theatre of Blood', short: 'ToB', spec: true, instance: true,
+    targets: ['The Maiden of Sugadinti#Normal', 'Pestilent Bloat#Normal', 'Sotetseg#Normal', 'Xarpus', 'Verzik Vitur#Phase 3'],
+    // The Nylocas come in all three styles.
+    requires: [{ phase: 'Nylocas', styles: ['melee', 'ranged', 'magic'] }],
+    switchSlots: 8,
+    veng: true,
+    supplies: [{ kind: 'Combat potions', n: 1, style: 'melee' }, { kind: 'Ranging potions', n: 1, style: 'ranged' }, { kind: 'Magic boost', n: 1, style: 'magic' }, { kind: 'Restores', n: 'fill' }, { kind: 'Brews', n: 4 }],
+  },
+  {
+    key: 'cox', name: 'Chambers of Xeric', short: 'CoX', guide: 'chambers-of-xeric-learner', spec: true, instance: true,
+    targets: ['Tekton#Normal', 'Vespula#Normal', 'Vasa Nistirio#Normal', 'Great Olm#Head (Normal)', 'Great Olm#Left claw (Normal)'],
+    // The Olm's hands are meleed, its head shot or maged. Potions and food are made inside the raid.
+    requires: [{ phase: 'Great Olm', styles: ['melee', 'ranged'] }],
+    switchSlots: 8,
+    supplies: [{ kind: 'Restores', n: 2 }, { kind: 'Food', n: 2 }],
+  },
   // Ungael (2272,4064) and Vorkath's lair (its template, 2269,4062) are both region 9023.
-  { key: 'vorkath', name: 'Vorkath', short: 'Vorkath', guide: 'vorkath-guide', targets: ['Vorkath#Post-quest'], fightRegions: [9023] },
+  {
+    key: 'vorkath', name: 'Vorkath', short: 'Vorkath', guide: 'vorkath-guide', targets: ['Vorkath#Post-quest'], fightRegions: [9023],
+    supplies: [{ kind: 'Ranging potions', n: 1, style: 'ranged' }, { kind: 'Combat potions', n: 1, style: 'melee' }, { kind: 'Magic boost', n: 1, style: 'magic' }, { kind: 'Antifires', n: 1 }, { kind: 'Anti-venoms', n: 1 }, { kind: 'Restores', n: 2 }, { kind: 'Food', n: 'fill' }],
+    // The zombified spawn: one Crumble Undead a kill.
+    spells: [{ name: 'Crumble Undead', book: 0, level: 39, casts: 10 }],
+  },
   // Zulrah's shrine 2268,3070 (the instance's template); Zul-Andra itself (8751) is where players bank.
-  { key: 'zulrah', name: 'Zulrah', short: 'Zulrah', targets: ['Zulrah#Serpentine', 'Zulrah#Magma', 'Zulrah#Tanzanite'], fightRegions: [9007] },
+  {
+    key: 'zulrah', name: 'Zulrah', short: 'Zulrah', targets: ['Zulrah#Serpentine', 'Zulrah#Magma', 'Zulrah#Tanzanite'], fightRegions: [9007],
+    // Green and blue phases: both a bow and a staff, whatever wins.
+    requires: [{ phase: 'Zulrah', styles: ['magic', 'ranged'] }],
+    switchSlots: 8,
+    supplies: [{ kind: 'Ranging potions', n: 1, style: 'ranged' }, { kind: 'Magic boost', n: 1, style: 'magic' }, { kind: 'Anti-venoms', n: 1 }, { kind: 'Restores', n: 2 }, { kind: 'Food', n: 'fill' }],
+  },
   // The Barrows 3565,3288 and the crypts 3551,9695.
   { key: 'barrows', name: 'Barrows', short: 'Barrows', guide: 'barrows-beginners', targets: ['Ahrim the Blighted', 'Dharok the Wretched', 'Karil the Tainted', 'Verac the Defiled'], fightRegions: [14131, 14231] },
   { key: 'nex', name: 'Nex', short: 'Nex', spec: true, targets: ['Nex'] },
