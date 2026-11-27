@@ -1,5 +1,6 @@
 // The data behind the pre-trip check (pluginUi/tripUi): view 'trip' and the actions 'trip-save',
-// 'trip-forget' and 'trip-raid' (the ToA raid level, lib/tripRaidLevel). The plugin loads the view
+// 'trip-forget', 'trip-raid' (the ToA raid level, lib/tripRaidLevel) and 'trip-plan' (the loadout
+// plan, lib/tripLoadout). The plugin loads the view
 // with args {region, why: 'bank-close' | 'manual'} when the bank closes in one of the config's
 // `tripRegions` (lib/tripContent), or when the player asks; the answer is the usual {ui} plus `warn` for its overlay:
 //
@@ -33,7 +34,9 @@ import { ownStats, setupResult, withSlot } from '@/lib/gearNow';
 import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, type TripContent } from '@/lib/tripContent';
 import { tripRegions } from '@/lib/guideAreas';
 import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
-import { cleanRaidLevel, RAID_LEVELS, raidLevelFor, saveRaidLevel } from '@/lib/tripRaidLevel';
+import { cleanRaidLevel, RAID_LEVELS, raidLevelFor, saveRaidLevel, saveTripPlan, tripPlanFor } from '@/lib/tripRaidLevel';
+import { cleanPlan, hasProfile, loadoutFor, withPlan, type TripPlan } from '@/lib/tripLoadout';
+import type { Preset } from '@/lib/loadout/types';
 import { canonicalKey, ownAlias, targetWhy, type Target } from '@/lib/tripTarget';
 import { clearTarget, currentTarget, ownTripKeys, pickTarget } from '@/lib/tripTargetStore';
 import type { GuideViewer } from '@/lib/guideViewer';
@@ -69,16 +72,17 @@ const regionOf = (args: Args): number | null => {
   return Number.isInteger(r) && r > 0 && r < 1 << 16 ? r : null;
 };
 
-let names: { from: MappingItem[]; byId: Map<number, string>; pouches: Set<number> } | null = null;
+type Names = { byId: Map<number, string>; pouches: Set<number>; byName?: Map<string, number> };
+let names: (Names & { from: MappingItem[] }) | null = null;
 let namesFetch: Promise<unknown> | null = null;
 /** The game's item names. Once known, a check never waits on the mapping's refetch (a second or more). */
-async function itemNames(): Promise<{ byId: Map<number, string>; pouches: Set<number> }> {
+async function itemNames(): Promise<Names> {
   const load = () => {
     namesFetch ??= getItemMapping()
       .catch(() => [] as MappingItem[])
       .then((mapping) => {
         if (names?.from !== mapping && (mapping.length || !names)) {
-          names = { from: mapping, byId: new Map(mapping.map((m) => [m.id, m.gameName ?? m.name])), pouches: new Set(mapping.filter((m) => /^(divine )?rune pouch\b/i.test(m.gameName ?? m.name)).map((m) => m.id)) };
+          names = { from: mapping, byId: new Map(mapping.map((m) => [m.id, m.gameName ?? m.name])), byName: new Map([...mapping].reverse().map((m) => [(m.gameName ?? m.name).toLowerCase(), m.id])), pouches: new Set(mapping.filter((m) => /^(divine )?rune pouch\b/i.test(m.gameName ?? m.name)).map((m) => m.id)) };
         }
       })
       .finally(() => (namesFetch = null));
@@ -199,6 +203,8 @@ interface Resolved {
   names?: Record<number, string>;
   /** The monsters it was checked against (for an adjusted setup's DPS). */
   monsters?: Monster[];
+  /** The loadout engine's plan (a trip with a boss profile, no own or guide setup). */
+  plan?: TripPlan;
 }
 
 /** What a check reads besides the setup, kept so an adjusted setup is checked the same way. */
@@ -207,7 +213,7 @@ interface CheckCtx {
   viewer: GuideViewer;
   idx: GearIndex;
   state: TripState | null;
-  nm: { byId: Map<number, string>; pouches: Set<number> };
+  nm: Names;
   worn: InvItem[];
   inventory: InvItem[];
   bank: InvItem[];
@@ -217,7 +223,7 @@ interface CheckCtx {
 }
 
 /** The check of `setup` (null: the calc) and its layout. */
-function runCheck(c: CheckCtx, setup: GearSetup | null, source: TripSource, monsters: Monster[]): Pick<Resolved, 'check' | 'layout' | 'names'> {
+function runCheck(c: CheckCtx, setup: GearSetup | null, source: TripSource, monsters: Monster[], plan?: TripPlan): Pick<Resolved, 'check' | 'layout' | 'names'> {
   const { content, viewer, idx, state, nm, worn, inventory, bank, lootingBag } = c;
   const heldIds = [...worn, ...inventory, ...bank, ...(lootingBag ?? [])].map((i) => i.id);
   const setupIds = setup ? [...Object.values(setup.gear), ...Object.values(setup.alts ?? {}).flat(), ...(setup.inventory ?? []).filter((x): x is InvItem => !!x).map((x) => x.id)].filter((x): x is number => typeof x === 'number') : [];
@@ -225,7 +231,8 @@ function runCheck(c: CheckCtx, setup: GearSetup | null, source: TripSource, mons
   const holds = equivalentsFor(heldIds, 'holds');
   const nameOf = (id: number) => nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
   const isRunePouch = (id: number) => nm.pouches.has(id);
-  const check: TripCheck = checkTrip({ content, setup, source, monsters, worn, inventory, bank, lootingBag, state, levels: viewer.levels, idx, needs, holds, nameOf, isRunePouch, raidLevel: c.raidLevel, prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {} });
+  const checked: TripCheck = checkTrip({ content, setup, source, monsters, worn, inventory, bank, lootingBag, state, levels: viewer.levels, idx, needs, holds, nameOf, isRunePouch, raidLevel: c.raidLevel, prefs: viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()) } : {} });
+  const check = plan ? withPlan(checked, plan) : checked;
   // Holding X counts as X's forms and upgrades (as the check reads it).
   const wide = (list: readonly InvItem[]) => {
     const raw = new Set(list.map((i) => i.id));
@@ -354,12 +361,14 @@ async function resolveCheck(c: {
   viewer: GuideViewer;
   idx: GearIndex;
   state: TripState | null;
-  nm: { byId: Map<number, string>; pouches: Set<number> };
+  nm: Names;
   worn: InvItem[];
   inventory: InvItem[];
   bank: InvItem[];
   lootingBag: InvItem[] | undefined;
   raidLevel: number | null;
+  /** The loadout plan picked for a trip with a boss profile (lib/tripLoadout). */
+  preset: Preset | null;
   t: ReturnType<typeof phases>;
 }): Promise<Resolved> {
   const { content, own, viewer, idx, t } = c;
@@ -387,10 +396,24 @@ async function resolveCheck(c: {
   if (source === 'calc') sourceLine = calcSourceLine(content);
   t.mark('setup');
   const monsters = targets.map((x) => idx.monster(x)).filter((m): m is Monster => !!m).map((m) => raidScaled(m, c.raidLevel));
-  if (!monsters.length && source === 'calc') return { source, sourceLine, guide, setup, check: null, monsters };
-  const out = runCheck(c, setup, source, monsters);
+  // A trip with a boss profile: the loadout engine's setup for the plan picked, checked like a
+  // guide's (the doll its worn loadout, the inventory its switches and supplies).
+  let plan: TripPlan | undefined;
+  if (source === 'calc' && hasProfile(content.key)) {
+    const holds = equivalentsFor([...c.worn, ...c.inventory, ...c.bank, ...(c.lootingBag ?? [])].map((i) => i.id), 'holds');
+    const nameOf = (id: number) => c.nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
+    const got = loadoutFor({ contentKey: content.key, preset: c.preset, idx, worn: c.worn, inventory: c.inventory, bank: c.bank, lootingBag: c.lootingBag, state: c.state, levels: viewer.levels, raidLevel: c.raidLevel, nameOf, holds, isRunePouch: (id) => c.nm.pouches.has(id), idOfName: (n) => c.nm.byName?.get(n.toLowerCase()) ?? null });
+    if (got) {
+      setup = got.setup;
+      plan = got.plan;
+      sourceLine = got.sourceLine;
+      t.mark('loadout');
+    }
+  }
+  if (!monsters.length && source === 'calc' && !setup) return { source, sourceLine, guide, setup, check: null, monsters };
+  const out = runCheck(c, setup, source, monsters, plan);
   t.mark('check');
-  return { source, sourceLine, guide, setup, monsters, ...out };
+  return { source, sourceLine, guide, setup, monsters, plan, ...out };
 }
 
 async function build(request: Request, args: Args, viewer: GuideViewer, note: string | null, t = phases()): Promise<Built> {
@@ -453,22 +476,27 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const behind = !!content && !note && args.held === '1' && age > BEHIND_MS;
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
-  const [state, own, nm, raidLevel] = await Promise.all([
+  const [state, own, nm, raidLevel, planPref] = await Promise.all([
     tripStateForViewer(viewer.userId, viewer.accountId),
     ownSetupFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []),
     itemNames(),
     // ToA's bosses scale with the raid level the player set (lib/tripRaidLevel).
     content.key === 'toa' ? raidLevelFor(viewer.accountId) : Promise.resolve(null),
+    // The loadout plan picked for a trip the engine has a profile for (lib/tripLoadout).
+    hasProfile(content.key) ? tripPlanFor(viewer.accountId, content.key) : Promise.resolve(null),
   ]);
+  const preset = hasProfile(content.key) ? cleanPlan(planPref) : null;
   t.mark('reads');
   const clanId = content.guide ? await pluginClanId(request, args) : null;
   // Everything the setup and the check read, hashed: the same items, setup and state give the same
   // answer, so a bank-close ask after a warm (warmTrip, on the items push) or a repeat is instant.
-  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx), raidLevel]);
+  // Each container's readAt too: a reload after any push is worked out from that push (its items are
+  // the key already; the stamps make it so even when a push resent the same items).
+  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx), raidLevel, preset, [snap.equipment?.readAt, snap.inventory?.readAt, snap.bank?.readAt, snap.lootingBag?.readAt]]);
   const hit = CHECKS.get(key);
   const fresh = hit && Date.now() - hit.at < CHECK_TTL ? hit : null;
   if (!fresh) {
-    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel, t });
+    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel, preset, t });
     remember(key, p);
     p.catch(() => CHECKS.delete(key));
   }
@@ -484,13 +512,14 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const from = baseSetup(got, content, viewer.levels);
   const setup = hasPicks ? adjusted(from, swaps, idx) : from;
   if (hasPicks) {
-    ({ check, layout, names } = runCheck(ctx, setup, source === 'own' ? 'own' : 'guide', got.monsters ?? []));
-    sourceLine = `Your picks over ${source === 'own' ? 'your saved setup' : source === 'guide' ? "the guide's setup" : 'the setup worked out from your bank'}`;
+    ({ check, layout, names } = runCheck(ctx, setup, source === 'own' ? 'own' : 'guide', got.monsters ?? [], got.plan));
+    sourceLine = `Your picks over ${source === 'own' ? 'your saved setup' : source === 'guide' ? "the guide's setup" : got.plan ? 'the plan worked out from your bank' : 'the setup worked out from your bank'}`;
     t.mark('adjusted');
   }
   const alts = args.alt && /^[a-z]{3,7}$/.test(args.alt) ? alternatives(args.alt, setup, got.monsters ?? [], ctx) : null;
   const data: TripPanelData = {
     raid: raidLevel != null ? { level: raidLevel, levels: RAID_LEVELS } : null,
+    plan: got.plan ? { preset: got.plan.preset, presets: got.plan.presets, blurb: got.plan.blurb } : null,
     ...withContent,
     source,
     sourceLine,
@@ -562,7 +591,7 @@ export async function warmTrip(request: Request, region: number | null): Promise
 
 /** 'trip-save' (what they wear and carry becomes their setup for the trip) and 'trip-forget'. */
 export async function tripAct(request: Request, act: string, args: Args): Promise<View | null> {
-  if (act !== 'trip-save' && act !== 'trip-forget' && act !== 'trip-raid') return null;
+  if (act !== 'trip-save' && act !== 'trip-forget' && act !== 'trip-raid' && act !== 'trip-plan') return null;
   const viewer = await tripViewer(request);
   if (viewer === 'not-yours' || !viewer.userId || !viewer.accountId) return message('Sign in with the plugin, on your own character, to save a setup.');
   const rl = await rateLimit(request, `plugin-trip-setups:${viewer.userId}`, { limit: 20, windowMs: 60_000 });
@@ -578,6 +607,13 @@ export async function tripAct(request: Request, act: string, args: Args): Promis
     if (level != null) await saveRaidLevel(viewer.accountId, level);
     // The player's picks over the setup stay.
     return tripView(request, { ...again, ...(args.swap ? { swap: args.swap } : {}) });
+  }
+  if (act === 'trip-plan') {
+    // The loadout plan (Learner / Experienced / Max DPS), remembered per character and trip. Picks
+    // over the old plan's setup don't carry over: the plan is a new setup.
+    const plan = cleanPlan(args.plan);
+    if (plan && hasProfile(content.key)) await saveTripPlan(viewer.accountId, content.key, plan);
+    return tripView(request, again);
   }
   if (act === 'trip-forget') {
     await forgetOwnTripSetup(viewer.userId, viewer.accountId, content.key);

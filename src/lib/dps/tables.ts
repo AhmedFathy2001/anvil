@@ -184,7 +184,8 @@ export function togglePrayer(current: string[], key: string): string[] {
 
 /** The combined multipliers of the active prayers for one combat style. */
 export function prayerMultipliers(p: string | string[] | null | undefined, kind: CombatKind): { acc: number; str: number } {
-  const on = PRAYERS.filter((x) => x.style === kind && prayerKeys(p).includes(x.key));
+  const keys = new Set(prayerKeys(p));
+  const on = PRAYERS.filter((x) => x.style === kind && keys.has(x.key));
   return {
     acc: Math.max(1, ...on.map((x) => x.acc)),
     str: Math.max(1, ...on.map((x) => x.str)),

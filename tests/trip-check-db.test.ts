@@ -133,7 +133,7 @@ test('warm: an items push with the bank works the check out; the bank-close ask 
   try {
     await warmTrip(req('warm-me', 'WarmMe'), 13454);
     const first = (await tripView(req('warm-me', 'WarmMe'), { region: '13454', why: 'bank-close' })) as W;
-    assert.match(first.warn?.title ?? '', /^(ToA · \d+ problems?|✓ Ready for ToA)$/);
+    assert.match(first.warn?.title ?? '', /^(ToA: \d+ problems?|✓ Ready for ToA)$/);
     assert.equal(first.warn?.instance, true, 'a raid: any instance is the fight area');
     assert.ok(logs.some((l) => JSON.stringify(l).includes('"cached"')), 'the ask found the warm');
     logs.length = 0;
@@ -184,4 +184,46 @@ test('items: an emptied container (everything banked) is stored as an empty list
   const snap = await items.snapshotForViewer(me.userId, me.accountId);
   assert.deepEqual(snap?.equipment?.items, []);
   assert.deepEqual(snap?.inventory?.items, []);
+});
+
+test('reload after a push: worked out from that push even when it resent the same items; the plan and the raid level are kept side by side', async () => {
+  const items = await import('../src/lib/playerItems.ts');
+  const { tripView, tripAct } = await import('../src/lib/pluginUi/tripView.ts');
+  const { raidLevelFor, saveRaidLevel, tripPlanFor } = await import('../src/lib/tripRaidLevel.ts');
+  const { createHash } = await import('node:crypto');
+  const me = await user('ReloadMe');
+  await pool.query(`UPDATE users SET plugin_token_hash = $1 WHERE id = $2`, [createHash('sha256').update('reload-me').digest('hex'), me.userId]);
+  const at = () => new Date().toISOString();
+  const worn = [{ id: 27275 }, { id: 21018 }];
+  await items.saveSnapshot(me.accountId, { bank: { items: [{ id: 20997 }, { id: 26219 }, { id: 385, q: 50 }], readAt: at() }, equipment: { items: worn, readAt: at() }, inventory: { items: [], readAt: at() } });
+  const req = () => new Request('https://example.test/api/plugin/ui?v=trip', { headers: { Authorization: 'Bearer reload-me', 'X-RSN': 'ReloadMe' } });
+  const args = { why: 'manual', content: 'toa' };
+  const logs: unknown[][] = [];
+  const orig = console.log;
+  console.log = (...a: unknown[]) => void logs.push(a);
+  process.env.TRIP_TIMING = '1';
+  try {
+    const first = JSON.stringify(await tripView(req(), args));
+    assert.match(first, /"act":"trip-plan"/, 'ToA has a profile: the plan chooser');
+    logs.length = 0;
+    await tripView(req(), args);
+    assert.ok(logs.some((l) => JSON.stringify(l).includes('"cached"')), 'nothing pushed: the same answer');
+    logs.length = 0;
+    await new Promise((r) => setTimeout(r, 5));
+    await items.saveSnapshot(me.accountId, { equipment: { items: worn, readAt: at() } });
+    await tripView(req(), args);
+    assert.ok(!logs.some((l) => JSON.stringify(l).includes('"cached"')), 'a push came: worked out from it');
+  } finally {
+    console.log = orig;
+    delete process.env.TRIP_TIMING;
+  }
+  await saveRaidLevel(me.accountId, 450);
+  const after = JSON.stringify(await tripAct(req(), 'trip-plan', { content: 'toa', plan: 'max' }));
+  assert.equal(await tripPlanFor(me.accountId, 'toa'), 'max');
+  assert.equal(await raidLevelFor(me.accountId), 450, 'the plan did not wipe the raid level');
+  assert.match(after, /Max DPS plan/);
+  await saveRaidLevel(me.accountId, 300);
+  assert.equal(await tripPlanFor(me.accountId, 'toa'), 'max', 'nor the raid level the plan');
+  await tripAct(req(), 'trip-plan', { content: 'toa', plan: 'junk' });
+  assert.equal(await tripPlanFor(me.accountId, 'toa'), 'max', 'an unknown plan is ignored');
 });

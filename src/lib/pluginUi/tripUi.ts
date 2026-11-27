@@ -5,6 +5,8 @@
 //   Pre-trip check                                ↻
 //   Trip: ToA · picked from the ToA lobby · change
 //   (away from a trip region: "Checking for: Doom (last trip) · change   clear", lib/tripTarget)
+//   [ Learner | Experienced | Max DPS ]           a trip the loadout engine has a profile for
+//   One weapon per style, your armour stays on…    (lib/tripLoadout): the plan the setup is built to
 //   ┌ 5 problems · 4 in your bank · 2 not owned ──┐
 //   │ Checked against your own saved setup · 18:42 │
 //   │      [equipment screen, wells coloured]      │   green packed, amber in bank, red not owned
@@ -21,7 +23,7 @@
 // before: failing open, the rest folded to "✓ N checks met". No combat cues, ever.
 
 import { button, col, icon, row, text, type Action, type Node } from './nodes';
-import { CARD_W, CORAL, FAINT, GOLD, GREEN, SOFT, boxChip, chip, section, small, title } from './sections';
+import { CARD_W, CORAL, FAINT, GOLD, GREEN, LINE, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BankLayout, TripCheck, TripRow, TripSource } from '@/lib/tripCheck';
 import type { Have, LayoutItem, TripLayout } from '@/lib/tripLayout';
 import { SLOT_NAME } from '@/lib/slotNames';
@@ -58,6 +60,8 @@ export interface TripPanelData {
   bankFilter?: boolean;
   /** ToA only: the raid level the check scales the bosses by (lib/tripRaidLevel), and the ones offered. */
   raid?: { level: number; levels: readonly number[] } | null;
+  /** The loadout engine's plan (lib/tripLoadout), for a trip with a boss profile: the chooser. */
+  plan?: { preset: string; presets: readonly { key: string; label: string }[]; blurb: string } | null;
   /** The setup laid out as the game does (lib/tripLayout): drawn instead of a row per item. */
   layout?: TripLayout | null;
   /** Item names for the layout's tips. */
@@ -94,25 +98,26 @@ function head(d: TripPanelData): Node {
   return row(title('Pre-trip check'), undefined, text('↻', GOLD, { on: again(d), tip: 'Check again with what you carry now' }), { gap: 6 });
 }
 
-/** "Trip: ToA · picked from the ToA lobby · change" (or "Checking for: Doom (last trip) · change"), opening the picker. */
+/** "Trip: ToA, picked from the ToA lobby" (or "Checking for: Doom (last trip)") and a "change" link opening the picker. */
 function tripLine(d: TripPanelData): Node {
   const where = d.content ? (d.fromRegion && d.regionName ? `picked from ${d.regionName}` : 'picked by you') : null;
   const t = d.fromTarget && d.target ? d.target : null;
   const line = (open: boolean): Node =>
-    text('', SOFT, {
-      font: 'small',
-      wrap: t ? W - 20 : W + 20,
-      runs: [
-        ...(t && d.content
-          ? [{ s: 'Checking for: ', color: FAINT }, { s: d.content.short, color: 'white' as const }, { s: ` (${t.why}) · `, color: FAINT }]
-          : d.content
-            ? [{ s: 'Trip: ', color: FAINT }, { s: d.content.short, color: 'white' as const }, { s: ` · ${where} · `, color: FAINT }]
-            : [{ s: `No trip picked${d.regionName ? ` at ${d.regionName}` : ''} · `, color: FAINT }]),
-        { s: open ? 'close' : d.content ? 'change' : 'pick', color: GOLD },
-      ],
-      on: { a: 'flip', key: PICK_KEY },
-      tip: open ? 'Close the list' : 'Pick the trip you go on next: it is checked at whichever bank you gear up at',
-    });
+    row(
+      undefined,
+      text('', SOFT, {
+        font: 'small',
+        wrap: t ? W - 60 : W - 20,
+        runs:
+          t && d.content
+            ? [{ s: 'Checking for: ', color: FAINT }, { s: d.content.short, color: 'white' as const }, { s: ` (${t.why})`, color: FAINT }]
+            : d.content
+              ? [{ s: 'Trip: ', color: FAINT }, { s: d.content.short, color: 'white' as const }, { s: `, ${where}`, color: FAINT }]
+              : [{ s: `No trip picked${d.regionName ? ` at ${d.regionName}` : ''}`, color: FAINT }],
+      }),
+      small(open ? 'close' : d.content ? 'change' : 'pick', GOLD, { on: { a: 'flip', key: PICK_KEY }, tip: open ? 'Close the list' : 'Pick the trip you go on next: it is checked at whichever bank you gear up at' }),
+      { gap: 6 },
+    );
   // The target named, with a way to drop it: on its own line when the trip shown is another one.
   const clear = d.target ? small('clear', GOLD, { on: clearAim(d), tip: 'Stop checking your next trip until your next kill' }) : undefined;
   const lineRow = (open: boolean): Node => (t ? row(undefined, line(open), clear, { gap: 6 }) : line(open));
@@ -180,7 +185,7 @@ function checkCard(d: TripPanelData, c: TripCheck): Node {
     ? text(`${bad.length} problem${bad.length === 1 ? '' : 's'}`, CORAL, { font: 'bold' })
     : text(`✓ Ready for ${short}`, GREEN, { font: 'bold', wrap: W });
   // The one line saying what it was checked against, and when.
-  const source = small(`${d.sourceLine}${d.checkedAt ? ` · ${d.checkedAt}` : ''}`, FAINT, { wrap: W });
+  const source = small(`${d.sourceLine}${d.checkedAt ? `, checked at ${d.checkedAt}` : ''}`, FAINT, { wrap: W });
   // Laid out as a setup: the worn pieces as a paper doll, switches beside, supplies by kind and dose.
   const missing = c.layouts?.missing;
   const setup = c.layouts?.setup;
@@ -230,7 +235,7 @@ function well(d: TripPanelData, it: LayoutItem, px: number, where: string, on?: 
     w: px,
     align: 'c',
     icon: { t: 'icon', item: it.id, ...(it.q ? { qty: it.q } : {}), w: px - 4, h: px - 7, ...(it.have === 'none' ? { dim: true } : {}) },
-    tip: `${where}${nameIn(d, it.id)} · ${HAVE_WORDS[it.have]}${on ? ' · click for your other options' : ''}`,
+    tip: `${where}${nameIn(d, it.id)}, ${HAVE_WORDS[it.have]}${on ? '. Click for your other options' : ''}`,
   });
 }
 
@@ -243,7 +248,7 @@ function wornGrid(d: TripPanelData, l: TripLayout): Node {
     for (const slot of r) {
       const it = slot === 'quiver' ? l.quiver : slot ? l.worn[slot] : undefined;
       if (!slot || (slot === 'quiver' && !it)) cells.push(text('', 'muted', { w: SLOT_PX }));
-      else if (!it) cells.push(text('', 'muted', { chip: EMPTY, w: SLOT_PX, align: 'c', icon: { t: 'icon', sprite: SLOT_SPRITE[slot] ?? 170 }, tip: `${SLOT_NAME[slot] ?? slot}: empty · click for your options`, ...(slot === 'quiver' ? {} : { on: view(d, { alt: slot }) }) }));
+      else if (!it) cells.push(text('', 'muted', { chip: EMPTY, w: SLOT_PX, align: 'c', icon: { t: 'icon', sprite: SLOT_SPRITE[slot] ?? 170 }, tip: `${SLOT_NAME[slot] ?? slot}: empty. Click for your options`, ...(slot === 'quiver' ? {} : { on: view(d, { alt: slot }) }) }));
       else cells.push(well(d, it, SLOT_PX, `${SLOT_NAME[slot] ?? slot}: `, slot === 'quiver' ? undefined : view(d, d.alts?.slot === slot ? {} : { alt: slot })));
     }
   return centred(col([{ t: 'grid', cols: 3, gap: 6, vgap: 6, c: cells }], { bg: STONE, edge: '#14100b', inset: 6 }), 3 * SLOT_PX + 12 + 14);
@@ -268,7 +273,7 @@ function altsList(d: TripPanelData): Node | null {
   const rows = a.rows.map((x) =>
     row(
       icon({ item: x.id, w: 26, h: 23 }),
-      col([text(x.name, x.current ? GREEN : 'white', { font: 'small', wrap: 112 }), small(x.current ? 'In this setup' : [x.delta, x.here ? 'packed' : 'in your bank'].filter(Boolean).join(' · '), x.current ? FAINT : SOFT), x.ammo ? small(`with ${x.ammoName ?? 'its ammo'}`, FAINT, { wrap: 112 }) : null], { gap: 1 }),
+      col([text(x.name, x.current ? GREEN : 'white', { font: 'small', wrap: 112 }), small(x.current ? 'In this setup' : [x.delta, x.here ? 'packed' : 'in your bank'].filter(Boolean).join(', '), x.current ? FAINT : SOFT), x.ammo ? small(`with ${x.ammoName ?? 'its ammo'}`, FAINT, { wrap: 112 }) : null], { gap: 1 }),
       undefined,
       { gap: 6, bg: 'raised', pad: 2, inset: 4, ...(x.current ? {} : { on: view(d, {}, x.ammo ? withPick(withPick(d.swap, a.slot, x.id), 'ammo', x.ammo) : withPick(d.swap, a.slot, x.id)), tip: `Use ${x.name} for ${label}` }) },
     ),
@@ -290,9 +295,9 @@ const legend = (l: TripLayout): Node =>
 function layoutCard(d: TripPanelData, c: TripCheck, l: TripLayout): Node {
   const bad = c.rows.filter((r) => !r.ok);
   const short = d.content?.short ?? 'the trip';
-  const words = [`${bad.length} problem${bad.length === 1 ? '' : 's'}`, l.inBank ? `${l.inBank} in your bank` : '', l.notOwned ? `${l.notOwned} not owned` : ''].filter(Boolean).join(' · ');
+  const words = [`${bad.length} problem${bad.length === 1 ? '' : 's'}`, l.inBank ? `${l.inBank} in your bank` : '', l.notOwned ? `${l.notOwned} not owned` : ''].filter(Boolean).join(', ');
   const top = bad.length ? text(words, CORAL, { font: 'bold', wrap: W }) : text(`✓ Ready for ${short}`, GREEN, { font: 'bold', wrap: W });
-  const source = small(`${d.sourceLine}${d.checkedAt ? ` · ${d.checkedAt}` : ''}`, FAINT, { wrap: W });
+  const source = small(`${d.sourceLine}${d.checkedAt ? `, checked at ${d.checkedAt}` : ''}`, FAINT, { wrap: W });
   // What no slot shows: the spellbook, the runes, the prayers, a supply short by kind.
   const other = bad.filter((r) => r.group === 'book' || r.group === 'pouch' || r.group === 'prayer' || (r.group === 'supplies' && r.item == null));
   const otherLines = other.map((r) => row(icon({ glyph: 'close', w: 9, h: 9, color: CORAL }), small(r.line, SOFT, { wrap: W - 16, ...(r.detail ? { tip: r.detail } : {}) }), undefined, { gap: 5 }));
@@ -349,10 +354,32 @@ function raidLine(d: TripPanelData): Node | null {
   return { t: 'toggle', key: RAID_KEY, off: shut, lit: col([text('', SOFT, { font: 'small', runs: [{ s: 'Raid level ', color: FAINT }, { s: String(d.raid.level), color: 'white' }, { s: ' ▴', color: GOLD }], on: { a: 'flip', key: RAID_KEY }, tip: 'Close' }), chips], { gap: 4 }) };
 }
 
+/**
+ * "[ Learner | Experienced | Max DPS ]" and what the plan picked means: the setup the engine builds
+ * for the player's bank (switch budget, supplies). Remembered per character and trip ('trip-plan').
+ */
+function planLine(d: TripPanelData): Node | null {
+  if (!d.plan || !d.content) return null;
+  const content = d.content.key;
+  const chips: Node = {
+    t: 'grid',
+    cols: d.plan.presets.length,
+    gap: 2,
+    // boxChip's look, the small font either way: "Experienced" in bold doesn't fit a third of the card.
+    c: d.plan.presets.map((p) => {
+      const on = p.key === d.plan!.preset;
+      return row(undefined, text(p.label, on ? 'white' : FAINT, { font: 'small', align: 'c' }), undefined, { bg: on ? '#3a3a3a' : 'card', edge: LINE, pad: 3, inset: 0, on: { a: 'post', act: 'trip-plan', args: regionArgs(d, { content, plan: p.key }) }, tip: on ? `The ${p.label} plan` : `Build the setup for the ${p.label} plan` });
+    }),
+  };
+  return col([chips, small(d.plan.blurb, FAINT, { wrap: W })], { gap: 4 });
+}
+
 export function tripPanelUi(d: TripPanelData): Node {
   const parts: Node[] = [head(d), tripLine(d)];
   const raid = raidLine(d);
   if (raid) parts.push(raid);
+  const plan = d.status === 'ready' ? planLine(d) : null;
+  if (plan) parts.push(plan);
   if (d.note) parts.push(chip(d.note, 'green', { wrap: W }));
   if (d.status === 'ready' && d.check) parts.push(d.layout ? layoutCard(d, d.check, d.layout) : checkCard(d, d.check));
   else parts.push(why(d));
