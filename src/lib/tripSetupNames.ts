@@ -34,7 +34,6 @@ export function cleanTag(content: string, v: unknown): string | null | undefined
 /** A name from a request: trimmed, one line, plain text, 1–24 characters; null when it can't be one. */
 export function cleanSetupName(v: unknown): string | null {
   if (typeof v !== 'string') return null;
-  // eslint-disable-next-line no-control-regex
   const s = v.replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim();
   return s.length >= 1 && s.length <= SETUP_NAME_MAX ? s : null;
 }

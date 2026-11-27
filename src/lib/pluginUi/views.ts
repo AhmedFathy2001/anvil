@@ -1126,7 +1126,7 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
     if (g) return g;
   }
   if (act.startsWith('trip-')) {
-    const t = await tripAct(request, act, args);
+    const t = await tripAct(request, act, args, fields);
     if (t) return t;
   }
   if (act === 'notice-hide') {

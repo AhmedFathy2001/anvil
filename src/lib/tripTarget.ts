@@ -2,7 +2,7 @@
 // (lib/tripContent) is checked for, so regearing at the Grand Exchange before a trip is checked too.
 // PURE: lib/tripTargetStore reads the inputs, pluginUi/tripView and POST /api/plugin/items use it.
 //
-,// THE TARGET, strongest first:
+// THE TARGET, strongest first:
 //   lock    the player locked it on the card: every bank close checks it, whatever bank it is, and it
 //           stays through kills, deaths, logouts and idle time until they unlock or change it
 //   pick    the player chose it: "Going here next" on a guide, or a trip picked in the panel
