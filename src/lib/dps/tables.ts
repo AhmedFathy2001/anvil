@@ -59,6 +59,15 @@ export function stylesFor(category: string | undefined | null): AttackStyle[] {
   return WEAPON_STYLES[category ?? 'Unarmed'] ?? WEAPON_STYLES.Unarmed;
 }
 
+/**
+ * Whether a style trains Defence: controlled and defensive melee, longrange ranged (and a powered
+ * staff's longrange), defensive autocast. A player keeping Defence low ("Avoid Defence XP") never
+ * gets one of these.
+ */
+export function givesDefenceXp(style: AttackStyle): boolean {
+  return style.stance === 'controlled' || style.stance === 'defensive' || style.stance === 'longrange' || style === DEFENSIVE_AUTOCAST || style.name === 'Defensive autocast';
+}
+
 export type Element = 'air' | 'water' | 'earth' | 'fire' | null;
 
 export interface Spell {
@@ -105,6 +114,8 @@ export const POWERED_MAX: { match: RegExp; max: (magic: number) => number }[] = 
   { match: /trident of the swamp/i, max: (m) => Math.floor(m / 3) - 2 },
   { match: /trident of the seas/i, max: (m) => Math.floor(m / 3) - 5 },
   { match: /^accursed sceptre/i, max: (m) => Math.floor(m / 3) - 6 },
+  // Eye of Ayak: a 3-tick staff (its speed comes from the gear data).
+  { match: /^eye of ayak/i, max: (m) => Math.floor(m / 3) - 6 },
   { match: /^thammaron's sceptre/i, max: (m) => Math.floor(m / 3) - 8 },
   { match: /^warped sceptre/i, max: (m) => Math.floor((8 * m + 96) / 37) },
   { match: /^starter staff/i, max: () => 8 },

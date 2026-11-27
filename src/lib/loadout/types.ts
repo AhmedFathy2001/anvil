@@ -4,8 +4,18 @@
 // A profile is data, not code, so it can later be edited as a guide piece: every field is plain
 // JSON (regexes are written as strings). Facts in the seeded profiles come from the OSRS Wiki's
 // strategy pages (cited in each file); the wording is ours.
+//
+// The model (agreed 2026-11-27): a profile is a REVIEWED REFERENCE LOADOUT per allowed main style.
+// Its structure is fixed by hand: the worn kit, switches as named JOBS (a stab switch for Vasa's
+// crystals, a melee punish at Doom, a demonbane weapon for its shield), spec weapons in the order
+// players bring them, the supply plan. Each job is then stepped down for the player: the items that
+// do that job, ranked by our DPS engine within the job's style (or by the job's own rule), first owned
+// wins; nothing owned drops the job with a card line. Which job fights a phase is the profile's
+// (`use`, the reference first), never raw DPS: another listed job takes over only when it is at least
+// 15% faster with what the player owns, and the card says why.
 
-import type { Slot } from '../dps/tables';
+import type { AttackType, Slot } from '../dps/tables';
+import type { TargetMods } from '../dps/targets';
 
 export type Style = 'melee' | 'ranged' | 'magic';
 export type Preset = 'learner' | 'experienced' | 'max';
@@ -39,8 +49,15 @@ export interface PhaseProfile {
   tags?: string[];
   /** A per-hit damage cap (Zulrah: 50). */
   maxHitCap?: number;
+  /**
+   * What this phase does to damage beyond the monster's own defaults (lib/dps/targets): a style's
+   * share ({ magic: 0.2 }), what escapes it, demonbane vulnerability, Awakened rules, drain limits.
+   */
+  mods?: TargetMods;
   /** Every hit that lands is a max hit (the Wardens' core): accuracy and the roll don't matter. */
   alwaysMaxHit?: boolean;
+  /** Every hit lands (demonbane on Doom's shield): accuracy doesn't matter, the roll does. */
+  alwaysHits?: boolean;
   /** The target's size for multi-hit weapons, when the phase's target isn't the dataset monster's. */
   size?: number;
   /** The name the DPS engine should see (its ToA rules match names: "Obelisk"). */
@@ -56,7 +73,74 @@ export interface PhaseProfile {
   downtime?: number;
   /** How many times a kill enters the phase: each entry with a switch costs a tick. */
   entries?: number;
+  /**
+   * The jobs that fight this phase, the reference first ('main' is the worn kit). The first one the
+   * player can fill is used; a later one only when it is at least 15% faster. Unset: ['main'].
+   */
+  use?: string[];
+  /** One static line for the card about this phase ("Freeze the crabs with Ice Barrage"). */
+  tip?: string;
+  /**
+   * Only the listed jobs can do it (Doom's shield takes only demonbane): none filled is a broken
+   * rule with this message, and no other kit stands in.
+   */
+  gate?: string;
   notes?: string[];
+}
+
+/**
+ * A switch in the reference loadout, by what it is FOR. The worn kit is the job 'main' (its style is
+ * the main style being built); every other job is carried as a switch unless the worn weapon already
+ * does it.
+ */
+export interface JobProfile {
+  key: string;
+  /** The card's name for it: "Stab for the crystals", "Melee punish". */
+  label: string;
+  /** 'main': the worn style. */
+  style: Style | 'main';
+  /** Phases its ladder is ranked on (a DPS job) and that may use it. */
+  phases?: string[];
+  /** Weapons that may do it, as name patterns (a gate: demonbane, pickaxes); for `rank: 'order'` also the order. */
+  weapons?: string[];
+  /** Only these attack types count (Vasa's crystals: stab). */
+  types?: AttackType[];
+  /**
+   * How the ladder is ranked: 'dps' (default) by DPS on its phases within the style; 'order' by the
+   * `weapons` order; 'punish' by Strength bonus times hitsplats (Doom's melee punish).
+   */
+  rank?: 'dps' | 'order' | 'punish';
+  /** Armour pieces the switch may carry per plan (weapon and ammo aside). Unset: the plan's kitPieces for its style. */
+  pieces?: Partial<Record<Preset, number>>;
+  /** Plans that bring it. Unset: every plan. */
+  presets?: Preset[];
+  /** A piece swapped in for its phases instead of a weapon (Salve on the Mystics), items in order. */
+  piece?: { slot: Slot; items: string[] };
+  /** The spell it autocasts (Crumble Undead on Vorkath's spawn): staves that can autocast it. */
+  cast?: string;
+  /** Spells a magic job casts from a staff, best first: the first the Magic level allows (Dark Demonbane). */
+  spells?: string[];
+  /** The reference pick, named on the card when the player has a lesser one ("Scythe of vitur"). */
+  ref?: string;
+  /** Nothing owned for it: the card's line ("No pickaxe: buy a rune one inside"). */
+  missing?: string;
+  /** Unfilled is a broken rule (Guardians need a pickaxe), not just a line. */
+  required?: boolean;
+  /** Only for those who own it (the Shadow on the Mystics): unfilled says nothing. */
+  optional?: boolean;
+}
+
+/** One spec weapon slot, the weapons in the order players bring them (first owned wins). */
+export interface SpecSlot {
+  weapons: string[];
+  /** The reference pick, named on the card when the player brings a lesser one. */
+  ref?: string;
+  /** The card's reason: "Tekton first: the hammer's drain". */
+  why: string;
+  /** Nothing owned: the card's line ("No Zaryte crossbow: skip the spec, one more food"). */
+  missing?: string;
+  /** Supplies that take its slot when nothing is owned. */
+  instead?: { kind: SupplyKind; count: number };
 }
 
 export type SupplyKind =
@@ -143,8 +227,19 @@ export interface BossProfile {
    */
   worn?: Style;
   rules: BossRule[];
-  /** Spec weapons in the order the fight wants them (case-insensitive name patterns). */
+  /**
+   * The main (worn) styles the fight allows, the reference first. Another is built too, and worn
+   * instead only when its stepped-down loadout is at least 15% faster. Unset: [`worn`] or every style.
+   */
+  main?: Style[];
+  /** The reference switches. */
+  jobs?: JobProfile[];
+  /** Spec weapon slots in the order they are used; the plan's `specs` says how many come along. */
+  specs?: SpecSlot[];
+  /** Spec weapons in the order the fight wants them (case-insensitive name patterns). Older form of `specs`. */
   spec?: { prefer: string[]; why: string };
+  /** Other names the fight is picked by on the trip card (monster keys of a boss picked by hand). */
+  monsters?: string[];
   /** The potion each style's numbers assume (lib/dps/tables BOOSTS keys). */
   boosts?: Partial<Record<Style, string>>;
   /** Rough hitpoints lost per kill with the right prayers, for the kills-per-trip estimate. */
@@ -208,6 +303,11 @@ export interface PlayerInput {
   constraints?: LoadoutConstraints;
   /** The fight's settings (ToA raid level). */
   mode?: { raidLevel?: number; variant?: string };
+  /**
+   * Never train Defence: controlled and defensive melee, longrange and defensive autocast are left out
+   * of every stance (default on at Defence 1, off otherwise, in lib/tripLoadout).
+   */
+  avoidDefenceXp?: boolean;
 }
 
 // ── The answer ───────────────────────────────────────────────────────────────────────────────
@@ -229,9 +329,32 @@ export interface LoadoutPhase {
   name: string;
   /** The kit used: 'magic', 'ranged', 'melee' or 'cast:<spell>'; null: nothing carried can do it. */
   kit: string | null;
+  /** The job used ('main' is the worn kit). */
+  job?: string | null;
+  /** The weapon and attack style used, worked out from the assembled gear ("Scythe of vitur", crush, "Jab"). */
+  stance?: { weapon: string; type: AttackType; name: string } | null;
+  /** Why it isn't the reference job ("no Scythe of vitur, so your ranged setup is faster here"). */
+  why?: string;
   dps: number;
   seconds: number;
   timeShare: number;
+}
+
+/** A job as filled for this player. */
+export interface LoadoutJob {
+  key: string;
+  label: string;
+  style: Style;
+  /** The weapon (or piece) picked; null: nothing owned does it. */
+  pick: { id: number; name: string } | null;
+  /** The worn kit does it already: nothing packed for it. */
+  byWorn?: boolean;
+  /** Armour packed with it. */
+  pieces: { id: number; name: string }[];
+  /** The reference pick when the player's is a lesser one. */
+  stepDown?: string;
+  /** A better owned pick it can't use ("Scythe of vitur needs 80 Attack"). */
+  blocked?: string;
 }
 
 export interface Unmet {
@@ -245,8 +368,8 @@ export interface Loadout {
   /** The style worn between switches. */
   wornStyle: Style | null;
   worn: Partial<Record<Slot, number>>;
-  switches: { id: number; name: string; slot: Slot; kit: string }[];
-  specs: { id: number; name: string }[];
+  switches: { id: number; name: string; slot: Slot; kit: string; job?: string }[];
+  specs: { id: number; name: string; stepDown?: string }[];
   inventory: (InvSlot | null)[];
   runePouch: { rune: string; perCast: number }[] | null;
   /** The spells the carried staves autocast ("Fire Surge"). */
@@ -260,6 +383,10 @@ export interface Loadout {
   /** From the inventory's healing and the profile's rough incoming damage. */
   killsPerTrip: number | null;
   why: Why[];
+  /** The reference jobs as filled (the worn kit first). */
+  jobs?: LoadoutJob[];
+  /** Plain card lines: jobs dropped, spec step-downs, a main style changed and why. */
+  notes?: string[];
   /** Hard rules this loadout breaks: never dropped silently. */
   requirementsUnmet: Unmet[];
   warnings: string[];

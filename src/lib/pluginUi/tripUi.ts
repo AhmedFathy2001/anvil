@@ -64,6 +64,8 @@ export interface TripPanelData {
   bankFilter?: boolean;
   /** ToA only: the raid level the check scales the bosses by (lib/tripRaidLevel), and the ones offered. */
   raid?: { level: number; levels: readonly number[] } | null;
+  /** "Avoid Defence XP" (lib/tripRaidLevel), shown with Anvil's loadout: the engine skips styles that train Defence. */
+  defXp?: { on: boolean } | null;
   /** The loadout engine's plan (lib/tripLoadout), for a trip with a boss profile: the chooser. */
   plan?: { preset: string; presets: readonly { key: string; label: string }[]; blurb: string } | null;
   /** The setup laid out as the game does (lib/tripLayout): drawn instead of a row per item. */
@@ -518,6 +520,21 @@ const PLAN_TIPS: Record<string, string> = {
 };
 
 /**
+ * "Avoid Defence XP   On": the loadout never uses controlled or defensive melee, longrange or
+ * defensive autocast. One click flips it ('trip-defxp', remembered per character for every trip).
+ */
+function defXpLine(d: TripPanelData): Node | null {
+  if (!d.defXp || !d.content || (d.setupSel != null && d.setupSel !== 'anvil')) return null;
+  const on = d.defXp.on;
+  return row(small('Avoid Defence XP', FAINT), undefined, small(on ? 'On' : 'Off', on ? GOLD : FAINT), {
+    pad: 2,
+    inset: 0,
+    on: { a: 'post', act: 'trip-defxp', args: regionArgs(d, { content: d.content.key, dx: on ? '0' : '1' }) },
+    tip: on ? 'On: no controlled, defensive or longrange styles, so no Defence XP. Click to allow them' : 'Off: any attack style. Click to keep Defence XP off (for a pure)',
+  });
+}
+
+/**
  * "Going for a CA?": None and the player's undone Combat Achievements for this boss that change the
  * loadout (lib/loadout/caRules). Chips for a few, the game's combo box past four. A pick re-runs the
  * engine with the task's limits ('trip-ca', remembered per character and trip).
@@ -544,6 +561,8 @@ export function tripPanelUi(d: TripPanelData): Node {
   if (setups) parts.push(setups);
   const plan = d.status === 'ready' ? planLine(d) : null;
   if (plan) parts.push(plan);
+  const defXp = d.status === 'ready' ? defXpLine(d) : null;
+  if (defXp) parts.push(defXp);
   const ca = d.status === 'ready' ? caLine(d) : null;
   if (ca) parts.push(ca);
   if (d.note) parts.push(chip(d.note, 'green', { wrap: W }));

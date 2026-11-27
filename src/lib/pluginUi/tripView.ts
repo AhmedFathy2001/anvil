@@ -35,7 +35,7 @@ import { ownStats, setupResult, withSlot } from '@/lib/gearNow';
 import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, type TripContent } from '@/lib/tripContent';
 import { tripRegions } from '@/lib/guideAreas';
 import { clanSharedSetups, createTripSetup, forgetOwnTripSetup, listOwnSetups, saveOwnTripSetup, type ClanSetup, type SavedSetup } from '@/lib/tripSetups';
-import { clanPickId, cleanRaidLevel, isClanPick, RAID_LEVELS, raidLevelFor, saveRaidLevel, saveTripCa, saveTripPlan, saveTripSetupPick, tripCaFor, tripPlanFor, tripSetupPickFor, type SetupPick } from '@/lib/tripRaidLevel';
+import { avoidDefXpFor, clanPickId, cleanRaidLevel, isClanPick, RAID_LEVELS, raidLevelFor, saveAvoidDefXp, saveRaidLevel, saveTripCa, saveTripPlan, saveTripSetupPick, tripCaFor, tripPlanFor, tripSetupPickFor, type SetupPick } from '@/lib/tripRaidLevel';
 import { casFor, type CaOption } from '@/lib/loadout/caRules';
 import { cleanPlan, hasProfile, loadoutFor, PLAN_PRESETS, withPlan, type TripPlan } from '@/lib/tripLoadout';
 import type { Preset } from '@/lib/loadout/types';
@@ -411,6 +411,8 @@ async function resolveCheck(c: {
   preset: Preset | null;
   /** The Combat Achievement picked for the engine's loadout, or null. */
   ca: number | null;
+  /** "Avoid Defence XP" on the card: the engine never picks a style that trains Defence. */
+  avoidDefXp: boolean;
   t: ReturnType<typeof phases>;
 }): Promise<Resolved> {
   const { content, own, viewer, idx, t } = c;
@@ -445,7 +447,7 @@ async function resolveCheck(c: {
   if (source === 'calc' && hasProfile(content.key)) {
     const holds = equivalentsFor([...c.worn, ...c.inventory, ...c.bank, ...(c.lootingBag ?? [])].map((i) => i.id), 'holds');
     const nameOf = (id: number) => c.nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
-    const got = loadoutFor({ contentKey: content.key, preset: c.preset, idx, worn: c.worn, inventory: c.inventory, bank: c.bank, lootingBag: c.lootingBag, state: c.state, levels: viewer.levels, raidLevel: c.raidLevel, nameOf, holds, isRunePouch: (id) => c.nm.pouches.has(id), idOfName: (n) => c.nm.byName?.get(n.toLowerCase()) ?? null, ca: c.ca });
+    const got = loadoutFor({ contentKey: content.key, preset: c.preset, idx, worn: c.worn, inventory: c.inventory, bank: c.bank, lootingBag: c.lootingBag, state: c.state, levels: viewer.levels, raidLevel: c.raidLevel, nameOf, holds, isRunePouch: (id) => c.nm.pouches.has(id), idOfName: (n) => c.nm.byName?.get(n.toLowerCase()) ?? null, ca: c.ca, avoidDefenceXp: c.avoidDefXp });
     if (got) {
       setup = got.setup;
       plan = got.plan;
@@ -532,7 +534,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const behind = !!content && !note && args.held === '1' && age > BEHIND_MS;
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
-  const [state, ownRows, setupPick, nm, raidLevel, planPref, clanRows, caPref] = await Promise.all([
+  const [state, ownRows, setupPick, nm, raidLevel, planPref, clanRows, caPref, avoidDefXp] = await Promise.all([
     tripStateForViewer(viewer.userId, viewer.accountId),
     ownSetupsFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []),
     tripSetupPickFor(viewer.accountId, content.key),
@@ -544,6 +546,8 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     // Clanmates' setups shared with the clan: the clan is the played character's own member seat.
     clanSharedSetups(viewer.userId, viewer.accountId, [content.key]),
     hasProfile(content.key) ? tripCaFor(viewer.accountId, content.key) : Promise.resolve(null),
+    // "Avoid Defence XP", per character (default on at Defence 1): only Anvil's loadout reads it.
+    hasProfile(content.key) ? avoidDefXpFor(viewer.accountId, viewer.levels?.defence) : Promise.resolve(false),
   ]);
   const preset = hasProfile(content.key) ? cleanPlan(planPref) : null;
   const clanRow: ClanSetup | null = isClanPick(setupPick) ? (clanRows.find((r) => r.id === clanPickId(setupPick)) ?? null) : null;
@@ -566,11 +570,11 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   // answer, so a bank-close ask after a warm (warmTrip, on the items push) or a repeat is instant.
   // Each container's readAt too: a reload after any push is worked out from that push (its items are
   // the key already; the stamps make it so even when a push resent the same items).
-  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx), raidLevel, preset, ca, [snap.equipment?.readAt, snap.inventory?.readAt, snap.bank?.readAt, snap.lootingBag?.readAt]]);
+  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx), raidLevel, preset, ca, avoidDefXp, [snap.equipment?.readAt, snap.inventory?.readAt, snap.bank?.readAt, snap.lootingBag?.readAt]]);
   const hit = CHECKS.get(key);
   const fresh = hit && Date.now() - hit.at < CHECK_TTL ? hit : null;
   if (!fresh) {
-    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel, preset, ca, t });
+    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel, preset, ca, avoidDefXp, t });
     remember(key, p);
     p.catch(() => CHECKS.delete(key));
   }
@@ -595,6 +599,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const data: TripPanelData = {
     raid: raidLevel != null ? { level: raidLevel, levels: RAID_LEVELS } : null,
     plan: got.plan ? { preset: got.plan.preset, presets: got.plan.presets, blurb: got.plan.blurb } : null,
+    defXp: got.plan ? { on: avoidDefXp } : null,
     ca: got.plan && caOptions.length ? { options: caOptions.map((o) => ({ id: o.id, name: o.name, does: o.does })), sel: ca, line: got.caLine ?? null } : null,
     ...withContent,
     ...setupList,
@@ -688,7 +693,7 @@ async function heldSetup(viewer: GuideViewer & { userId: number; accountId: numb
  * loadout becomes a new setup), 'trip-forget', 'trip-raid' and 'trip-plan'.
  */
 export async function tripAct(request: Request, act: string, args: Args, fields: Args = {}): Promise<View | null> {
-  if (act !== 'trip-save' && act !== 'trip-setup' && act !== 'trip-forget' && act !== 'trip-raid' && act !== 'trip-plan' && act !== 'trip-ca') return null;
+  if (act !== 'trip-save' && act !== 'trip-setup' && act !== 'trip-forget' && act !== 'trip-raid' && act !== 'trip-plan' && act !== 'trip-ca' && act !== 'trip-defxp') return null;
   if (!tripEnabled()) return message('The pre-trip check is coming soon.');
   const viewer = await tripViewer(request);
   if (viewer === 'not-yours' || !viewer.userId || !viewer.accountId) return message('Sign in with the plugin, on your own character, to save a setup.');
@@ -712,6 +717,11 @@ export async function tripAct(request: Request, act: string, args: Args, fields:
     // over the old plan's setup don't carry over: the plan is a new setup.
     const plan = cleanPlan(args.plan);
     if (plan && hasProfile(content.key)) await saveTripPlan(viewer.accountId, content.key, plan);
+    return tripView(request, again);
+  }
+  if (act === 'trip-defxp') {
+    // "Avoid Defence XP", remembered per character for every trip: '1' on, '0' off.
+    if (args.dx === '1' || args.dx === '0') await saveAvoidDefXp(viewer.accountId, args.dx === '1');
     return tripView(request, again);
   }
   if (act === 'trip-ca') {

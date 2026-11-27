@@ -17,16 +17,7 @@ export const VORKATH: BossProfile = {
   name: 'Vorkath',
   sources: ['https://oldschool.runescape.wiki/w/Vorkath/Strategies'],
   phases: [
-    {
-      key: 'main',
-      name: 'Vorkath',
-      monster: 'Vorkath#Post-quest',
-      share: 1,
-      allowed: ['ranged', 'melee', 'magic'],
-      tags: ['dragon', 'undead'],
-      // Two acid walks a kill, roughly 15 s each with no attacks (our estimate).
-      downtime: 30,
-    },
+    { key: 'main', name: 'Vorkath', monster: 'Vorkath#Post-quest', share: 1, allowed: ['ranged', 'melee', 'magic'], tags: ['dragon', 'undead'], downtime: 30, use: ['main'] },
     {
       key: 'spawn',
       name: 'Zombified spawn',
@@ -36,14 +27,22 @@ export const VORKATH: BossProfile = {
       required: ['magic'],
       cast: 'Crumble Undead',
       entries: 1,
+      use: ['crumble'],
     },
+  ],
+  // Ranged is the reference (Dragon hunter crossbow, Salve (ei), dragonfire off-hand); the Dragon
+  // hunter lance is the melee one, worn only when clearly faster with what is owned.
+  main: ['ranged', 'melee'],
+  jobs: [
+    { key: 'main', label: 'Main', style: 'main' },
+    { key: 'crumble', label: 'Crumble Undead for the spawn', style: 'magic', cast: 'Crumble Undead', phases: ['spawn'], required: true, missing: 'No staff that autocasts Crumble Undead: the spawn dies to nothing else' },
   ],
   rules: [
     { kind: 'antifire', level: 'super', shield: 'recommended' },
     { kind: 'antivenom', coveredBy: ['^serpentine helm', '^tanzanite helm', '^magma helm'] },
     { kind: 'spell', spell: 'Crumble Undead', book: 'standard', magic: 39 },
   ],
-  spec: { prefer: ['^zaryte crossbow', '^bandos godsword', '^dragon warhammer', '^elder maul'], why: 'spec: Zaryte crossbow big hits, else a defence drain' },
+  specs: [{ weapons: ['^zaryte crossbow', '^bandos godsword', '^dragon warhammer', '^elder maul'], why: 'spec: Zaryte crossbow big hits, else a defence drain', missing: 'No spec weapon: one more food' , instead: { kind: 'food', count: 1 } }],
   boosts: { ranged: 'ranging', melee: 'super_combat', magic: 'magic' },
   // Rough: a clean kill with the right prayers still loses about 120 HP to chip and acid (our estimate).
   incomingPerKill: 120,

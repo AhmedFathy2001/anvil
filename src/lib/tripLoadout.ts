@@ -1,7 +1,12 @@
 // The pre-trip check's setup from the loadout engine (lib/loadout), for a trip with a boss profile
-// (Vorkath, Zulrah, ToA, ToB, CoX): the player's bank and a plan (Learner / Experienced / Max DPS) → a setup the
-// check reads like a guide's: the worn loadout on the doll, the switches and supplies laid out as the
-// 28-slot inventory, the rune pouch and spellbook. Trips without a profile keep the calc. PURE.
+// (the raids, Doom, Vorkath, Zulrah, the bosses in lib/loadout/profiles): the player's bank and a
+// plan (Learner / Experienced / Max DPS) → a setup the check reads like a guide's: the worn loadout
+// on the doll, the switches and supplies laid out as the 28-slot inventory, the rune pouch and
+// spellbook. Trips without a profile keep the calc. PURE.
+//
+// The card's lines: the attack style for each part of the fight (worked out from the gear), each
+// switch's job and what fills it (and the better item it stands in for), the spec order, what is
+// missing and why a part of the fight uses another style.
 //
 // Static and pre-trip only: which kit a phase uses is said once, before the trip, never followed live.
 
@@ -52,6 +57,8 @@ export interface TripLoadoutInput {
   isRunePouch: (id: number) => boolean;
   /** A Combat Achievement picked on the card (lib/loadout/caRules): its limits applied. */
   ca?: number | null;
+  /** The card's "Avoid Defence XP" (lib/tripRaidLevel): no style that trains Defence. Unset: on at Defence 1. */
+  avoidDefenceXp?: boolean | null;
 }
 
 const BOOKS = { standard: 0, ancient: 1, lunar: 2, arceuus: 3 } as const;
@@ -61,6 +68,8 @@ const RUNE_POUCH = 12791;
 
 /** Whether the trip has an engine profile (else the calc works it out). */
 export const hasProfile = (contentKey: string): boolean => !!profileFor(contentKey);
+
+const ATTACK_TYPE: Record<string, string> = { stab: 'stab', slash: 'slash', crush: 'crush' };
 
 /** The engine's loadout for the player's bank, as a setup the check reads; null without a profile. */
 export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: TripPlan; loadout: Loadout; sourceLine: string; caLine: string | null } | null {
@@ -84,13 +93,16 @@ export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: Tri
   }
   const lv = (k: string, d = 80) => (typeof inp.levels?.[k] === 'number' ? inp.levels[k] : d);
   const rule = caRule(profile.key, inp.ca);
+  const levels = { attack: lv('attack'), strength: lv('strength'), defence: lv('defence'), ranged: lv('ranged'), magic: lv('magic'), prayer: lv('prayer'), hitpoints: lv('hitpoints', 99) };
+  const avoidDefenceXp = inp.avoidDefenceXp ?? levels.defence <= 1;
   const run = (withCa: boolean) =>
     buildLoadout({
       profile,
       preset: withCa && rule?.preset ? rule.preset : preset,
       idx: inp.idx,
       player: {
-        levels: { attack: lv('attack'), strength: lv('strength'), defence: lv('defence'), ranged: lv('ranged'), magic: lv('magic'), prayer: lv('prayer'), hitpoints: lv('hitpoints', 99) },
+        levels,
+        avoidDefenceXp,
         // The plugin reads Rigour and Augury; Piety is a quest's, so the level decides it.
         ...(inp.state?.pray ? { prayers: [...inp.state.pray, 'piety'] } : {}),
         owned,
@@ -126,18 +138,50 @@ export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: Tri
     ...(loadout.spells.length ? { spells: loadout.spells, spellbook: BOOKS[loadout.spellbook] } : {}),
     ...(loadout.quiverAmmo != null ? { quiver: loadout.quiverAmmo } : {}),
   };
-  return { setup, plan: planOf(loadout, preset), loadout, caLine, sourceLine: `Worked out from your bank for ${profile.name}: the ${PLAN_PRESETS.find((p) => p.key === loadout.preset)!.label} plan${rule ? ` with ${caName(rule.id)}` : ''}` };
+  return { setup, plan: planOf(loadout, preset, inp.nameOf), loadout, caLine, sourceLine: `Worked out from your bank for ${profile.name}: the ${PLAN_PRESETS.find((p) => p.key === loadout.preset)!.label} plan${rule ? ` with ${caName(rule.id)}` : ''}` };
 }
 
-/** The plan's static lines: which kit each part of the fight uses, the slots, the engine's warnings. */
-function planOf(l: Loadout, preset: Preset): TripPlan {
-  const byKit = new Map<string, string[]>();
+/**
+ * The plan's static lines: the attack style per part of the fight, each switch's job, the specs, what
+ * is missing, the slots, the engine's warnings. Plain sentences, no dot separators.
+ */
+export function planOf(l: Loadout, preset: Preset, nameOf: (id: number) => string = (id) => `Item ${id}`): TripPlan {
+  const pick = (j: { id: number; name: string }) => nameOf(j.id) || j.name;
+  // The gear data's name → the name of the item the player holds ("Osmumten's fang (or)").
+  const held = new Map<string, string>();
+  for (const j of l.jobs ?? []) if (j.pick) held.set(j.pick.name, pick(j.pick));
+  // "Tekton: Scythe of vitur on crush (Jab)": phases with one weapon and stance share a line.
+  const byStance = new Map<string, string[]>();
+  const phaseWhy: string[] = [];
   for (const p of l.phases) {
     if (!p.kit) continue;
-    const k = p.kit.startsWith('cast:') ? p.kit.slice(5) : (KIT_LABEL[p.kit] ?? p.kit);
-    byKit.set(k, [...(byKit.get(k) ?? []), p.name]);
+    let how: string;
+    if (p.stance) {
+      const w = held.get(p.stance.weapon) ?? p.stance.weapon;
+      how = ATTACK_TYPE[p.stance.type] ? `${w} on ${p.stance.type} (${p.stance.name})` : `${w} (${p.stance.name})`;
+    } else how = p.kit.startsWith('cast:') ? p.kit.slice(5) : (KIT_LABEL[p.kit] ?? p.kit);
+    if (p.kit.startsWith('cast:')) how = `${how}, ${p.kit.slice(5)}`;
+    byStance.set(how, [...(byStance.get(how) ?? []), p.name]);
+    if (p.why) phaseWhy.push(`${p.name}: ${p.why}`);
   }
-  const kits = [...byKit].map(([k, names]) => `${k}: ${names.join(', ')}`);
+  const stances = [...byStance].map(([how, names]) => `${names.join(', ')}: ${how}`);
+  // Each switch by its job: what fills it, and the better item it stands in for.
+  const jobs: string[] = [];
+  const usedJobs = new Set(l.phases.map((p) => p.job));
+  for (const j of l.jobs ?? []) {
+    if (j.key === 'main' || !j.pick || j.byWorn) continue;
+    // A job no part of the fight ended up using (the Shadow when the bow is faster) says nothing,
+    // unless it packs something (a piece swap, a punish weapon used by hand).
+    if (!usedJobs.has(j.key) && !l.switches.some((s) => s.job === j.key)) continue;
+    // The same weapon doing a second job (the Shadow on the Mystics too): the stance lines say it.
+    if (!j.pieces.length && !j.stepDown && (l.jobs ?? []).some((o) => o !== j && o.pick?.id === j.pick!.id && (l.jobs ?? []).indexOf(o) < (l.jobs ?? []).indexOf(j))) continue;
+    const pieces = j.pieces.length ? ` and ${j.pieces.length} piece${j.pieces.length === 1 ? '' : 's'}` : '';
+    jobs.push(`${j.label}: ${pick(j.pick)}${pieces}${j.stepDown ? ` (best is ${j.stepDown})` : ''}`);
+  }
+  const main = (l.jobs ?? []).find((j) => j.key === 'main');
+  if (main?.stepDown && main.pick) jobs.unshift(`${main.label}: ${pick(main.pick)} (best is ${main.stepDown})`);
+  const blocked = (l.jobs ?? []).filter((j) => j.blocked).map((j) => j.blocked!);
+  const specs = l.specs.length ? [`Spec: ${l.specs.map((s) => `${nameOf(s.id) || s.name}${s.stepDown ? ` (best is ${s.stepDown})` : ''}`).join(', then ')}`] : [];
   const switches = l.inventory.filter((s) => s?.kind === 'switch' || s?.kind === 'spec').length;
   const supplies = l.inventory.filter((s) => s?.kind === 'supply').length;
   const reserved = l.inventory.filter((s) => s?.kind === 'reserved').length;
@@ -147,7 +191,13 @@ function planOf(l: Loadout, preset: Preset): TripPlan {
     blurb: PLAN_PRESETS.find((p) => p.key === preset)!.blurb,
     unmet: l.requirementsUnmet.map((u) => u.message),
     info: [
-      ...kits,
+      ...stances,
+      ...phaseWhy,
+      ...jobs,
+      ...specs,
+      ...blocked,
+      // A missing gate is a failing row already.
+      ...(l.notes ?? []).filter((n) => !l.requirementsUnmet.some((u) => u.message === n)),
       `${switches} switch slot${switches === 1 ? '' : 's'}, ${supplies} for supplies${reserved ? `, ${reserved} free for the raid's supplies` : ''}`,
       // "assumed" only matters when the bank is unknown, which a check never is.
       ...l.warnings.filter((w) => !/^Supplies not known/.test(w)),

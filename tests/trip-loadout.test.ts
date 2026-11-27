@@ -36,9 +36,10 @@ function trip(contentKey: string, preset: Plan, wornNames = MAGIC_WORN, raidLeve
 const toa = (preset: Plan) => trip('toa', preset, MAGIC_WORN, 300);
 
 test('only trips with a boss profile use the engine; the plan is learner / experienced / max', () => {
-  assert.ok(hasProfile('toa') && hasProfile('vorkath') && hasProfile('zulrah') && hasProfile('tob') && hasProfile('cox'));
-  assert.ok(!hasProfile('doom') && !hasProfile('nex'));
-  assert.equal(loadoutFor({ contentKey: 'doom', preset: null, idx, worn: [], inventory: [], bank: [], state: null, levels: null, raidLevel: null, nameOf, holds: () => [], isRunePouch: () => false }), null);
+  assert.ok(hasProfile('toa') && hasProfile('vorkath') && hasProfile('zulrah') && hasProfile('tob') && hasProfile('cox') && hasProfile('doom') && hasProfile('nex'));
+  assert.ok(hasProfile('m:Yama#Normal') && hasProfile('m:Araxxor#In combat'), 'a boss picked by hand');
+  assert.ok(!hasProfile('barrows') && !hasProfile('m:Scurrius'));
+  assert.equal(loadoutFor({ contentKey: 'barrows', preset: null, idx, worn: [], inventory: [], bank: [], state: null, levels: null, raidLevel: null, nameOf, holds: () => [], isRunePouch: () => false }), null);
   assert.equal(cleanPlan('max'), 'max');
   assert.equal(cleanPlan('junk'), null);
   assert.equal(toa(null).got!.plan.preset, DEFAULT_PLAN);
@@ -57,7 +58,8 @@ test('ToA: the worn loadout fills the doll, the switches come first in a 28-slot
   assert.ok(empty >= 10, `${empty} empty slots: room for the raid's supplies`);
   assert.ok(setup.inventory!.slice(28 - empty).every((x) => !x), 'the empty room at the end');
   assert.ok(plan.info.some((l) => /^\d+ switch slots, \d+ for supplies, 10 free for the raid's supplies$/.test(l)), plan.info.join(' | '));
-  assert.ok(plan.info.some((l) => /^Ranged: .*Wardens P2/.test(l)), plan.info.join(' | '));
+  assert.ok(plan.info.some((l) => /Wardens P2 \(Tumeken's\).*: Twisted bow \(Rapid\)$/.test(l)), plan.info.join(' | '));
+  assert.ok(plan.info.some((l) => /^Ranged: Twisted bow and \d pieces?$/.test(l)), plan.info.join(' | '));
 
   // Checked like a guide's setup: every worn piece has its slot, so the doll is drawn.
   const toaC = tripContent('toa')!;
@@ -103,6 +105,21 @@ test('panel: the plan chooser posts trip-plan with the trip, the picked plan lif
   assert.ok(/"s":"Max DPS","color":"white"/.test(ui), 'the picked plan is lifted');
 });
 
+test('panel: "Avoid Defence XP" is one plain row that flips the setting (trip-defxp)', () => {
+  const base = {
+    region: '13454', regionName: 'the ToA lobby', content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, fromRegion: true, source: 'calc' as const, sourceLine: 'x', guide: null,
+    check: { rows: [], info: [], unknown: [] }, status: 'ready' as const, checkedAt: '05:27', hasOwn: false, canSave: true, options: [], monsters: [],
+    plan: { preset: 'max', presets: [{ key: 'max', label: 'Max DPS' }], blurb: 'b' },
+  };
+  const on = JSON.stringify(tripPanelUi({ ...base, defXp: { on: true } }));
+  assert.ok(on.includes('Avoid Defence XP') && on.includes('"act":"trip-defxp"') && on.includes('"dx":"0"'), 'on: a click turns it off');
+  const off = JSON.stringify(tripPanelUi({ ...base, defXp: { on: false } }));
+  assert.ok(off.includes('"dx":"1"'));
+  assert.ok(!on.includes(' · ') && !off.includes(' · '));
+  const own = JSON.stringify(tripPanelUi({ ...base, defXp: { on: true }, setupSel: 3 }));
+  assert.ok(!own.includes('Avoid Defence XP'), 'only with Anvil’s loadout');
+});
+
 // ── Raids that used to fall to the calc ──────────────────────────────────────────────────────────
 
 const names = (ids: (number | null | undefined)[]) => ids.filter((x): x is number => x != null).map((x) => nameOf(x));
@@ -122,7 +139,7 @@ test('ToB, max bank: Scythe worn in melee armour, a Twisted bow switch, and the 
     assert.ok(mage.length <= 2, `${preset}: ${mage.length} magic pieces (${mage.map((s) => s.name).join(', ')})`);
     // The Nylocas each need their own style: every colour has a kit.
     for (const k of ['nylo-melee', 'nylo-ranged', 'nylo-magic']) assert.ok(l.phases.find((p) => p.key === k)?.kit, `${preset}: ${k}`);
-    assert.equal(l.phases.find((p) => p.key === 'xarpus')?.kit === 'melee', false, 'Xarpus is out of melee reach');
+    assert.equal(l.phases.find((p) => p.key === 'xarpus')?.kit, 'melee', 'Xarpus has no melee defence: the Scythe leads there');
     // Brews and restores brought in: the rooms give none.
     const inv = l.inventory.map((x) => x?.name ?? '');
     assert.ok(inv.filter((n) => /saradomin brew/i.test(n)).length >= 3, `${preset}: brews (${inv.join(', ')})`);
@@ -167,4 +184,29 @@ test('setup layout: wearing and packing the whole setup, "Show my setup" still l
   for (const it of inventory.filter((x) => idx.item(x.id))) assert.ok(lay.ids.includes(it.id), `switch ${nameOf(it.id)} laid out`);
   // Nothing has to come out of the bank for the gear: "Show missing" holds no worn piece.
   for (const id of Object.values(setup.gear)) assert.ok(!check.layouts!.missing.ids.includes(id), `${nameOf(id)} is not missing`);
+});
+
+// ── The card's lines ─────────────────────────────────────────────────────────────────────────────
+
+test('card lines: the stance per part of the fight, each switch by its job, the spec order, no dot separators', () => {
+  const cox = trip('cox', 'max').got!.plan.info;
+  assert.ok(cox.some((l) => /^Tekton(, [^:]+)?: Scythe of Vitur on (slash|crush|stab) \([A-Z][a-z]+\)$/.test(l)), cox.join(' | '));
+  assert.ok(cox.some((l) => /Skeletal Mystics[^:]*: Tumeken's shadow \(Accurate\)$/.test(l)), 'the Mystics with the Shadow');
+  assert.ok(cox.some((l) => /^Pickaxe for the Guardians: Dragon pickaxe$/.test(l)));
+  assert.ok(cox.includes('Spec: Dragon warhammer, then Bandos godsword'), cox.join(' | '));
+  const doom = trip('doom', 'experienced').got!.plan.info;
+  assert.ok(doom.some((l) => /^Melee punish: /.test(l)), doom.join(' | '));
+  assert.ok(doom.some((l) => /^Doom: Twisted bow \(Rapid\)$/.test(l)));
+  for (const l of [...cox, ...doom]) assert.ok(!l.includes(' · '), l);
+});
+
+test('card lines: a step-down names the reference, a missing job says what is skipped', () => {
+  const noBow = MAX_BANK.filter((id) => !/^twisted bow$|^zaryte crossbow$/i.test(nameOf(id)));
+  const worn: InvItem[] = [];
+  const bank: InvItem[] = [...noBow.map((id) => ({ id })), ...SUPPLIES.map((s) => ({ id: s.id, q: s.q }))];
+  const holds = equivalentsFor(bank.map((x) => x.id), 'holds');
+  const got = loadoutFor({ contentKey: 'doom', preset: 'experienced', idx, worn, inventory: [], bank, state: null, levels: LEVELS, raidLevel: null, nameOf, holds, isRunePouch: () => false })!;
+  const info = got.plan.info;
+  assert.ok(info.some((l) => /^Ranged: .+ \(best is Twisted bow\)$/.test(l)), info.join(' | '));
+  assert.ok(info.some((l) => /^Spec: .+ \(best is Zaryte crossbow\)$/.test(l)) || info.includes('No Zaryte crossbow: skip the spec, one more food'), info.join(' | '));
 });

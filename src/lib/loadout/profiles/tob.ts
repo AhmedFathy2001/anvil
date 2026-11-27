@@ -1,20 +1,18 @@
-// Theatre of Blood: the six rooms' bosses. Facts from the OSRS Wiki, our own wording:
+// Theatre of Blood: each room's boss and the Nylocas waves. Facts from the OSRS Wiki, our own wording:
 //   https://oldschool.runescape.wiki/w/Theatre_of_Blood/Strategies
-//   https://oldschool.runescape.wiki/w/Theatre_of_Blood
+//   https://oldschool.runescape.wiki/w/Theatre_of_Blood:_Hard_Mode (and each monster's page)
 //
-// - The Maiden, Bloat, Sotetseg and Verzik's last phase are melee rooms in practice (a Scythe hits
-//   the big bosses three times); the worn setup is melee.
-// - The Nylocas only take damage from the style their colour shows (grey melee, green ranged, blue
-//   magic), the waves and the Vasilias alike, so every player carries all three styles.
-// - Xarpus sits out of melee reach: ranged (a Twisted bow, often in Void) or magic.
-// - Verzik P1 is fought with the Dawnbringer handed out in the room: no gear of ours. P2 and P3 are
-//   fought with what is carried.
-// - The magic switch is a weapon (Sanguinesti staff, Tumeken's shadow) and a piece or two, not a
-//   robe set: the plans cap it. Food and potions are brought in; the rooms give none.
-// - Entry Mode and Hard Mode swap in the rooms' other versions (variants).
-//
-// The amounts of damage per room are rough team-wide ratios (our estimate): only the split between
-// rooms matters, every room scales with the team alike.
+// The reference: melee worn (the Scythe rooms), with switches by job:
+// - ranged for the green nylocas and Nylocas Vasilias in green (immune to the rest), and the
+//   stand-in on the Maiden, Sotetseg, Xarpus and Verzik P2 when the melee kit is weak (the wiki's
+//   learner picks there are ranged).
+// - magic for the blue nylocas and Vasilias in blue (immune to the rest). The Maiden's mages freeze
+//   her crabs with Ice Barrage: crowd control, not damage, said as a tip.
+// - Bloat is meleed (slash) during his sleeps: undead, so a Salve (e) or (ei) goes on for him.
+// - Xarpus has no melee defence: the wiki now ranks the Scythe first there (ranged in elite void
+//   behind it). Verzik P3 is meleed (its gear table is melee only).
+// - Specs: the hammer or maul drains first (the Maiden and Xarpus), then the godsword.
+// Verzik P1 is fought with the Dawnbringer handed out in the room: not modelled.
 
 import type { BossProfile } from '../types';
 
@@ -59,24 +57,33 @@ export const TOB: BossProfile = {
     },
   ],
   phases: [
-    { key: 'maiden', name: 'The Maiden', monster: 'The Maiden of Sugadinti#Normal', share: 1, allowed: ['melee', 'ranged', 'magic'], prefer: ['melee'] },
-    { key: 'bloat', name: 'Bloat', monster: 'Pestilent Bloat#Normal', share: 1, allowed: ['melee', 'ranged', 'magic'], prefer: ['melee'] },
-    // The waves: about a hundred big nylocas a team, a third of each colour (our estimate).
-    { key: 'nylo-melee', name: 'Nylocas (grey)', monster: 'Nylocas Ischyros#Big', share: 30, allowed: ['melee'], immune: ['ranged', 'magic'], required: ['melee'], entries: 10 },
-    { key: 'nylo-ranged', name: 'Nylocas (green)', monster: 'Nylocas Toxobolos#Big', share: 30, allowed: ['ranged'], immune: ['melee', 'magic'], required: ['ranged'], entries: 10 },
-    { key: 'nylo-magic', name: 'Nylocas (blue)', monster: 'Nylocas Hagios#Big', share: 30, allowed: ['magic'], immune: ['melee', 'ranged'], required: ['magic'], entries: 10 },
-    // The Vasilias changes colour through the fight: a third of its health in each style.
-    { key: 'vasilias-melee', name: 'Nylocas Vasilias (grey)', monster: 'Nylocas Vasilias#Normal', share: 1 / 3, allowed: ['melee'], immune: ['ranged', 'magic'], required: ['melee'], entries: 2 },
-    { key: 'vasilias-ranged', name: 'Nylocas Vasilias (green)', monster: 'Nylocas Vasilias#Normal', share: 1 / 3, allowed: ['ranged'], immune: ['melee', 'magic'], required: ['ranged'], entries: 2 },
-    { key: 'vasilias-magic', name: 'Nylocas Vasilias (blue)', monster: 'Nylocas Vasilias#Normal', share: 1 / 3, allowed: ['magic'], immune: ['melee', 'ranged'], required: ['magic'], entries: 2 },
-    { key: 'sotetseg', name: 'Sotetseg', monster: 'Sotetseg#Normal', share: 1, allowed: ['melee', 'ranged', 'magic'] },
-    { key: 'xarpus', name: 'Xarpus', monster: 'Xarpus@1', share: 1, allowed: ['ranged', 'magic'], immune: ['melee'], prefer: ['ranged'] },
-    { key: 'verzik-p2', name: 'Verzik P2', monster: 'Verzik Vitur#Phase 2@1', share: 1, allowed: ['melee', 'ranged', 'magic'], entries: 2 },
-    { key: 'verzik-p3', name: 'Verzik P3', monster: 'Verzik Vitur#Phase 3@1', share: 1, allowed: ['melee', 'ranged', 'magic'], entries: 2 },
+    { key: 'maiden', name: 'The Maiden', monster: 'The Maiden of Sugadinti#Normal', share: 1, allowed: ['melee', 'ranged'], use: ['main', 'ranged'], tip: 'The Maiden: the mages freeze her crabs with Ice Barrage' },
+    { key: 'bloat', name: 'Bloat', monster: 'Pestilent Bloat#Normal', share: 1, allowed: ['melee', 'ranged', 'magic'], use: ['main'] },
+    // Each wave's nylocas: only their own colour's style hurts them.
+    { key: 'nylo-melee', name: 'Nylocas (grey)', monster: 'Nylocas Ischyros#Big', share: 30, allowed: ['melee'], immune: ['ranged', 'magic'], required: ['melee'], entries: 10, use: ['main'] },
+    { key: 'nylo-ranged', name: 'Nylocas (green)', monster: 'Nylocas Toxobolos#Big', share: 30, allowed: ['ranged'], immune: ['melee', 'magic'], required: ['ranged'], entries: 10, use: ['ranged'] },
+    { key: 'nylo-magic', name: 'Nylocas (blue)', monster: 'Nylocas Hagios#Big', share: 30, allowed: ['magic'], immune: ['melee', 'ranged'], required: ['magic'], entries: 10, use: ['magic'] },
+    // Nylocas Vasilias changes colour: a third of its hitpoints in each, two entries each.
+    { key: 'vasilias-melee', name: 'Nylocas Vasilias (grey)', monster: 'Nylocas Vasilias#Normal', share: 1 / 3, allowed: ['melee'], immune: ['ranged', 'magic'], required: ['melee'], entries: 2, use: ['main'] },
+    { key: 'vasilias-ranged', name: 'Nylocas Vasilias (green)', monster: 'Nylocas Vasilias#Normal', share: 1 / 3, allowed: ['ranged'], immune: ['melee', 'magic'], required: ['ranged'], entries: 2, use: ['ranged'] },
+    { key: 'vasilias-magic', name: 'Nylocas Vasilias (blue)', monster: 'Nylocas Vasilias#Normal', share: 1 / 3, allowed: ['magic'], immune: ['melee', 'ranged'], required: ['magic'], entries: 2, use: ['magic'] },
+    { key: 'sotetseg', name: 'Sotetseg', monster: 'Sotetseg#Normal', share: 1, allowed: ['melee', 'ranged', 'magic'], use: ['main', 'ranged'] },
+    { key: 'xarpus', name: 'Xarpus', monster: 'Xarpus@1', share: 1, allowed: ['melee', 'ranged', 'magic'], use: ['main', 'ranged'] },
+    { key: 'verzik-p2', name: 'Verzik P2', monster: 'Verzik Vitur#Phase 2@1', share: 1, allowed: ['melee', 'ranged', 'magic'], entries: 2, use: ['main', 'ranged'] },
+    { key: 'verzik-p3', name: 'Verzik P3', monster: 'Verzik Vitur#Phase 3@1', share: 1, allowed: ['melee', 'ranged', 'magic'], entries: 2, use: ['main'] },
   ],
-  worn: 'melee',
+  main: ['melee'],
+  jobs: [
+    { key: 'main', label: 'Melee', style: 'main', ref: 'Scythe of vitur' },
+    { key: 'ranged', label: 'Ranged', style: 'ranged', phases: ['nylo-ranged', 'vasilias-ranged', 'xarpus', 'maiden', 'sotetseg', 'verzik-p2'], ref: 'Twisted bow', required: true, missing: 'No ranged weapon: the green nylocas take nothing else' },
+    { key: 'magic', label: 'Magic', style: 'magic', phases: ['nylo-magic', 'vasilias-magic'], required: true, missing: 'No magic weapon: the blue nylocas take nothing else' },
+    { key: 'salve', label: 'Salve for Bloat', style: 'main', piece: { slot: 'neck', items: ['^salve amulet ?\\(ei\\)', '^salve amulet ?\\(e\\)'] }, phases: ['bloat'], optional: true },
+  ],
   rules: [],
-  spec: { prefer: ['^dragon warhammer', '^elder maul', '^bandos godsword', '^zaryte crossbow'], why: 'spec: defence drain on the Maiden and Xarpus' },
+  specs: [
+    { weapons: ['^elder maul', '^dragon warhammer'], why: 'spec first on the Maiden and Xarpus: a defence drain', missing: 'No Elder maul or Dragon warhammer: no hammer drain on the Maiden and Xarpus' },
+    { weapons: ['^bandos godsword'], why: 'spec after the hammer: drains even when it misses', missing: 'No Bandos godsword: the hammer drains alone' },
+  ],
   boosts: { melee: 'super_combat', ranged: 'ranging', magic: 'magic' },
   presets: {
     learner: {
@@ -118,7 +125,9 @@ export const TOB: BossProfile = {
     },
   },
   notes: [
+    'Xarpus is no longer melee-immune: he has no melee defence, so the Scythe leads there.',
     'Verzik P1 is fought with the Dawnbringer from the room: not modelled.',
+    'Xarpus is no longer melee-immune: he has no melee defence, so the Scythe leads there.',
     'Ice Barrage on the Maiden’s and Nylocas’ crowds is not modelled; each nylocas is hit on its own.',
   ],
 };
