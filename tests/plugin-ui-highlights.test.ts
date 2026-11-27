@@ -56,15 +56,15 @@ const weekly = (over: Partial<ScheduleWeekly> = {}): ScheduleWeekly => ({
 const drop = (over: Partial<PanelDrop> = {}): PanelDrop => ({ rsn: 'Lcl Member', itemId: 12921, itemName: 'Pet snakeling', count: 1, rarity: 4000, kc: 1204, at: '2026-11-17T10:00:00.000Z', ...over });
 const top = [{ rank: 1, rsn: 'Lcl Admin', gained: 40, self: false }, { rank: 2, rsn: 'Me', gained: 12, self: true }];
 
-test('one row: the item picture, "Name · Item", and a dim line of rate, kill count and when', () => {
+test('one row: the item picture, "Name, Item", and a dim line of rate, kill count and when', () => {
   assert.deepEqual(dropRow(drop({ count: 2 })), {
     t: 'row',
     l: { t: 'icon', item: 12921, w: 24, h: 22 },
     c: {
       t: 'col',
       c: [
-        { t: 'row', l: { t: 'text', s: 'Lcl Member', color: 'white', who: 'Lcl Member', tip: 'Lcl Member' }, c: { t: 'text', s: '· Pet snakeling ×2', color: '#e0e0e0', tip: 'Pet snakeling' }, gap: 3 },
-        { t: 'row', l: { t: 'text', s: '1 in 4,000 · 1,204 kc ·', color: 'muted', font: 'small' }, c: { t: 'text', s: '', color: 'muted', at: '2026-11-17T10:00:00.000Z', font: 'small' }, gap: 3 },
+        { t: 'row', l: { t: 'text', s: 'Lcl Member', color: 'white', who: 'Lcl Member', tip: 'Lcl Member' }, c: { t: 'text', s: 'Pet snakeling ×2', color: '#e0e0e0', tip: 'Pet snakeling' }, gap: 3 },
+        { t: 'row', l: { t: 'text', s: '1 in 4,000, 1,204 kc,', color: 'muted', font: 'small' }, c: { t: 'text', s: '', color: 'muted', at: '2026-11-17T10:00:00.000Z', font: 'small' }, gap: 3 },
       ],
     },
     gap: 6,
@@ -125,7 +125,7 @@ test('ranked for the panel: pets first, people off the board left out, deaths ne
 
 // ── An item hunt as a competition ────────────────────────────────────────────────────────────
 
-const hunt = weekly({ id: 11, title: 'Item hunt: Tanzanite fang', type: 'hunt', metric: 'Tanzanite fang from Zulrah', metricLabel: 'Tanzanite fang from Zulrah · most by the end', iconItem: 12922 });
+const hunt = weekly({ id: 11, title: 'Item hunt: Tanzanite fang', type: 'hunt', metric: 'Tanzanite fang from Zulrah', metricLabel: 'Tanzanite fang from Zulrah, most by the end', iconItem: 12922 });
 const huntTop = [
   { rank: 1, rsn: 'Lcl Admin', gained: 2, self: false, sub: '83 kills' },
   { rank: 2, rsn: 'Me', gained: 1, self: true, sub: '249 kills' },
@@ -143,7 +143,7 @@ test('an item hunt on the list: its targets and rule, the item picture, your pla
   // The list clips a title to the panel's width.
   assert.ok(t.some((s) => s.startsWith('Item hunt: Tanzanite')));
   assert.ok(t.some((s) => s.startsWith('Tanzanite fang')));
-  assert.ok(t.includes('You: #2 · 1 drop'));
+  assert.ok(t.includes('You: #2, 1 drop'));
   assert.ok(walk(ui).some((x) => x.t === 'icon' && x.item === 12922));
 });
 
@@ -151,7 +151,7 @@ test('an item hunt page: rank, name, count, and a dim line with the kills at the
   const ui = eventUi(base({ panel: { weeklies: [hunt] } }, { weekly: new Map([[11, { total: 3, top: huntTop, you: huntTop[1] }]]) }), 'weekly:11')!;
   const t = texts(ui);
   assert.ok(t.includes('Item hunt'));
-  assert.ok(t.includes('#2 · 1 drop'));
+  assert.ok(t.includes('#2, 1 drop'));
   assert.ok(t.includes('2 drops'));
   assert.ok(t.includes('412 kills, no drop'));
   assert.ok(!t.some((s) => s.includes('+2 drops') || s.endsWith(' kc')), 'drops are a count, never a gain in kc');

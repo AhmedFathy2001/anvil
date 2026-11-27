@@ -483,7 +483,7 @@ function targetNames(config: HuntConfig): Map<string, string> {
 }
 
 /**
- * A death at one of a rush's targets, as the plugin named its killer (lib/deathSource has already
+ * A death at one of a rush's targets, as the plugin named its killer or saw it close by (lib/deathSource has already
  * settled a guessed one to a boss or nothing), or inside a target raid (the plugin's raid tag, else
  * the raid's own monsters, lib/raidNpcs; Entry Mode Tombs is its own). Counted on the seat in one
  * statement, and only when the seat's last death is more than RUSH_SAME_DEATH_MS before it: one
@@ -493,11 +493,17 @@ async function recordRushDeath(config: HuntConfig, seatId: number, report: HuntR
   if (!isRush(config) || !config.rush.deaths) return;
   const atMs = parseStamp(report.occurredAt);
   const names = targetNames(config);
+  const bossKeys = rushBossKeys(config);
+  const isTarget = (name: string) => {
+    const boss = bossKeyForSource(name);
+    return killTargetKeys(name).some((k) => names.has(k)) || (boss != null && bossKeys.includes(boss));
+  };
   const source = report.source?.trim() ?? '';
-  const boss = source ? bossKeyForSource(source) : null;
+  // Killed by a target, or with one close by (a minion, a mechanic, nothing named: Blood reavers in
+  // Nex's prison count, the ones in the corridor do not), or inside a target raid.
   const atTarget =
-    (!!source && killTargetKeys(source).some((k) => names.has(k))) ||
-    (boss != null && rushBossKeys(config).includes(boss)) ||
+    (!!source && isTarget(source)) ||
+    (report.near ?? []).some(isTarget) ||
     (!!report.raid && config.rush.targets.some((t) => raidOfTarget(t) === report.raid));
   if (atMs == null || !dropCounts(atMs, window.startMs, window.endMs) || !atTarget) return;
   const at = new Date(atMs).toISOString();

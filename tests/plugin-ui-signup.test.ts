@@ -28,7 +28,7 @@ test('signed up: edit and withdraw while it is still theirs to take back', () =>
 test('the public list shows names only when the host turned it on', () => {
   assert.doesNotMatch(json(bingoSignupCard(base, 7, 'event:7', 'W', 'iron')), /Signed up ·/);
   const s = json(bingoSignupCard({ ...base, names: ['Zezima', 'Lynx Titan'], count: 2 }, 7, 'event:7', 'W', 'iron'));
-  assert.match(s, /Signed up · 2/);
+  assert.match(s, /Signed up \(2\)/);
   assert.match(s, /Zezima, Lynx Titan/);
 });
 

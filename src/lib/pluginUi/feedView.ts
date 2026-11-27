@@ -332,7 +332,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
           act: 'chat-send',
           args: { e: String(current.id), to: chat.channel },
           // The viewer's own pace (Supporter tier) or the board's slow mode, so nobody is surprised by it.
-          hint: `${chatBoxPrompt(chat.channel)} · ${await chatPaceFor(access, viewer.userId, current.id)}`,
+          hint: `${chatBoxPrompt(chat.channel)}, ${await chatPaceFor(access, viewer.userId, current.id)}`,
         },
         // In place of the message box: their own timeout or ban (coral, with how long is left), a
         // read-only Announcements, or the board's pause.
@@ -571,7 +571,7 @@ export async function chatboxChans(request: Request, userId: number): Promise<{ 
     const tag = await boardChatTag(b.id);
     const out: ChatboxChan[] = [];
     const add = (to: ChatboxChan['to'], ch: ChatChannel) => {
-      if (canPostChannel(access, ch)) out.push({ l: `${tag} · ${chatboxChannelLabel(ch)}`, e: String(b.id), to });
+      if (canPostChannel(access, ch)) out.push({ l: `${tag}: ${chatboxChannelLabel(ch)}`, e: String(b.id), to });
     };
     if (access.teamId != null && !access.solo) add('team', `team:${access.teamId}`);
     add('all', 'all');
@@ -579,6 +579,6 @@ export async function chatboxChans(request: Request, userId: number): Promise<{ 
     if (out.length) per.push(out);
   }
   const one = per.length <= 1;
-  const chans = per.flat().map((c) => (one ? { ...c, l: c.l.slice(c.l.lastIndexOf(' · ') + 3) } : c));
+  const chans = per.flat().map((c) => (one ? { ...c, l: c.l.slice(c.l.lastIndexOf(': ') + 2) } : c));
   return { one, chans };
 }

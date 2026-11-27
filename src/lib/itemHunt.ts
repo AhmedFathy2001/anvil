@@ -687,6 +687,9 @@ export interface HuntReport {
   source?: string | null;
   /** 'death' only: the raid it happened in (lib/raidNpcs), when the killer named was a raid's own. */
   raid?: string | null;
+  /** 'death' only: the monsters within a few tiles when it happened (the plugin's look around), so a
+   *  death to a boss's minion or mechanic counts at that boss (Blood reavers at Nex). */
+  near?: string[] | null;
   kc?: number | null;
   occurredAt: string;
   dedupKey: string;

@@ -237,7 +237,7 @@ export function sizeLabel(b: ScheduleBingo): string {
   const n = (k: number) => `${k} ${k === 1 ? 'tile' : 'tiles'}`;
   if (square) {
     if (side <= 0) return tiles > 0 ? n(tiles) : '';
-    return tiles > 0 ? `${side}×${side} · ${n(tiles)}` : `${side}×${side}`;
+    return tiles > 0 ? `${side}×${side}, ${n(tiles)}` : `${side}×${side}`;
   }
   const c = tiles > 0 ? tiles : side;
   return c > 0 ? n(c) : '';
@@ -262,7 +262,7 @@ export function feedLine(e: ActivityEntry): string {
     return lead ? `${lead}${more > 0 ? ` & ${more} more` : ''} completed ${e.tileLabel}` : `Team completed ${e.tileLabel}`;
   }
   const amt = `+${e.amount > 0 ? e.amount : 1}`;
-  return who ? `${who} ${amt} · ${e.tileLabel}` : `${e.tileLabel} ${amt}`;
+  return who ? `${who} ${amt}, ${e.tileLabel}` : `${e.tileLabel} ${amt}`;
 }
 
 /** The feed newest first, each run of one worker's progress on one tile folded into one "+N" line. */
@@ -289,7 +289,7 @@ export function workersLine(a: PanelActive): string {
   if (!a.workers.length) return '';
   if (a.gains && Object.keys(a.gains).length) {
     const shown = a.workers.slice(0, 3).map((w) => (a.gains?.[w] ? `${w} ${count(a.gains[w])}` : w));
-    return shown.join(' · ') + (a.workers.length > 3 ? ` · +${a.workers.length - 3}` : '');
+    return shown.join(', ') + (a.workers.length > 3 ? `, +${a.workers.length - 3}` : '');
   }
   if (a.workers.length === 1) return a.workers[0];
   if (a.workers.length === 2) return `${a.workers[0]} + ${a.workers[1]}`;
@@ -304,7 +304,7 @@ export function revealNote(e: NonNullable<HomeConfig['event']>, now: number): st
   const what = bounty ? `${n} ${n === 1 ? 'bounty' : 'bounties'} left` : `${n} ${n === 1 ? 'tile' : 'tiles'} hidden`;
   const at = ms(e.nextRevealAt);
   const next = bounty ? 'next on claim' : at < 0 ? null : at - now < 60_000 ? 'next any minute' : `next in ${minutesText(Math.floor((at - now) / 60_000))}`;
-  return what + (next ? ` · ${next}` : '');
+  return what + (next ? `, ${next}` : '');
 }
 
 // ---- The board ----------------------------------------------------------------------------------
@@ -352,8 +352,8 @@ function boardOf(d: HomeData): Board | null {
 
 const statusLine = (b: Board, d: HomeData): string => {
   const m = d.cfg.event?.monthlyStandings;
-  if (b.ladder) return m && m.yourRank > 0 ? `You: #${m.yourRank} · ${m.yourPoints} pts this month` : 'Unranked — claim a mission';
-  if (b.total > 0) return `${b.done} / ${b.total} ${b.points ? 'pts' : 'tiles'} · ${pct(b.done, b.total)}%`;
+  if (b.ladder) return m && m.yourRank > 0 ? `You: #${m.yourRank}, ${m.yourPoints} pts this month` : 'Unranked — claim a mission';
+  if (b.total > 0) return `${b.done} / ${b.total} ${b.points ? 'pts' : 'tiles'}, ${pct(b.done, b.total)}%`;
   return b.note ?? 'No board to show yet.';
 };
 
@@ -427,7 +427,7 @@ function endsNode(end: string | null | undefined, now: number): Node {
   if (!end) return small('Live', BLUE);
   const at = Date.parse(/[zZ]|[+-]\d\d:\d\d$/.test(end) ? end.replace(' ', 'T') : `${end.replace(' ', 'T')}Z`);
   if (Number.isFinite(at) && at - now > 7 * 86_400_000) return small(`Ends ${new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`, BLUE);
-  return clock(end, 'Live · ends in ', 'Ended', now);
+  return clock(end, 'Live, ends in ', 'Ended', now);
 }
 const endOf = (d: HomeData) => d.cfg.event?.endDate ?? null;
 const placeText = (p: Place) => (p.rank != null && p.of > 1 ? `${ordinal(p.rank)} of ${count(p.of)}` : null);
@@ -441,8 +441,8 @@ const placeNode = (p: Place): Node | undefined => {
 
 /** One clan event on a list: what, when, where and who, and its "I'm going" / "Register" right there. */
 function clanEventRow(d: HomeData, ce: ClanEventView): Node {
-  const when = ce.phase === 'live' ? clock(ce.occurrence.end, 'Live now · ends in ', 'Just finished', d.now, { color: GREEN }) : clock(ce.occurrence.start, 'Starts in ', 'Starting now', d.now);
-  const who = [where(ce), takesNames(ce.modules) ? goingLabel(ce) : null].filter(Boolean).join(' · ');
+  const when = ce.phase === 'live' ? clock(ce.occurrence.end, 'Live now, ends in ', 'Just finished', d.now, { color: GREEN }) : clock(ce.occurrence.start, 'Starts in ', 'Starting now', d.now);
+  const who = [where(ce), takesNames(ce.modules) ? goingLabel(ce) : null].filter(Boolean).join(', ');
   const cta = clanEventCta(d, ce, '', true);
   return openRow(text(clip(ce.title, 24), '#e6e6e6'), undefined, [when, ...(who ? [muted(clip(who, 34))] : []), ...(cta ? [cta] : [])], home(`clan-event:${ce.id}`), ce.title);
 }
@@ -481,7 +481,7 @@ export function homeUi(d: HomeData): Node {
   const clanName = clip(d.cfg.activeClan?.name || d.cfg.clanName || '', 16);
   const p = placeOf(d);
   if (playing > 0 || b) {
-    const sub = [p.team && b ? `You’re on ${clip(p.team, 14)} in ${clip(b.title, 18)}` : null, upcoming.length ? `${upcoming.length} more coming up` : null].filter(Boolean).join(' · ');
+    const sub = [p.team && b ? `You’re on ${clip(p.team, 14)} in ${clip(b.title, 18)}` : null, upcoming.length ? `${upcoming.length} more coming up` : null].filter(Boolean).join(', ');
     parts.push(section([
       row(undefined, big(playing > 0 ? `${playing} live board${playing === 1 ? '' : 's'}` : 'On the board'), clanName ? text(clanName, SOFT) : undefined),
       ...(sub ? [muted(sub, { wrap: CARD_W })] : []),
@@ -491,7 +491,7 @@ export function homeUi(d: HomeData): Node {
     const nextName = next ? firstText(next.node) : null;
     parts.push(section([
       big(running.length ? 'Nothing of yours live' : 'Nothing live right now'),
-      muted(nextName ? `No active board · next up: ${clip(nextName, 22)}` : 'No active event yet.', { wrap: CARD_W }),
+      muted(nextName ? `No active board, next up: ${clip(nextName, 22)}` : 'No active event yet.', { wrap: CARD_W }),
     ]));
   }
 
@@ -501,9 +501,9 @@ export function homeUi(d: HomeData): Node {
     const kind = b.ladder ? 'Ladder' : d.cfg.event?.race ? 'Tile race' : d.cfg.event?.revealPolicy === 'bounty' ? 'Bounty hunt' : d.cfg.event?.revealPolicy ? 'Showdown' : b.points ? 'Point Hunt' : 'Bingo';
     const lines: Node[] = [];
     if (b.total > 0 && !b.ladder && !b.spectating) {
-      lines.push(row(muted(clip([kind, p.team].filter(Boolean).join(' · '), 24)), undefined, placeNode(p)));
+      lines.push(row(muted(clip([kind, p.team].filter(Boolean).join(', '), 24)), undefined, placeNode(p)));
       lines.push(tally(b.done, b.total, b.points));
-      lines.push(row(muted(`${count(b.done)} / ${count(b.total)} ${b.points ? 'pts' : d.cfg.event?.race ? 'steps' : 'tiles'}`), undefined, d.live && endOf(d) ? clock(endOf(d), 'Live · ends in ', 'Ended', d.now) : d.live ? small('Live', BLUE) : undefined));
+      lines.push(row(muted(`${count(b.done)} / ${count(b.total)} ${b.points ? 'pts' : d.cfg.event?.race ? 'steps' : 'tiles'}`), undefined, d.live && endOf(d) ? clock(endOf(d), 'Live, ends in ', 'Ended', d.now) : d.live ? small('Live', BLUE) : undefined));
     } else lines.push(muted(clip(statusLine(b, d), 34), { wrap: CARD_W }));
     const open = openRow(text(clip(titled(b.id, b.title), 24), 'white'), undefined, lines, home('board'), `Open ${b.title}`);
     if (d.live && !b.spectating) playingHere = open;
@@ -517,7 +517,7 @@ export function homeUi(d: HomeData): Node {
     const rank = m.rank != null && (m.of ?? 0) > 1 ? text(`${ordinal(m.rank)} of ${count(m.of ?? 0)}`, SOFT) : undefined;
     // The clan · team line on its own, wrapped: beside the rank it was cut to "Anvil Tile Lab · dead p…".
     // The rank sits on the title row instead.
-    const lines: Node[] = [muted(clip(`${m.clanName} · ${m.teamName}`, 48), { wrap: CARD_W })];
+    const lines: Node[] = [muted(clip(`${m.clanName}, ${m.teamName}`, 48), { wrap: CARD_W })];
     if (m.tilesTotal > 0) lines.push(tally(m.tilesComplete, m.tilesTotal, m.pointsScored), row(muted(`${count(m.tilesComplete)} / ${count(m.tilesTotal)} ${m.pointsScored ? 'pts' : 'tiles'}`), undefined, endsNode(m.endDate, d.now)));
     else lines.push(muted('Board not revealed yet'));
     return openRow(text(clip(t, 24), '#e6e6e6'), rank, lines, home(`board:${m.eventId}`), `Open ${t}`);
@@ -528,7 +528,7 @@ export function homeUi(d: HomeData): Node {
     const flip: Action = { a: 'flip', key: 'liveboards' };
     const head = (open: boolean) =>
       row(
-        text(`Your live boards · ${liveRows.length}`, GOLD, { font: 'bold', icon: icon({ glyph: open ? 'down' : 'chevron-right', w: 10, h: 10, color: GOLD }) }),
+        text(`Your live boards (${liveRows.length})`, GOLD, { font: 'bold', icon: icon({ glyph: open ? 'down' : 'chevron-right', w: 10, h: 10, color: GOLD }) }),
         undefined,
         muted(open ? 'Hide' : 'Show'),
         { on: flip, tip: open ? 'Fold the list' : 'Show every live board' },
@@ -603,7 +603,7 @@ function scheduledRow(d: HomeData, s: ScheduleBingo, on: BoardSummary | undefine
   const t = titled(s.id, s.title || on?.name || 'Bingo');
   const when = live ? (s.endDate ? clock(s.endDate, 'Ends in ', 'Ended', d.now) : small('Running', BLUE)) : clock(s.startDate, 'Starts in ', 'Starting…', d.now);
   const size = sizeLabel(s);
-  const lines: Node[] = [muted(clip([scheduledKind(s), size].filter(Boolean).join(' · '), 32))];
+  const lines: Node[] = [muted(clip([scheduledKind(s), size].filter(Boolean).join(', '), 32))];
   if (on) {
     lines.push(row(when, undefined, small(clip(`On ${on.teamName}`, 16), GOLD)));
     if (on.tilesTotal > 0) lines.push(tally(on.tilesComplete, on.tilesTotal, on.pointsScored));
@@ -623,7 +623,7 @@ export function ownHeading(cfg: Pick<HomeConfig, 'activeClan'>): string {
 
 function yourWeeklyLine(w: ScheduleWeekly, s: { top: WeeklyStanding[]; you: WeeklyStanding | null } | undefined): string {
   // On +0 the rank is only an alphabetical place among everyone else on +0 — not worth a number.
-  if (s?.you) return s.you.gained > 0 ? `You: #${s.you.rank} · ${plus(w)}${weeklyGain(w, s.you.gained)}` : w.type === 'hunt' ? 'You: no drop yet' : `You: +${weeklyGain(w, 0)} so far`;
+  if (s?.you) return s.you.gained > 0 ? `You: #${s.you.rank}, ${plus(w)}${weeklyGain(w, s.you.gained)}` : w.type === 'hunt' ? 'You: no drop yet' : `You: +${weeklyGain(w, 0)} so far`;
   if (w.type === 'hunt' && s && !s.top.some((r) => r.gained > 0)) return 'No one has a drop yet';
   return !s || !s.top.length ? 'No one has scored yet' : 'You’re not on the board yet';
 }
@@ -709,7 +709,7 @@ export function eventUi(d: HomeData, open: string): Node | null {
 
 // ---- A clan event (a mass, a hangout): scheduled, not tracked -------------------------------------------
 
-const where = (ce: ClanEventView) => [ce.location, ce.world ? `W${ce.world}` : null].filter(Boolean).join(' · ');
+const where = (ce: ClanEventView) => [ce.location, ce.world ? `W${ce.world}` : null].filter(Boolean).join(', ');
 
 /** "4 going", or with sign-ups "4/10 registered". */
 function goingLabel(ce: ClanEventView): string {
@@ -744,13 +744,13 @@ function clanEventPage(d: HomeData, ce: ClanEventView): Node[] {
   const picture = ce.icon ? icon(SKILL_KEYS.has(ce.icon) ? { skill: ce.icon, w: 20, h: 20 } : { boss: ce.icon, w: 20, h: 20 }) : undefined;
   const parts: Node[] = [
     col([
-      pageHead(home(), 'All events', ce.repeat === 'weekly' ? 'Clan event · every week' : 'Clan event'),
+      pageHead(home(), 'All events', ce.repeat === 'weekly' ? 'Clan event, every week' : 'Clan event'),
       row(picture, text(ce.title, 'brand', { font: 'bold', wrap: 180 }), undefined, { gap: 6 }),
     ], { gap: 4 }),
   ];
   const about: Node[] = [
     ce.phase === 'live'
-      ? clock(ce.occurrence.end, 'Live now · ends in ', 'Just finished', d.now, { color: GREEN, font: 'bold' })
+      ? clock(ce.occurrence.end, 'Live now, ends in ', 'Just finished', d.now, { color: GREEN, font: 'bold' })
       : clock(ce.occurrence.start, 'Starts in ', 'Starting now', d.now, { font: 'bold' }),
   ];
   if (where(ce)) about.push(text(where(ce), 'text', { wrap: CARD_W }));
@@ -760,7 +760,7 @@ function clanEventPage(d: HomeData, ce: ClanEventView): Node[] {
   parts.push(section(about));
   if (takesNames(ce.modules)) {
     const s = ce.signup;
-    const head = s ? `Registered · ${ce.going}${s.cap != null ? `/${s.cap}` : ''}` : `Going · ${ce.going}`;
+    const head = s ? `Registered: ${ce.going}${s.cap != null ? `/${s.cap}` : ''}` : `Going: ${ce.going}`;
     const body: Node[] = [title(head), ...(ce.modules.fee.on ? [row(chip(`Entry ${ce.modules.fee.amount.toLocaleString('en-US')} gp`, 'blue'), undefined, undefined)] : [])];
     if (ce.goingNames.length) body.push(muted(ce.goingNames.join(', ') + (ce.going > ce.goingNames.length ? ` +${ce.going - ce.goingNames.length}` : ''), { wrap: CARD_W }));
     const cta = clanEventCta(d, ce, `clan-event:${ce.id}`, false);
@@ -768,7 +768,7 @@ function clanEventPage(d: HomeData, ce: ClanEventView): Node[] {
     if (s && (s.myStatus === 'pending' || s.myStatus === 'approved')) {
       const waits = [s.myStatus === 'pending' ? 'Waiting on the host' : null].filter(Boolean);
       if (waits.length || s.myFee === 'pending') {
-        body.push(text('', 'muted', { wrap: CARD_W, font: 'small', runs: [...waits.map((w) => ({ s: w as string })), ...(s.myFee === 'pending' ? [{ s: `${waits.length ? ' · ' : ''}entry fee not marked paid yet`, color: CORAL }] : [])] }));
+        body.push(text('', 'muted', { wrap: CARD_W, font: 'small', runs: [...waits.map((w) => ({ s: w as string })), ...(s.myFee === 'pending' ? [{ s: `${waits.length ? ', ' : ''}entry fee not marked paid yet`, color: CORAL }] : [])] }));
       }
     }
     // Your action: the gold card, at most one on the page.
@@ -791,9 +791,9 @@ function kindOf(d: HomeData, b: Board): Kind {
   if (e?.revealPolicy && (e.hiddenTileCount ?? 0) > 0) return 'reveal';
   return b.points ? 'points' : 'tiles';
 }
-const KIND_WORDS: Record<Kind, string> = { tiles: 'Bingo', points: 'Bingo · points', reveal: 'Showdown', bounty: 'Bounty hunt', ladder: 'Ladder' };
+const KIND_WORDS: Record<Kind, string> = { tiles: 'Bingo', points: 'Bingo, points', reveal: 'Showdown', bounty: 'Bounty hunt', ladder: 'Ladder' };
 function kindWords(d: HomeData, b: Board, k: Kind): string {
-  if (k === 'tiles' && d.soloStandings) return 'Bingo · solo';
+  if (k === 'tiles' && d.soloStandings) return 'Bingo, solo';
   if (k === 'tiles' && b.total > 0) {
     const side = Math.round(Math.sqrt(b.total));
     if (side * side === b.total && side > 1) return `Bingo ${side}×${side}`;
@@ -837,7 +837,7 @@ function switcher(d: HomeData, current: number): Node | null {
   if (!others.length) return null;
   return section([
     muted('Your other live boards'),
-    ...more(others.map((m) => link(clip(m.tilesTotal > 0 ? `${m.name} · ${count(m.tilesComplete)} / ${count(m.tilesTotal)}` : m.name, 32), home(`board:${m.eventId}`), `Open ${m.name}`)), SWITCHER_SHOWN, `switcher:${current}`),
+    ...more(others.map((m) => link(clip(m.tilesTotal > 0 ? `${m.name}, ${count(m.tilesComplete)} / ${count(m.tilesTotal)}` : m.name, 32), home(`board:${m.eventId}`), `Open ${m.name}`)), SWITCHER_SHOWN, `switcher:${current}`),
   ]);
 }
 
@@ -847,7 +847,7 @@ function topCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>):
   const p = placeOf(d);
   const e = d.cfg.event;
   const ends = d.live && endOf(d) ? clock(endOf(d), 'Ends in ', 'Ended', d.now) : undefined;
-  const whoLine = (extra: string[] = []) => muted(clip([p.team, ...extra, p.gap].filter(Boolean).join(' · '), 34), { wrap: CARD_W });
+  const whoLine = (extra: string[] = []) => muted(clip([p.team, ...extra, p.gap].filter(Boolean).join(', '), 34), { wrap: CARD_W });
   if (k === 'ladder' && e) {
     const m = e.monthlyStandings;
     const ranked = !!m && m.yourRank > 0;
@@ -863,7 +863,7 @@ function topCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>):
     const done = open.filter((t) => t.complete).length;
     return section([
       { t: 'countdown', at: e.nextRevealAt ?? null, prefix: 'Next reveal in ', due: 'Revealing…', none: 'Waiting on the host', font: 'bold', color: BLUE },
-      row(undefined, text(clip([`${count(b.done)} ${b.points ? 'pts' : 'tiles'}`, placeText(p)].filter(Boolean).join(' · '), 24), 'text'), muted(`${open.length} of ${open.length + hidden} open`)),
+      row(undefined, text(clip([`${count(b.done)} ${b.points ? 'pts' : 'tiles'}`, placeText(p)].filter(Boolean).join(', '), 24), 'text'), muted(`${open.length} of ${open.length + hidden} open`)),
       cells(done, open.length + hidden, open.length - done),
       whoLine([`${hidden} hidden`]),
     ]);
@@ -874,7 +874,7 @@ function topCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>):
     return section([
       row(undefined, big(`${live} ${live === 1 ? 'bounty' : 'bounties'} open`), placeNode(p)),
       cells(done, open.length + hidden, live),
-      muted(clip([e ? revealNote(e, d.now) : null, p.team ? `${p.team} ${count(b.done)} ${b.points ? 'pts' : 'tiles'}` : null].filter(Boolean).join(' · '), 40), { wrap: CARD_W }),
+      muted(clip([e ? revealNote(e, d.now) : null, p.team ? `${p.team} ${count(b.done)} ${b.points ? 'pts' : 'tiles'}` : null].filter(Boolean).join(', '), 40), { wrap: CARD_W }),
     ]);
   }
   if (d.soloStandings && p.rank != null && p.of > 1) {
@@ -969,7 +969,7 @@ function revealTrack(d: HomeData, k: Kind, tiles: Map<number, PanelTile>, title:
   }
   return col([title2(k === 'bounty' ? 'Bounties so far' : 'Reveals'), ...stops.map((s, i) => stop(s.dot, s.head, s.sub, s.on, i === stops.length - 1))], { gap: 0 });
 }
-const b2p = (t: PanelTile) => (t.points > 1 ? ` · ${t.points} pts` : '');
+const b2p = (t: PanelTile) => (t.points > 1 ? `, ${t.points} pts` : '');
 const title2 = (s: string): Node => col([title(s), gap(4)]);
 
 /** Missions as a track: Live (coral under 15 minutes), Done, Expired, Locked. */
@@ -995,10 +995,10 @@ function missionsCard(d: HomeData, e: NonNullable<HomeConfig['event']>, boardTit
     } else if (st.kind === 'expired') {
       specs.push({ kind: 'done', draw: (last) => stop('todo', row(undefined, text(clip(m.label, 22), 'muted'), muted(worth)), small('Expired', FAINT), on, last) });
     } else {
-      const prog = p && p.goal > 1 ? ` · ${count(Math.min(p.current, p.goal))}/${count(p.goal)}` : '';
+      const prog = p && p.goal > 1 ? `, ${count(Math.min(p.current, p.goal))}/${count(p.goal)}` : '';
       const sub: Node = m.expiresAt
-        ? clock(m.expiresAt, `Live${prog} · ends in `, 'Expired', d.now)
-        : small(`Live${val > m.points ? ' · growing' : ''}${prog}`, BLUE);
+        ? clock(m.expiresAt, `Live${prog}, ends in `, 'Expired', d.now)
+        : small(`Live${val > m.points ? ', growing' : ''}${prog}`, BLUE);
       specs.push({ kind: 'live', draw: (last) => stop('now', row(undefined, text(clip(m.label, 22), 'white'), small(worth, val < m.points ? CORAL : val > m.points ? GREEN : SOFT)), sub, on, last) });
     }
   });
@@ -1031,7 +1031,7 @@ function standingsPart(d: HomeData, b: Board): Node[] {
   if (!d.standings.length) return [button('Teams', teams(b.title), 'Who’s on which team')];
   const line = (t: RosterTeamOut) => {
     const ink: Color = t.yours ? GOLD : SOFT;
-    return row(withMove(text(`${t.rank}  ${clip(t.name, 18)}${t.yours ? ' · you' : ''}`, ink, { icon: swatch(t.color) }), t.move), undefined, text(t.score ?? '', t.yours ? GOLD : FAINT), {
+    return row(withMove(text(`${t.rank}  ${clip(t.name, 18)}${t.yours ? ', you' : ''}`, ink, { icon: swatch(t.color) }), t.move), undefined, text(t.score ?? '', t.yours ? GOLD : FAINT), {
       tip: `${t.name} — ${t.members} member${t.members === 1 ? '' : 's'}. Click for the roster.`,
       on: teams(b.title),
       gap: 6,
@@ -1140,7 +1140,7 @@ export function teamStandingRows(w: StandingsWindow<RosterTeamOut>, title: strin
       ? { a: 'lookup', rsn: t.soleMember! }
       : { a: 'load', v: 'teams', args: { event: '0', team: String(t.teamId), back: 'board', backLabel: title } };
     return row(
-      withMove(text(`${t.rank == null ? '–' : t.rank}  ${clip(label, 16)}${t.yours && !singleton ? ` · ${t.members} members` : ''}`, ink, { icon: swatch(t.color) }), t.move),
+      withMove(text(`${t.rank == null ? '–' : t.rank}  ${clip(label, 16)}${t.yours && !singleton ? `, ${t.members} members` : ''}`, ink, { icon: swatch(t.color) }), t.move),
       undefined,
       text(t.score ?? '', t.yours ? GOLD : FAINT),
       { tip: singleton ? `Look up ${t.soleMember}` : `${t.name} — ${t.members} members. Click for the roster.`, on, gap: 6 },
@@ -1224,7 +1224,7 @@ function huntTargetsCard(w: ScheduleWeekly): Node | null {
         if (!it.bounty) return line;
         // "Bounty 20m / 10m · 1 of 2 claimed (Minyol)", under the row it pays for.
         const b = it.bounty;
-        const words = `Bounty ${b.amounts.map(formatGp).join(' / ')} · ${b.claimedBy.length === 0 ? 'open' : `${b.claimedBy.length} of ${b.amounts.length} claimed`}`;
+        const words = `Bounty ${b.amounts.map(formatGp).join(' / ')}, ${b.claimedBy.length === 0 ? 'open' : `${b.claimedBy.length} of ${b.amounts.length} claimed`}`;
         return col([line, small(clip(words, 34), b.claimedBy.length < b.amounts.length ? GOLD : FAINT, { tip: b.claimedBy.length ? `Claimed by ${b.claimedBy.join(', ')}` : 'Nobody has claimed it yet' })], { gap: 1 });
       }),
     ],
@@ -1255,7 +1255,7 @@ function rushRulesCard(w: ScheduleWeekly, open: boolean): Node | null {
     row(text(ORDINAL[i] ?? `${i + 1}th`, i === 0 ? GOLD : SOFT), undefined, text(hcw ? `${formatGp(n)} HCW gp` : formatGp(n), i === 0 ? GOLD : 'white', { font: i === 0 ? 'bold' : 'regular', ...(hcw ? { tip: HCW_PRIZE_TITLE } : {}) })),
   );
   const head = (arrow: string) =>
-    row(title(gp.length ? 'How it scores · prizes' : 'How it scores'), undefined, link(arrow, flip), { gap: 6, on: flip });
+    row(title(gp.length ? 'How it scores, prizes' : 'How it scores'), undefined, link(arrow, flip), { gap: 6, on: flip });
   const body = col(
     [
       head('Hide'),
@@ -1299,8 +1299,8 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
         // What it is, whole, on its own line; then where you stand; then the clock. Side by side the
         // name was clipped and its picture sat in the middle of the card.
         ...(w.rushRules ? [] : [text(w.metricLabel, SOFT, { icon: weeklyIcon(w), wrap: 175 })]),
-        withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.rushRules ? 'No points yet' : w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move),
-        row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(` · ${headcount}`) : undefined, undefined, { gap: 0 }),
+        withMove(big(you && you.gained > 0 ? `#${you.rank}, ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.rushRules ? 'No points yet' : w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move),
+        row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(`, ${headcount}`) : undefined, undefined, { gap: 0 }),
       ];
   // In or out: before it starts as well as while it runs (lib/pluginUi/signupPanel).
   if (d.weeklyEntry) top.push(weeklyEntryRow(d.weeklyEntry, w.id, upcoming));
@@ -1383,8 +1383,8 @@ function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {
   // Sign up right here (lib/pluginUi/signupPanel) while the host takes names; else the line as it was.
   const signup = d.signup ? bingoSignupCard(d.signup, s.id, back, name, d.cfg.activeClan?.slug ?? '') : null;
   const top: Node[] = [
-    live ? (s.endDate ? clock(s.endDate, 'Running · ends in ', 'Ended', d.now, { font: 'bold' }) : big('Running', BLUE)) : clock(s.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }),
-    ...(sizeLabel(s) || s.scoringMode === 'points' ? [muted([sizeLabel(s), s.scoringMode === 'points' ? 'points' : null].filter(Boolean).join(' · '))] : []),
+    live ? (s.endDate ? clock(s.endDate, 'Running, ends in ', 'Ended', d.now, { font: 'bold' }) : big('Running', BLUE)) : clock(s.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }),
+    ...(sizeLabel(s) || s.scoringMode === 'points' ? [muted([sizeLabel(s), s.scoringMode === 'points' ? 'points' : null].filter(Boolean).join(', '))] : []),
     ...(signup && (d.signup!.status || d.signup!.open) ? [] : [entry]),
     ...gateLine(s),
   ];
@@ -1393,7 +1393,7 @@ function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {
     openRow(text('Teams', '#e6e6e6'), undefined, [], { a: 'load', v: 'teams', args: { event: String(s.id), back, backLabel: name } }, 'Who’s on which team'),
   ];
   if ((s.tileCount ?? 0) > 0) {
-    before.push(openRow(text(live ? `Tiles · ${s.tileCount}` : `Revealed tiles · ${s.tileCount}`, '#e6e6e6'), undefined, [], { a: 'load', v: 'board', args: { event: String(s.id), pre: live ? '' : '1', back, backLabel: name } }, 'The tiles so far'));
+    before.push(openRow(text(live ? `Tiles (${s.tileCount})` : `Revealed tiles (${s.tileCount})`, '#e6e6e6'), undefined, [], { a: 'load', v: 'board', args: { event: String(s.id), pre: live ? '' : '1', back, backLabel: name } }, 'The tiles so far'));
   }
   if (!live) before.push(muted((s.tileCount ?? 0) > 0 ? 'More tiles appear as the host reveals them.' : 'Tiles will appear here when the host reveals them.', { wrap: CARD_W }));
   return [

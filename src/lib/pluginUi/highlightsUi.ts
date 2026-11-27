@@ -36,14 +36,14 @@ const BEST_SHOWN = 3;
  * Narrow on purpose: the side panel is about 225px wide, so the name and the item are both cut.
  */
 export function dropRow(d: PanelDrop): Node {
-  const facts = [d.rarity ? `1 in ${d.rarity.toLocaleString('en-US')}` : null, d.kc ? `${d.kc.toLocaleString('en-US')} kc` : null].filter(Boolean).join(' · ');
-  const item = `· ${clip(d.itemName, 16)}${d.count && d.count > 1 ? ` ×${d.count}` : ''}`;
+  const facts = [d.rarity ? `1 in ${d.rarity.toLocaleString('en-US')}` : null, d.kc ? `${d.kc.toLocaleString('en-US')} kc` : null].filter(Boolean).join(', ');
+  const item = `${clip(d.itemName, 16)}${d.count && d.count > 1 ? ` ×${d.count}` : ''}`;
   return row(
     icon({ item: d.itemId ?? undefined, w: 24, h: 22 }),
     col([
       row(nameText(clip(d.rsn, 12), 'white', { tip: d.rsn }), text(item, SOFT, { tip: d.itemName }), undefined, { gap: 3 }),
       // The time is its own text: the panel works "2h ago" out when it draws.
-      row(facts ? muted(`${facts} ·`, { font: 'small' }) : undefined, muted('', { at: d.at, font: 'small' }), undefined, { gap: 3 }),
+      row(facts ? muted(`${facts},`, { font: 'small' }) : undefined, muted('', { at: d.at, font: 'small' }), undefined, { gap: 3 }),
     ]),
     undefined,
     { gap: 6 },
