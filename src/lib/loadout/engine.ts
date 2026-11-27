@@ -150,8 +150,16 @@ const secs = (s: number) => (Number.isFinite(s) ? `${s.toFixed(1)}s` : 'never');
 
 // ── DPS of one gear set on one target ───────────────────────────────────────────────────────
 
-function dpsOn(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, t: Target, ctx: Ctx): { dps: number; r: DpsResult } | null {
-  const key = `${t.p.key}|${kit.style}|${kit.spell ?? ''}|${kit.dart ?? ''}|${SLOTS.map((s) => gear[s] ?? '').join(',')}`;
+/** A gear set as part of a memo key. */
+function gearKey(gear: Gear): string {
+  let k = '';
+  for (const s of SLOTS) k += `${gear[s] ?? ''},`;
+  return k;
+}
+
+/** `gk`: the gear's key when the caller already has it (one gear set over many phases). */
+function dpsOn(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, t: Target, ctx: Ctx, gk = gearKey(gear)): { dps: number; r: DpsResult } | null {
+  const key = `${t.p.key}|${kit.style}|${kit.spell ?? ''}|${kit.dart ?? ''}|${gk}`;
   if (ctx.memo.has(key)) return ctx.memo.get(key)!;
   const out = dpsOnUncached(gear, kit, t, ctx);
   ctx.memo.set(key, out);
@@ -183,13 +191,18 @@ function dpsOnUncached(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, t
 const usable = (kit: Pick<Kit, 'style' | 'cast'>, p: PhaseProfile) =>
   kit.cast ? p.cast === kit.cast : !p.cast && p.allowed.includes(kit.style) && !(p.immune ?? []).includes(kit.style);
 
-/** Seconds a gear set needs over the phases it is meant for (Infinity if it can't hurt one). */
-function phaseCost(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, targets: Target[], ctx: Ctx): number {
+/**
+ * Seconds a gear set needs over the phases it is meant for (Infinity if it can't hurt one). With a
+ * `limit`, Infinity as soon as the sum passes it: a trial that can't beat the best so far stops early.
+ */
+function phaseCost(gear: Gear, kit: Pick<Kit, 'style' | 'spell' | 'dart'>, targets: Target[], ctx: Ctx, limit = Infinity): number {
   let total = 0;
+  const gk = gearKey(gear);
   for (const t of targets) {
-    const d = dpsOn(gear, kit, t, ctx);
+    const d = dpsOn(gear, kit, t, ctx, gk);
     if (!d || d.dps <= 0) return Infinity;
     total += t.damage / d.dps;
+    if (total > limit) return Infinity;
   }
   return total;
 }
@@ -226,9 +239,10 @@ export function buildLoadout(input: EngineInput): Loadout {
 
   // The fight's targets, scaled to the mode (a ToA raid level).
   const raidLevel = profile.modes?.some((m) => m.key === 'raidLevel') ? (player.mode?.raidLevel ?? profile.modes.find((m) => m.key === 'raidLevel')!.default) : null;
+  const variant = profile.variants?.find((v) => v.key === player.mode?.variant) ?? profile.variants?.[0] ?? null;
   const targets: Target[] = [];
   for (const p of profile.phases) {
-    const base = idx.monster(p.monster);
+    const base = idx.monster(variant?.monsters[p.key] ?? p.monster);
     if (!base) {
       unmet.push({ code: 'nothing', message: `${p.name}: the gear data has no ${p.monster}` });
       continue;
@@ -319,14 +333,16 @@ export function buildLoadout(input: EngineInput): Loadout {
     if (best) kits.set(key, best.kit);
   }
 
-  function ascend(kit: Kit, ts: Target[]): Kit {
+  function ascend(kit: Kit, all: Target[]): Kit {
+    // The heaviest phases first, so a losing trial passes the limit soonest.
+    const ts = [...all].sort((a, b) => b.damage - a.damage);
     const gear: Gear = { ...kit.gear };
     const w = kit.weapon;
     let cost = phaseCost(gear, kit, ts, ctx);
     const list = lists[kit.style];
     const slots = SLOTS.filter((s) => s !== 'weapon' && s !== 'ammo' && !(s === 'shield' && w.h2));
     const tryGear = (trial: Gear) => {
-      const c = phaseCost(trial, kit, ts, ctx);
+      const c = phaseCost(trial, kit, ts, ctx, cost - EPS);
       if (c < cost - EPS) {
         Object.keys(gear).forEach((k) => delete gear[k as Slot]);
         Object.assign(gear, trial);
@@ -365,7 +381,7 @@ export function buildLoadout(input: EngineInput): Loadout {
       const opts = [...(list.get(slot) ?? [])].filter((c) => !LIGHTBEARER.test(c.n)).sort((a, b) => (b.df ?? 0) - (a.df ?? 0));
       for (const c of opts) {
         const trial = { ...gear, [slot]: c.id };
-        if (phaseCost(trial, kit, ts, ctx) <= cost + EPS) {
+        if (phaseCost(trial, kit, ts, ctx, cost + EPS) <= cost + EPS) {
           gear[slot] = c.id;
           break;
         }
@@ -421,14 +437,14 @@ export function buildLoadout(input: EngineInput): Loadout {
   }
 
   function evaluate(a: Pick<Assembly, 'wornKit' | 'worn' | 'packed'>): { time: number; phases: LoadoutPhase[] } {
-    const carried = [...kits.values()].map((k) => ({ k, g: effective(k, a) })).filter((x): x is { k: Kit; g: Gear } => !!x.g);
+    const carried = [...kits.values()].map((k) => ({ k, g: effective(k, a) })).filter((x): x is { k: Kit; g: Gear } => !!x.g).map((x) => ({ ...x, gk: gearKey(x.g) }));
     let time = 0;
     const phases: LoadoutPhase[] = [];
     for (const t of targets) {
       let best: { kit: string; dps: number; s: number } | null = null;
-      for (const { k, g } of carried) {
+      for (const { k, g, gk } of carried) {
         if (!usable(k, t.p)) continue;
-        const d = dpsOn(g, k, t, ctx);
+        const d = dpsOn(g, k, t, ctx, gk);
         if (!d || d.dps <= 0) continue;
         const off = t.p.prefer && !t.p.prefer.includes(k.style) ? (t.p.offStyle ?? 1.5) : 1;
         // A switch costs a tick per three pieces put on (about three clicks a tick), each entry.
@@ -515,17 +531,30 @@ export function buildLoadout(input: EngineInput): Loadout {
       }
     }
     const over = Math.max(0, -slotsLeft);
+    const capOf = (k: Kit) => plan.kitPieces?.[k.style] ?? Infinity;
+    const isPiece = (id: number) => {
+      const s = slotOf(idx.item(id));
+      return s !== 'weapon' && s !== 'ammo';
+    };
+    /** The kit's armour pieces stay within the plan's cap for its style. */
+    const capOk = (k: Kit, ids: number[]) => packed.filter((p) => p.kit === k.key && isPiece(p.id)).length + ids.filter(isPiece).length <= capOf(k);
     const restOf = (k: Kit) => SLOTS.filter((s) => s !== 'weapon' && s !== 'ammo').map((s) => k.gear[s]).filter((id): id is number => id != null && isNew(id) && famOk([id]));
     const sk = seed ? kits.get(seed.key) : undefined;
     if (sk && sk !== wornKit) {
       const carried = packed.some((p) => p.id === sk.weapon.id);
-      const ids = [...(carried ? [] : bundle(sk)), ...strongest(restOf(sk), sk.style).slice(0, seed!.n)];
-      if (ids.length && ids.length <= slotsLeft && famOk(ids) && new Set(ids.map(fam)).size === ids.length) {
+      const ids = [...(carried ? [] : bundle(sk)), ...strongest(restOf(sk), sk.style).slice(0, Math.min(seed!.n, capOf(sk)))];
+      if (ids.length && ids.length <= slotsLeft && capOk(sk, ids) && famOk(ids) && new Set(ids.map(fam)).size === ids.length) {
         const before = evaluate(a).time;
         const after = evaluate({ wornKit, worn, packed: [...packed, ...ids.map((id) => ({ id, slot: slotOf(idx.item(id))!, kit: sk.key, why: '' }))] }).time;
         if (after < before - EPS) pack(sk, ids, Number.isFinite(before) ? `${sk.key} switch: saves ${(before - after).toFixed(1)}s a kill with the rest of the ${sk.key} kit` : `${sk.key} switch`);
       }
     }
+
+    // From here the answer depends only on the worn kit and what is packed: a seed that packed the
+    // same pieces as another (or nothing) gives the same assembly, worked out once.
+    const cacheKey = `${wornKit.key}|${packed.map((p) => p.id).join(',')}`;
+    const hit = assembled.get(cacheKey);
+    if (hit) return hit;
 
     // Greedy: the pack that saves the most seconds per slot, while it saves any.
     let cur = evaluate(a).time;
@@ -543,7 +572,7 @@ export function buildLoadout(input: EngineInput): Loadout {
         // The kit's strongest pieces together, as many as fit.
         for (let n = 2; n <= ranked.length; n++) if (lead.length + n <= slotsLeft) options.push([...lead, ...ranked.slice(0, n)]);
         for (const ids of options) {
-          if (!ids.length || ids.length > slotsLeft || !famOk(ids) || new Set(ids.map(fam)).size < ids.length) continue;
+          if (!ids.length || ids.length > slotsLeft || !capOk(k, ids) || !famOk(ids) || new Set(ids.map(fam)).size < ids.length) continue;
           const trial = { wornKit, worn, packed: [...packed, ...ids.map((id) => ({ id, slot: slotOf(idx.item(id))!, kit: k.key, why: '' }))] };
           const time = evaluate(trial).time;
           const gain = Number.isFinite(cur) ? (cur - time) / ids.length : Number.isFinite(time) ? 1e9 : 0;
@@ -556,16 +585,22 @@ export function buildLoadout(input: EngineInput): Loadout {
       cur = best.time;
     }
     const ev = evaluate(a);
-    return { wornKit, worn, packed, specs, time: ev.time, phases: ev.phases, over };
+    const out = { wornKit, worn, packed, specs, time: ev.time, phases: ev.phases, over };
+    assembled.set(cacheKey, out);
+    return out;
   }
+  /** Assemblies by worn kit and seeded packing, for one set of kits (cleared when they change). */
+  const assembled = new Map<string, Assembly>();
 
   const pickWorn = (): Assembly | null => {
+    assembled.clear();
     let best: Assembly | null = null;
     // Within 2% of the fastest, wear the style that fights the most: fewer swaps than the numbers show.
     // The fastest assembly per worn style; the tolerance below only chooses between styles.
     const all: Assembly[] = [];
     const main = [...kits.values()].filter((x) => !x.cast);
-    for (const w of main) {
+    const wearable = profile.worn && main.some((x) => x.style === profile.worn) ? main.filter((x) => x.style === profile.worn) : main;
+    for (const w of wearable) {
       let top = assemble(w);
       for (const k of main) {
         if (k === w) continue;

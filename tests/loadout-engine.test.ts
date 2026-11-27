@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildLoadout } from '../src/lib/loadout/engine.ts';
-import { TOA, VORKATH, ZULRAH } from '../src/lib/loadout/profiles/index.ts';
+import { COX, TOA, TOB, VORKATH, ZULRAH } from '../src/lib/loadout/profiles/index.ts';
 import type { BossProfile, Loadout, PlayerInput, Preset, Style } from '../src/lib/loadout/types.ts';
 import { isRestricted } from '../src/lib/tripCheck.ts';
 import { SLOTS } from '../src/lib/dps/tables.ts';
@@ -209,4 +209,55 @@ test('a no-switch constraint still brings what the fight requires, and says it i
   const l = run(TOA, maxPlayer({ constraints: { maxSwitches: 0 } }));
   assert.ok(switchWeapons(l, 'ranged').length === 1 && switchWeapons(l, 'melee').length === 1, 'required styles get their weapon');
   assert.ok(l.warnings.some((w) => /over the max budget/.test(w)));
+});
+
+// ── Theatre of Blood / Chambers of Xeric ─────────────────────────────────────────────────────
+
+test('ToB, max bank: Scythe worn, Twisted bow switch, at most two magic switch pieces; the mid bank degrades sanely', () => {
+  const l = run(TOB, maxPlayer());
+  sane(l, MAX_BANK);
+  assert.deepEqual(l.requirementsUnmet, []);
+  assert.equal(l.wornStyle, 'melee');
+  assert.equal(name(l.worn.weapon), 'Scythe of Vitur');
+  assert.deepEqual(switchWeapons(l, 'ranged'), ['Twisted bow']);
+  assert.equal(switchWeapons(l, 'magic').length, 1);
+  const magePieces = l.switches.filter((s) => s.kit === 'magic' && s.slot !== 'weapon');
+  assert.ok(magePieces.length <= 2, magePieces.map((s) => s.name).join(', '));
+  assert.ok(l.specs.some((s) => /dragon warhammer/i.test(s.name)), 'a defence drain for the Maiden');
+  assert.equal(phaseKit(l, 'xarpus') === 'melee', false);
+  for (const preset of ['learner', 'experienced', 'max'] as const) {
+    const m = run(TOB, midPlayer(), preset);
+    sane(m, MID_BANK);
+    assert.equal(m.wornStyle, 'melee', preset);
+    assert.ok(switchSlots(m) <= TOB.presets[preset].switchBudget, preset);
+    assert.ok(m.switches.filter((s) => s.kit === 'magic' && s.slot !== 'weapon').length <= (TOB.presets[preset].kitPieces?.magic ?? 99), preset);
+  }
+});
+
+test('ToB variants: Entry Mode is quicker and Hard Mode slower than Normal, the same kits worn', () => {
+  const at = (variant: string) => run(TOB, maxPlayer({ mode: { variant } }));
+  const [entry, normal, hard] = [at('entry'), at('normal'), at('hard')];
+  assert.ok(entry.expectedTime < normal.expectedTime && normal.expectedTime < hard.expectedTime, `${entry.expectedTime} < ${normal.expectedTime} < ${hard.expectedTime}`);
+  for (const l of [entry, hard]) assert.equal(l.wornStyle, 'melee');
+  // "Name#Version@n": the duplicated rows resolve to their own versions.
+  assert.equal(idx.monster('Verzik Vitur#Phase 2@0')!.hp, 1600);
+  assert.equal(idx.monster('Verzik Vitur#Phase 2@1')!.hp, 3500);
+  assert.equal(idx.monster('Xarpus@2')!.hp, 6000);
+});
+
+test('CoX: Twisted bow worn, melee for the Olm melee hand, Challenge Mode slower', () => {
+  const l = run(COX, maxPlayer());
+  sane(l, MAX_BANK);
+  assert.deepEqual(l.requirementsUnmet, []);
+  assert.equal(l.wornStyle, 'ranged');
+  assert.equal(name(l.worn.weapon), 'Twisted bow');
+  assert.equal(phaseKit(l, 'olm-melee'), 'melee');
+  assert.ok(switchWeapons(l, 'melee').length === 1);
+  assert.ok(l.inventory.filter((s) => s?.kind === 'reserved').length >= 10);
+  const cm = run(COX, maxPlayer({ mode: { variant: 'cm' } }));
+  assert.ok(cm.expectedTime > l.expectedTime);
+  const mid = run(COX, midPlayer(), 'experienced');
+  sane(mid, MID_BANK);
+  assert.equal(mid.wornStyle, 'ranged');
+  assert.equal(phaseKit(mid, 'olm-melee'), 'melee');
 });

@@ -55,6 +55,8 @@ export const SUPPLIES: OwnedSupply[] = [
   { id: 385, name: 'Shark', q: 500 },
   { id: 3144, name: 'Cooked karambwan', q: 200 },
   { id: 3024, name: 'Super restore(4)', q: 100 },
+  { id: 6685, name: 'Saradomin brew(4)', q: 100 },
+  { id: 23685, name: 'Divine super combat potion(4)', q: 40 },
   { id: 2434, name: 'Prayer potion(4)', q: 100 },
   { id: 23733, name: 'Divine ranging potion(4)', q: 40 },
   { id: 3040, name: 'Magic potion(4)', q: 40 },

@@ -92,6 +92,11 @@ export interface PresetPlan {
   specs: number;
   /** Wear Lightbearer when a spec weapon comes along (owned). */
   lightbearer?: boolean;
+  /**
+   * The most armour pieces (weapon and ammo aside) a style's switch may carry: a ToB mage switch
+   * is its weapon and a piece or two, never a full robe set. Unset: no cap beyond the budget.
+   */
+  kitPieces?: Partial<Record<Style, number>>;
   supplies: SupplyLine[];
 }
 
@@ -112,6 +117,17 @@ export interface ProfileMode {
   values: readonly number[];
 }
 
+/**
+ * A version of the fight with other monsters (ToB's Entry and Hard Mode, CoX's Challenge Mode): each
+ * phase's monster key swapped. The first variant is the default.
+ */
+export interface ProfileVariant {
+  key: string;
+  label: string;
+  /** Phase key → the DPS dataset monster key for this variant (phases not named keep theirs). */
+  monsters: Record<string, string>;
+}
+
 export interface BossProfile {
   /** The trip content key (lib/tripContent). */
   key: string;
@@ -119,7 +135,13 @@ export interface BossProfile {
   /** The wiki pages the facts came from. */
   sources: string[];
   modes?: ProfileMode[];
+  variants?: ProfileVariant[];
   phases: PhaseProfile[];
+  /**
+   * The style the strategy pages wear between switches (ToB: melee, the Scythe rooms; CoX: ranged,
+   * the Twisted bow). Worn whenever the player owns a kit of it; unset, the fastest style is.
+   */
+  worn?: Style;
   rules: BossRule[];
   /** Spec weapons in the order the fight wants them (case-insensitive name patterns). */
   spec?: { prefer: string[]; why: string };
@@ -169,7 +191,7 @@ export interface PlayerInput {
   familyOf?: (id: number) => number | string;
   constraints?: LoadoutConstraints;
   /** The fight's settings (ToA raid level). */
-  mode?: { raidLevel?: number };
+  mode?: { raidLevel?: number; variant?: string };
 }
 
 // ── The answer ───────────────────────────────────────────────────────────────────────────────

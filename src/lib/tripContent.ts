@@ -75,7 +75,8 @@ export const TRIP_CONTENT: TripContent[] = [
   },
   {
     key: 'tob', name: 'Theatre of Blood', short: 'ToB', spec: true, instance: true,
-    targets: ['The Maiden of Sugadinti#Normal', 'Pestilent Bloat#Normal', 'Sotetseg#Normal', 'Xarpus', 'Verzik Vitur#Phase 3'],
+    // '@1': the Normal Mode row (Xarpus's and Verzik's Entry, Normal and Hard rows share one label).
+    targets: ['The Maiden of Sugadinti#Normal', 'Pestilent Bloat#Normal', 'Sotetseg#Normal', 'Xarpus@1', 'Verzik Vitur#Phase 3@1'],
     // The Nylocas come in all three styles.
     requires: [{ phase: 'Nylocas', styles: ['melee', 'ranged', 'magic'] }],
     switchSlots: 8,

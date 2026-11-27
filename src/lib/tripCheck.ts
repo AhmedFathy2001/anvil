@@ -57,7 +57,7 @@ export interface TripRow {
 
 export interface TripCheck {
   rows: TripRow[];
-  /** "Switches 5 slots · 19 free for supplies". */
+  /** "5 switch slots packed, 19 free for supplies". */
   info: string[];
   /** What couldn't be checked, and why. */
   unknown: string[];
@@ -666,7 +666,7 @@ function calcHeld(inp: TripInput, h: Held, qv: { id: number; q: number } | null,
       const full = `${inp.nameOf(id).replace(/\s*\((uncharged|empty)\)\s*$/i, '')} with ${plural(shortName(inp.nameOf(o.ammo)))}`;
       const charge = needsCharge(id);
       if (along(id)) return charge ? { group: 'gear', ok: false, line: `${full}: charge the quiver`, detail: o.detail, item: id, ...slot } : { group: 'gear', ok: true, line: `Quiver: ${full}`, item: id, ...slot };
-      return { group: 'gear', ok: false, line: `${full}: take the quiver${charge ? ' (charge it)' : ''}`, detail: charge ? `${o.detail} · uncharged in your bank: charge it before the trip` : o.detail, item: id, bank: bankOf(id), ...slot };
+      return { group: 'gear', ok: false, line: `${full}: take the quiver${charge ? ' (charge it)' : ''}`, detail: charge ? `${o.detail}. Uncharged in your bank: charge it before the trip` : o.detail, item: id, bank: bankOf(id), ...slot };
     }
     const n = shortName(inp.nameOf(id));
     if (inQuiver(id)) {
@@ -681,7 +681,7 @@ function calcHeld(inp: TripInput, h: Held, qv: { id: number; q: number } | null,
         : { group: 'gear', ok: true, line: o.label ? `${o.label}: ${n}` : `Switch: ${n}`, item: id, ...slot };
     }
     const take = o.label ? `${n} is in your bank: take it` : `${n} (switch): in your bank`;
-    return { group: 'gear', ok: false, line: charge ? `${take} (charge it)` : take, detail: charge ? `${o.detail} · uncharged in your bank: charge it before the trip` : o.detail, item: id, bank: bankOf(id), ...slot };
+    return { group: 'gear', ok: false, line: charge ? `${take} (charge it)` : take, detail: charge ? `${o.detail}. Uncharged in your bank: charge it before the trip` : o.detail, item: id, bank: bankOf(id), ...slot };
   };
   return { along, bankOf, needsCharge, row, inQuiver, isQuiver };
 }
@@ -786,7 +786,7 @@ function raidRows(inp: TripInput, c: CalcHeld & { stats: CalcCtx['stats']; praye
   for (const [slot, id] of Object.entries(worn.gear)) {
     if (id === wq) continue;
     const label = SLOT_LABEL[slot] ?? slot;
-    const detail = LIGHTBEARER.test(name(id)) ? `${label} · spec energy back twice as fast` : `${label} · your ${worn.kind} setup, worn`;
+    const detail = LIGHTBEARER.test(name(id)) ? `${label}: spec energy back twice as fast` : `${label}: your ${worn.kind} setup, worn`;
     rows.push(c.row(id, { label, slot, detail, ...(wq != null && c.isQuiver(id) ? { ammo: wq } : {}) }));
   }
   // The switches: weapons first, then the most DPS per slot, within the trip's switch slots.
@@ -857,7 +857,7 @@ function raidRows(inp: TripInput, c: CalcHeld & { stats: CalcCtx['stats']; praye
     }
     out.castIds = [magicGear.weapon, ...(magicGear.shield != null ? [magicGear.shield] : [])].filter((x): x is number => x != null);
   }
-  info.push(`One setup for ${per.length} bosses: ${worn.kind} worn${plans.length ? `, ${plans.map((p) => p.k.kind).join(' and ')} switches` : ''} · Switches: ${packed.size} slot${packed.size === 1 ? '' : 's'}`);
+  info.push(`One setup for ${per.length} bosses: ${worn.kind} worn${plans.length ? `, ${plans.map((p) => p.k.kind).join(' and ')} switches` : ''}, ${packed.size} switch slot${packed.size === 1 ? '' : 's'}`);
   for (const r of required) {
     const need = r.styles.filter((k) => k !== worn.kind);
     const missing = r.styles.filter((k) => !kits.some((x) => x.kind === k));
@@ -950,7 +950,7 @@ function calcRunes(inp: TripInput, h: Held, calc: CalcOut, levels: Record<string
     rows.push(
       have >= sl.n
         ? { group: 'pouch', ok: true, line: `${label} ${have}${inPouch ? ' in the pouch' : ''}`, item: sl.id, need: sl.n, inPouch }
-        : { group: 'pouch', ok: false, line: own >= sl.n ? `${label}: have ${have}, take ${sl.n}` : `${label}: ${own ? `only ${own}` : 'none'} owned, need ${sl.n}`, detail: `${inPouch ? 'In the rune pouch' : 'In your inventory'} · for ${names.filter((sp) => sl.runes.some((r) => SPELL_RUNES[sp.toLowerCase()]?.[r])).join(', ')}`, item: sl.id, need: sl.n, inPouch, bank: h.inBank(sl.id) },
+        : { group: 'pouch', ok: false, line: own >= sl.n ? `${label}: have ${have}, take ${sl.n}` : `${label}: ${own ? `only ${own}` : 'none'} owned, need ${sl.n}`, detail: `${inPouch ? 'In the rune pouch' : 'In your inventory'}, for ${names.filter((sp) => sl.runes.some((r) => SPELL_RUNES[sp.toLowerCase()]?.[r])).join(', ')}`, item: sl.id, need: sl.n, inPouch, bank: h.inBank(sl.id) },
     );
   });
   // The pouch takes a slot, and each rune kind it can't hold another.
@@ -1059,7 +1059,7 @@ export function checkTrip(input: TripInput): TripCheck {
       // (what they wore when they saved it) it went somewhere, and the trip is short of it.
       if (pick.kind === 'missing' || pick.use == null) {
         const gone = pick.use ?? pick.guide;
-        if (inp.source === 'own' && gone != null) rows.push({ group: 'gear', ok: false, line: `${shortName(name(gone))}: not found`, detail: `${label} · not worn, packed or in your bank`, item: gone, slot: pick.slot });
+        if (inp.source === 'own' && gone != null) rows.push({ group: 'gear', ok: false, line: `${shortName(name(gone))}: not found`, detail: `${label}: not worn, packed or in your bank`, item: gone, slot: pick.slot });
         continue;
       }
       const use = pick.use;
@@ -1085,7 +1085,7 @@ export function checkTrip(input: TripInput): TripCheck {
         ok: false,
         slot: pick.slot,
         line: `${shortName(name(use))} is in your bank: take it`,
-        detail: `${label}${base > 0 && loss >= SLOT_FLOOR ? ` · ${Math.round(loss * 100)}% less damage without it` : ''}`,
+        detail: `${label}${base > 0 && loss >= SLOT_FLOOR ? `, ${Math.round(loss * 100)}% less damage without it` : ''}`,
         item: use,
         bank: h.inBank(use),
       });
@@ -1196,7 +1196,7 @@ export function checkTrip(input: TripInput): TripCheck {
   const BOOK = ['Standard', 'Ancient', 'Lunar', 'Arceuus'];
   if (s && spells.length && s.spellbook != null) {
     if (state?.book == null) unknown.push('spellbook');
-    else rows.push(state.book === s.spellbook ? { group: 'book', ok: true, line: `${BOOK[state.book]} spellbook` } : { group: 'book', ok: false, line: `On ${BOOK[state.book]} · setup needs ${BOOK[s.spellbook] ?? 'another'}`, detail: `For ${spells.join(', ')}` });
+    else rows.push(state.book === s.spellbook ? { group: 'book', ok: true, line: `${BOOK[state.book]} spellbook` } : { group: 'book', ok: false, line: `On ${BOOK[state.book]}, the setup needs ${BOOK[s.spellbook] ?? 'another'}`, detail: `For ${spells.join(', ')}` });
   }
   if (s && spells.length) {
     const need = new Map<Rune, number>();
@@ -1266,7 +1266,7 @@ export function checkTrip(input: TripInput): TripCheck {
     if (!prays.includes(p)) continue;
     const label = p === 'rigour' ? 'Rigour' : 'Augury';
     if (!state?.pray) unknown.push(label);
-    else rows.push(state.pray.includes(p) ? { group: 'prayer', ok: true, line: `${label} unlocked` } : { group: 'prayer', ok: false, line: `${label} locked · setup prays it`, detail: `Read ${p === 'rigour' ? 'a Dexterous' : 'an Arcane'} prayer scroll to unlock it` });
+    else rows.push(state.pray.includes(p) ? { group: 'prayer', ok: true, line: `${label} unlocked` } : { group: 'prayer', ok: false, line: `${label} locked, the setup prays it`, detail: `Read ${p === 'rigour' ? 'a Dexterous' : 'an Arcane'} prayer scroll to unlock it` });
   }
 
   // ── The inventory's room ──
@@ -1276,10 +1276,17 @@ export function checkTrip(input: TripInput): TripCheck {
   if (inp.inventory.length) {
     const sw = inp.inventory.filter((it) => inp.idx.item(knownAs(it.id, inp) ?? it.id)).length;
     const pouch = pouchIn ? 1 : 0;
-    if (sw) info.push(`Switches ${sw} slot${sw === 1 ? '' : 's'} · ${Math.max(0, 28 - sw - pouch)} free for supplies`);
+    if (sw) info.push(`${sw} switch slot${sw === 1 ? '' : 's'} packed, ${Math.max(0, 28 - sw - pouch)} free for supplies`);
   }
-  // The setup layout: every row's bank ids, the ones already carried looked up afresh.
-  const all = rows.filter((r) => r.item != null || r.bank?.length).map((r) => (r.bank?.length ? r : { ...r, bank: h.inBank(r.item!) }));
+  // The setup layout: EVERY piece of the setup, worn and packed ones too. A row's bank ids when the
+  // bank holds it, else the item itself: a bank tag layout draws an item the bank lacks as a faded
+  // placeholder, so the whole setup shows laid out, not just what is missing.
+  const all = rows
+    .filter((r) => r.item != null || r.bank?.length)
+    .map((r) => {
+      const b = r.bank?.length ? r.bank : h.inBank(r.item!);
+      return { ...r, bank: b.length ? b : [r.item!] };
+    });
   const bad = rows.filter((r) => !r.ok);
   return { rows, info, unknown, bank: [...new Set(bad.flatMap((r) => r.bank ?? []))], layouts: { missing: bankLayout(bad, name), setup: bankLayout(all, name) } };
 }
@@ -1297,13 +1304,13 @@ function quiverAmmo(inp: TripInput, h: Held, anywhere = false): { id: number; q:
   return inp.state?.quiver;
 }
 
-/** The overlay's answer: "ToA · 2 problems" with the first lines, or "✓ Ready for ToA". */
+/** The overlay's answer: "ToA: 2 problems" with the first lines, or "✓ Ready for ToA". */
 export function tripWarn(short: string, check: TripCheck, max = 4): { ok: boolean; title: string; lines: string[]; fight?: number[]; instance?: true } {
   const bad = check.rows.filter((r) => !r.ok);
   if (!bad.length) return { ok: true, title: `✓ Ready for ${short}`, lines: [] };
   const lines = bad.slice(0, max).map((r) => r.line);
   if (bad.length > max) lines[max - 1] = `+${bad.length - max + 1} more in the panel`;
-  return { ok: false, title: `${short} · ${bad.length} problem${bad.length === 1 ? '' : 's'}`, lines };
+  return { ok: false, title: `${short}: ${bad.length} problem${bad.length === 1 ? '' : 's'}`, lines };
 }
 
 /** The setup a player saves: what they wear and pack now, with their spellbook and pouch. */

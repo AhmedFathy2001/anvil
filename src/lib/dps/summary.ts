@@ -34,6 +34,14 @@ export function indexGear(data: GearData): GearIndex {
     rules: data.rules ?? [],
     item: (id) => (id == null ? null : (byId.get(id) ?? null)),
     monster: (key) => {
+      // "Name#Version@n": the n-th row of that name and version (Verzik's and Xarpus's Entry, Normal
+      // and Hard rows share one version label).
+      const nth = /@(\d+)$/.exec(key);
+      if (nth) {
+        const [name, version] = key.slice(0, nth.index).split('#');
+        const rows = data.monsters.filter((m) => m.n.toLowerCase() === name.trim().toLowerCase() && (version == null || (m.v ?? '') === version));
+        return rows[Number(nth[1])] ?? rows[0] ?? null;
+      }
       const [name, version] = key.split('#');
       const lname = name.trim().toLowerCase();
       return (

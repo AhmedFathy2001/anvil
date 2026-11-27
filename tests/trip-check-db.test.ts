@@ -133,7 +133,7 @@ test('warm: an items push with the bank works the check out; the bank-close ask 
   try {
     await warmTrip(req('warm-me', 'WarmMe'), 13454);
     const first = (await tripView(req('warm-me', 'WarmMe'), { region: '13454', why: 'bank-close' })) as W;
-    assert.match(first.warn?.title ?? '', /^(ToA · \d+ problems?|✓ Ready for ToA)$/);
+    assert.match(first.warn?.title ?? '', /^(ToA: \d+ problems?|✓ Ready for ToA)$/);
     assert.equal(first.warn?.instance, true, 'a raid: any instance is the fight area');
     assert.ok(logs.some((l) => JSON.stringify(l).includes('"cached"')), 'the ask found the warm');
     logs.length = 0;

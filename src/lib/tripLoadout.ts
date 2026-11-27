@@ -1,5 +1,5 @@
 // The pre-trip check's setup from the loadout engine (lib/loadout), for a trip with a boss profile
-// (Vorkath, Zulrah, ToA): the player's bank and a plan (Learner / Experienced / Max DPS) → a setup the
+// (Vorkath, Zulrah, ToA, ToB, CoX): the player's bank and a plan (Learner / Experienced / Max DPS) → a setup the
 // check reads like a guide's: the worn loadout on the doll, the switches and supplies laid out as the
 // 28-slot inventory, the rune pouch and spellbook. Trips without a profile keep the calc. PURE.
 //
@@ -135,7 +135,7 @@ function planOf(l: Loadout, preset: Preset): TripPlan {
     unmet: l.requirementsUnmet.map((u) => u.message),
     info: [
       ...kits,
-      `Switches: ${switches} slot${switches === 1 ? '' : 's'} · supplies ${supplies}${reserved ? ` · ${reserved} free for the raid's supplies` : ''}`,
+      `${switches} switch slot${switches === 1 ? '' : 's'}, ${supplies} for supplies${reserved ? `, ${reserved} free for the raid's supplies` : ''}`,
       // "assumed" only matters when the bank is unknown, which a check never is.
       ...l.warnings.filter((w) => !/^Supplies not known/.test(w)),
     ],
@@ -145,6 +145,6 @@ function planOf(l: Loadout, preset: Preset): TripPlan {
 /** The check with the plan's broken rules as failing rows and its lines as info. */
 export function withPlan(check: TripCheck, plan: TripPlan): TripCheck {
   const rows: TripRow[] = plan.unmet.map((line) => ({ group: 'gear', ok: false, line }));
-  // The check's own "Switches N slots · M free" counts what is packed now: the plan's line says it.
-  return { ...check, rows: [...check.rows, ...rows], info: [...plan.info, ...check.info.filter((l) => !/^Switches \d+ slots?/.test(l))] };
+  // The check's own "N switch slots packed, M free" counts what is packed now: the plan's line says it.
+  return { ...check, rows: [...check.rows, ...rows], info: [...plan.info, ...check.info.filter((l) => !/^\d+ switch slots? packed/.test(l))] };
 }

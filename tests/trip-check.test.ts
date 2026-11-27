@@ -181,7 +181,7 @@ test('own setup, everything banked: every slot says take it; gone from the bank 
   const bank = [{ id: fang }, { id: torvaHelm }, { id: lb }];
   const c = checkTrip(input({ setup: s, source: 'own', worn: [], inventory: [], bank }));
   for (const n of ["Osmumten's fang", 'Torva full helm', 'Lightbearer']) assert.ok(failing(c).includes(`${shortName(n)} is in your bank: take it`), `${n}: ${failing(c).join(' | ')}`);
-  assert.ok(!c.info.some((l) => /Switches/.test(l)), 'nothing packed: no slots line');
+  assert.ok(!c.info.some((l) => /switch slot/.test(l)), 'nothing packed: no slots line');
   const gone = checkTrip(input({ setup: s, source: 'own', worn: [], inventory: [], bank: [{ id: fang }, { id: lb }] }));
   assert.ok(failing(gone).includes('Torva full helm: not found'), failing(gone).join(' | '));
   // A guide's setup: not owned is an upgrade, never a trip problem.
@@ -245,7 +245,7 @@ test('supplies by kind: any brew dose counts, sharks count as food', () => {
   assert.ok(failing(c).includes('Brews: have 2, need 3'), failing(c).join(' | '));
   assert.ok(c.rows.some((r) => r.ok && r.line === 'Food 2'));
   assert.ok(c.rows.some((r) => r.ok && r.line === 'Restores 1'));
-  assert.deepEqual(c.info, ['Switches 2 slots · 26 free for supplies']);
+  assert.deepEqual(c.info, ['2 switch slots packed, 26 free for supplies']);
 });
 
 test('spellbook and runes: needs state; the pouch counts only when it is packed', () => {
@@ -258,7 +258,7 @@ test('spellbook and runes: needs state; the pouch counts only when it is packed'
   assert.ok(!old.rows.some((r) => r.group === 'book' || r.group === 'pouch'));
   const state = { book: 0, pouch: [{ id: 560, q: 100 }, { id: 565, q: 100 }], pray: [], readAt: '' };
   const c = checkTrip(input({ setup: s, worn, inventory: [...base, { id: POUCH }], state }));
-  assert.ok(failing(c).includes('On Standard · setup needs Ancient'), failing(c).join(' | '));
+  assert.ok(failing(c).includes('On Standard, the setup needs Ancient'), failing(c).join(' | '));
   assert.ok(failing(c).includes('Rune pouch: no Water runes'), failing(c).join(' | '));
   // A Kodai wand worn gives the water.
   const kodai = id('Kodai wand');
@@ -275,7 +275,7 @@ test('prayers: Rigour locked fails, unlocked passes, Piety is never judged', () 
   const worn = [{ id: fang }, { id: torvaHelm }];
   const inv = [{ id: claws }, { id: tbow }];
   const locked = checkTrip(input({ setup: s, worn, inventory: inv, state: { book: 0, pouch: null, pray: [], readAt: '' } }));
-  assert.ok(failing(locked).includes('Rigour locked · setup prays it'));
+  assert.ok(failing(locked).includes('Rigour locked, the setup prays it'));
   assert.ok(!locked.rows.some((r) => /piety/i.test(r.line)));
   const open = checkTrip(input({ setup: s, worn, inventory: inv, state: { book: 0, pouch: null, pray: ['rigour'], readAt: '' } }));
   assert.ok(open.rows.some((r) => r.ok && r.line === 'Rigour unlocked'));
@@ -325,7 +325,7 @@ test('calc: the best loadout fills armour slots and runs quickly on a big bank',
 test('warn: problems counted and capped; all clear says Ready', () => {
   const rows = ['a', 'b', 'c', 'd', 'e', 'f'].map((line) => ({ group: 'gear' as const, ok: false, line }));
   const w = tripWarn('ToA', { rows, info: [], unknown: [] });
-  assert.equal(w.title, 'ToA · 6 problems');
+  assert.equal(w.title, 'ToA: 6 problems');
   assert.deepEqual(w.lines, ['a', 'b', 'c', '+3 more in the panel']);
   assert.deepEqual(tripWarn('ToA', { rows: [{ group: 'gear', ok: true, line: 'x' }], info: [], unknown: [] }), { ok: true, title: '✓ Ready for ToA', lines: [] });
 });
@@ -345,7 +345,7 @@ test('save: worn gear to slots, the inventory as laid out, the pouch only when p
 
 test('panel: failing rows open, the rest folded to "✓ N checks met", save and re-check actions', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
-  const check = { rows: [{ group: 'gear' as const, ok: false, line: 'No stab weapon: Kephri (Fang in bank)', item: fang, bank: [fang] }, { group: 'spec' as const, ok: true, line: 'Spec: Dragon claws' }, { group: 'supplies' as const, ok: true, line: 'Brews 6' }], info: ['Switches 2 slots · 24 free for supplies'], unknown: [], bank: [fang] };
+  const check = { rows: [{ group: 'gear' as const, ok: false, line: 'No stab weapon: Kephri (Fang in bank)', item: fang, bank: [fang] }, { group: 'spec' as const, ok: true, line: 'Spec: Dragon claws' }, { group: 'supplies' as const, ok: true, line: 'Brews 6' }], info: ['2 switch slots packed, 24 free for supplies'], unknown: [], bank: [fang] };
   const ui = tripPanelUi({ region: '13454', regionName: 'the ToA lobby', content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, fromRegion: true, source: 'calc', sourceLine: 'Worked out from your bank', guide: null, check, status: 'ready', checkedAt: '18:42', hasOwn: false, canSave: true, options: [], monsters: [] });
   const json = JSON.stringify(ui);
   assert.ok(json.includes('No stab weapon: Kephri (Fang in bank)'));
@@ -550,7 +550,7 @@ test('endgame bank: Zulrah is Shadow worn (charge it) and a bow switch; no melee
   const c = endgame('zulrah');
   const lines = gearLines(c);
   assert.ok(c.info.some((l) => /magic worn/.test(l)), c.info.join(' | '));
-  assert.ok(lines.some((l) => /^Shadow is in your bank: take it \(charge it\)/.test(l) && /uncharged in your bank: charge it/.test(l)), lines.join(' | '));
+  assert.ok(lines.some((l) => /^Shadow is in your bank: take it \(charge it\)/.test(l) && /Uncharged in your bank: charge it/.test(l)), lines.join(' | '));
   assert.ok(lines.some((l) => /^Twisted bow \(switch\)/.test(l)), lines.join(' | '));
   for (const n of ['Ancestral hat', 'Occult necklace', 'Imbued Zamorak cape']) assert.ok(lines.some((l) => l.startsWith(`${n} is in your bank`)), `${n}: ${lines.join(' | ')}`);
   assert.ok(!lines.some((l) => /scythe|fang|torva|rancour/i.test(l)), lines.join(' | '));
@@ -686,7 +686,7 @@ test('ToA: a ranged and a melee switch for the Wardens P2 even when magic wins e
   assert.ok(lines.some((l) => /^Twisted bow \(switch\)/.test(l)), lines.join(' | '));
   assert.ok(lines.some((l) => /^(Fang|Scythe) \(switch\)/.test(l)), lines.join(' | '));
   assert.ok(c.info.includes("Wardens P2: you'll need ranged and melee switches"), c.info.join(' | '));
-  const slots = Number(/Switches: (\d+) slots?/.exec(c.info.join(' '))?.[1]);
+  const slots = Number(/(\d+) switch slots?/.exec(c.info.join(' '))?.[1]);
   const switches = c.rows.filter((r) => r.group === 'gear' && !r.slot && r.item != null);
   assert.equal(switches.length, slots);
   assert.ok(slots <= tripContent('toa')!.switchSlots!, `${slots} slots`);
