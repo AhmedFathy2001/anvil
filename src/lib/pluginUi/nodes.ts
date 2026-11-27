@@ -154,7 +154,7 @@ export type Node =
       boss?: string;
       /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
       /** 'chevron-down': an open accordion's chevron; a plugin without it draws the `alt` (▾). */
-      glyph?: 'check' | 'chevron-right' | 'chevron-down' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
+      glyph?: 'check' | 'chevron-right' | 'chevron-down' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | 'lock' | 'unlock' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
       color?: Color;
       w?: number;
       h?: number;

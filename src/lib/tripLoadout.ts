@@ -7,6 +7,7 @@
 
 import type { GearIndex } from './dps/summary';
 import type { GearSetup, InvItem } from './guideTiers';
+import { caChangeLine, caName, caRule } from './loadout/caRules';
 import { buildLoadout } from './loadout/engine';
 import { profileFor } from './loadout/profiles';
 import type { Loadout, OwnedSupply, Preset } from './loadout/types';
@@ -49,6 +50,8 @@ export interface TripLoadoutInput {
   /** A game id for a supply named but not held ("Saradomin brew(4)"), for its picture. */
   idOfName?: (name: string) => number | null;
   isRunePouch: (id: number) => boolean;
+  /** A Combat Achievement picked on the card (lib/loadout/caRules): its limits applied. */
+  ca?: number | null;
 }
 
 const BOOKS = { standard: 0, ancient: 1, lunar: 2, arceuus: 3 } as const;
@@ -60,7 +63,7 @@ const RUNE_POUCH = 12791;
 export const hasProfile = (contentKey: string): boolean => !!profileFor(contentKey);
 
 /** The engine's loadout for the player's bank, as a setup the check reads; null without a profile. */
-export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: TripPlan; loadout: Loadout; sourceLine: string } | null {
+export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: TripPlan; loadout: Loadout; sourceLine: string; caLine: string | null } | null {
   const profile = profileFor(inp.contentKey);
   if (!profile) return null;
   const preset = inp.preset ?? DEFAULT_PLAN;
@@ -76,19 +79,25 @@ export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: Tri
     else supplies.set(it.id, { id: it.id, name: inp.nameOf(it.id), q: Math.max(1, it.q ?? 1) });
   }
   const lv = (k: string, d = 80) => (typeof inp.levels?.[k] === 'number' ? inp.levels[k] : d);
-  const loadout = buildLoadout({
-    profile,
-    preset,
-    idx: inp.idx,
-    player: {
-      levels: { attack: lv('attack'), strength: lv('strength'), defence: lv('defence'), ranged: lv('ranged'), magic: lv('magic'), prayer: lv('prayer'), hitpoints: lv('hitpoints', 99) },
-      // The plugin reads Rigour and Augury; Piety is a quest's, so the level decides it.
-      ...(inp.state?.pray ? { prayers: [...inp.state.pray, 'piety'] } : {}),
-      owned,
-      supplies: [...supplies.values()],
-      ...(inp.raidLevel != null ? { mode: { raidLevel: inp.raidLevel } } : {}),
-    },
-  });
+  const rule = caRule(profile.key, inp.ca);
+  const run = (withCa: boolean) =>
+    buildLoadout({
+      profile,
+      preset: withCa && rule?.preset ? rule.preset : preset,
+      idx: inp.idx,
+      player: {
+        levels: { attack: lv('attack'), strength: lv('strength'), defence: lv('defence'), ranged: lv('ranged'), magic: lv('magic'), prayer: lv('prayer'), hitpoints: lv('hitpoints', 99) },
+        // The plugin reads Rigour and Augury; Piety is a quest's, so the level decides it.
+        ...(inp.state?.pray ? { prayers: [...inp.state.pray, 'piety'] } : {}),
+        owned,
+        supplies: [...supplies.values()],
+        ...(withCa && rule?.constraints ? { constraints: rule.constraints } : {}),
+        ...(inp.raidLevel != null || (withCa && rule?.variant) ? { mode: { ...(inp.raidLevel != null ? { raidLevel: inp.raidLevel } : {}), ...(withCa && rule?.variant ? { variant: rule.variant } : {}) } } : {}),
+      },
+    });
+  // With a CA picked, the loadout without it too: the card says in one line what the CA changed.
+  const loadout = run(!!rule);
+  const caLine = rule ? caChangeLine(caName(rule.id) ?? 'This task', run(false), loadout, inp.nameOf) : null;
   const pouchId = held.find((it) => inp.isRunePouch(it.id))?.id ?? RUNE_POUCH;
   // The engine's order (switches, spec, pouch, supplies), with the room kept for the raid's own
   // supplies left as empty slots at the end.
@@ -113,7 +122,7 @@ export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: Tri
     ...(loadout.spells.length ? { spells: loadout.spells, spellbook: BOOKS[loadout.spellbook] } : {}),
     ...(loadout.quiverAmmo != null ? { quiver: loadout.quiverAmmo } : {}),
   };
-  return { setup, plan: planOf(loadout, preset), loadout, sourceLine: `Worked out from your bank for ${profile.name}: the ${PLAN_PRESETS.find((p) => p.key === preset)!.label} plan` };
+  return { setup, plan: planOf(loadout, preset), loadout, caLine, sourceLine: `Worked out from your bank for ${profile.name}: the ${PLAN_PRESETS.find((p) => p.key === loadout.preset)!.label} plan${rule ? ` with ${caName(rule.id)}` : ''}` };
 }
 
 /** The plan's static lines: which kit each part of the fight uses, the slots, the engine's warnings. */

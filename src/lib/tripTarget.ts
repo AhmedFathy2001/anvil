@@ -3,6 +3,8 @@
 // PURE: lib/tripTargetStore reads the inputs, pluginUi/tripView and POST /api/plugin/items use it.
 //
 // THE TARGET, strongest first:
+//   lock    the player locked it on the card: every bank close checks it, whatever bank it is, and it
+//           stays through kills, deaths, logouts and idle time until they unlock or change it
 //   pick    the player chose it: "Going here next" on a guide, or a trip picked in the panel
 //   carried a trip item is worn or packed (TripContent.tripItems: a Mokhaiotl waystone is a Doom trip)
 //   guide   the guide they opened most recently, when it maps to a trip
@@ -26,10 +28,12 @@ export function carriedTrip(held: readonly number[]): string | null {
   return TRIP_CONTENT.find((c) => c.tripItems?.ids.some((id) => set.has(id)))?.key ?? null;
 }
 
-export type TargetSource = 'pick' | 'carried' | 'guide' | 'last';
+export type TargetSource = 'lock' | 'pick' | 'carried' | 'guide' | 'last';
 
 /** What is stored (lib/tripTargetStore): the pick and the last clear. ISO times. */
 export interface TargetState {
+  /** Locked on the card: wins over everything until unlocked or changed (no idle, no trip end). */
+  lock?: { key: string; at: string };
   pick?: { key: string; at: string };
   clearedAt?: string;
 }
@@ -148,6 +152,8 @@ export function resolveTarget(inp: TargetInputs): Target | null {
     if (Number.isFinite(cleared) && at <= cleared) return false;
     return !kill || kill.at <= at + KC_GRACE_MS;
   };
+  const lock = inp.state?.lock;
+  if (lock && isPickKey(lock.key, inp.ownKeys)) return { key: canonicalKey(lock.key), source: 'lock' };
   const pick = inp.state?.pick;
   if (pick && isPickKey(pick.key, inp.ownKeys) && live(pick.at)) return { key: canonicalKey(pick.key), source: 'pick' };
   // Carried: it lasts as long as the item does, so only a clear after the reading ends it.
@@ -163,7 +169,7 @@ export function resolveTarget(inp: TargetInputs): Target | null {
 }
 
 /** "your pick", "the guide you opened", "last trip": said as "Checking for: Doom (last trip)". */
-export const SOURCE_LABEL: Record<TargetSource, string> = { pick: 'your pick', carried: 'carrying its trip item', guide: 'guide you opened', last: 'last trip' };
+export const SOURCE_LABEL: Record<TargetSource, string> = { lock: 'locked', pick: 'your pick', carried: 'carrying its trip item', guide: 'guide you opened', last: 'last trip' };
 
 /** The target's reason in words: a carried trip names its item ("carrying a waystone"). */
 export const targetWhy = (t: Target): string => (t.source === 'carried' ? tripContent(t.key)?.tripItems?.carrying : null) ?? SOURCE_LABEL[t.source];

@@ -91,10 +91,10 @@ test('clears: a trip end or "clear", two hours idle, a pick that is no longer a 
 
 const base = { region: '12598', regionName: null, fromRegion: false, source: 'calc' as const, sourceLine: 'Worked out from your bank', guide: null, check: { rows: [], info: [], unknown: [] }, status: 'ready' as const, checkedAt: '18:42', hasOwn: true, canSave: true, options: [{ key: 'toa', short: 'ToA', name: 'Tombs of Amascut' }, { key: DOOM, short: 'Doom of Mokhaiotl', name: 'Doom of Mokhaiotl (your setup)' }], monsters: [{ key: 'Doom of Mokhaiotl', name: 'Doom of Mokhaiotl' }] };
 
-test('panel: "Checking for: Doom (last trip)", chips set the target, clear, again keeps it', async () => {
+test('panel: "Trip: Doom (last trip)", chips set the target, clear, again keeps it', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
   const json = JSON.stringify(tripPanelUi({ ...base, content: { key: DOOM, name: 'Doom of Mokhaiotl', short: 'Doom of Mokhaiotl' }, target: { key: DOOM, short: 'Doom of Mokhaiotl', why: 'last trip' }, fromTarget: true }));
-  assert.ok(json.includes('"Checking for: "') && json.includes(' (last trip)"'));
+  assert.ok(json.includes('"Trip: "') && json.includes(' (last trip)  "'));
   assert.ok(json.includes(`"target":"${DOOM}"`), 'a chip makes it the target');
   assert.ok(json.includes('"target":"clear"'));
   assert.ok(json.includes(`"content":"${DOOM}"`), 'the monster list only looks');
@@ -114,7 +114,7 @@ test('panel: "Checking for: Doom (last trip)", chips set the target, clear, agai
 test('panel: in a trip region the region’s trip shows, the target on its own line', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
   const json = JSON.stringify(tripPanelUi({ ...base, region: '13454', regionName: 'the ToA lobby', fromRegion: true, content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, target: { key: 'vorkath', short: 'Vorkath', why: 'last trip' }, fromTarget: false }));
-  assert.ok(json.includes('picked from the ToA lobby'));
+  assert.ok(json.includes(' (from the ToA lobby)  '));
   assert.ok(json.includes('Next trip: Vorkath (last trip)'));
   assert.ok(!json.includes('Checking for: '));
 });

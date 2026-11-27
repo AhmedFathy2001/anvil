@@ -28,17 +28,18 @@ import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { tripStateForViewer } from '@/lib/playerItems';
 import type { TripState } from '@/lib/tripState';
 import { rateLimit } from '@/lib/rate-limit';
-import { checkTrip, isSpecWeapon, raidScaled, setupFromHeld, tripWarn, usableHeld, type TripCheck, type TripSource } from '@/lib/tripCheck';
+import { checkTrip, isSpecWeapon, raidScaled, setupFromHeld, supplyKind, tripWarn, usableHeld, type TripCheck, type TripSource } from '@/lib/tripCheck';
 import { tripLayout, type TripLayout } from '@/lib/tripLayout';
 import { ownStats, setupResult, withSlot } from '@/lib/gearNow';
 import { calcSourceLine, contentForRegion, contentFromKey, TRIP_CONTENT, type TripContent } from '@/lib/tripContent';
 import { tripRegions } from '@/lib/guideAreas';
-import { forgetOwnTripSetup, ownTripSetup, saveOwnTripSetup } from '@/lib/tripSetups';
-import { cleanRaidLevel, RAID_LEVELS, raidLevelFor, saveRaidLevel, saveTripPlan, tripPlanFor } from '@/lib/tripRaidLevel';
-import { cleanPlan, hasProfile, loadoutFor, withPlan, type TripPlan } from '@/lib/tripLoadout';
+import { clanSharedSetups, createTripSetup, forgetOwnTripSetup, listOwnSetups, saveOwnTripSetup, type ClanSetup, type SavedSetup } from '@/lib/tripSetups';
+import { clanPickId, cleanRaidLevel, isClanPick, RAID_LEVELS, raidLevelFor, saveRaidLevel, saveTripCa, saveTripPlan, saveTripSetupPick, tripCaFor, tripPlanFor, tripSetupPickFor, type SetupPick } from '@/lib/tripRaidLevel';
+import { casFor, type CaOption } from '@/lib/loadout/caRules';
+import { cleanPlan, hasProfile, loadoutFor, PLAN_PRESETS, withPlan, type TripPlan } from '@/lib/tripLoadout';
 import type { Preset } from '@/lib/loadout/types';
 import { canonicalKey, ownAlias, targetWhy, type Target } from '@/lib/tripTarget';
-import { clearTarget, currentTarget, ownTripKeys, pickTarget } from '@/lib/tripTargetStore';
+import { clearTarget, currentTarget, lockTarget, ownTripKeys, pickTarget, unlockTarget } from '@/lib/tripTargetStore';
 import type { GuideViewer } from '@/lib/guideViewer';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { accountStanding, playedCharacter } from '@/lib/pluginAccount';
@@ -162,11 +163,37 @@ interface Built {
   setup?: GearSetup;
 }
 
-/** The player's own setup for a trip: saved for it, else saved for its boss picked by hand. */
-async function ownSetupFor(userId: number, accountId: number, key: string, ownKeys: readonly string[]): Promise<GearSetup | null> {
-  const own = await ownTripSetup(userId, accountId, key);
-  const alias = own ? null : ownAlias(key, ownKeys);
-  return own ?? (alias ? ownTripSetup(userId, accountId, alias) : null);
+/** The player's own setups for a trip: saved for it, and saved for its boss picked by hand. */
+async function ownSetupsFor(userId: number, accountId: number, key: string, ownKeys: readonly string[]): Promise<SavedSetup[]> {
+  const alias = ownAlias(key, ownKeys);
+  const [own, aliased] = await Promise.all([listOwnSetups(userId, accountId, key), alias ? listOwnSetups(userId, accountId, alias) : Promise.resolve([])]);
+  return [...own, ...aliased];
+}
+
+/** The setup the check uses: the dropdown's pick ('anvil': none of them), else the trip's default. */
+function pickedSetup(setups: readonly SavedSetup[], pick: SetupPick | null): SavedSetup | null {
+  if (pick === 'anvil' || isClanPick(pick)) return null;
+  return (pick != null ? setups.find((s) => s.id === pick) : null) ?? setups.find((s) => s.isDefault) ?? setups[0] ?? null;
+}
+
+/** "8 switches, 4 food, 6 potions, 4 free slots": what the laid-out inventory holds, counted. */
+function packSummary(l: TripLayout | null | undefined, idx: GearIndex, nameOf: (id: number) => string): string {
+  if (!l) return '';
+  const held = l.inventory.filter((x): x is NonNullable<typeof x> => !!x);
+  let switches = 0;
+  let food = 0;
+  let pots = 0;
+  for (const it of held) {
+    const g = idx.item(it.id);
+    const name = nameOf(it.id);
+    if (g && !g.hid && g.s && !/\(\d\)$/.test(name)) switches++;
+    else if (supplyKind(name) === 'Food') food++;
+    else if (/\(\d\)$/.test(name)) pots++;
+  }
+  const free = 28 - held.length;
+  const n = (k: number, one: string, many: string) => (k ? `${k} ${k === 1 ? one : many}` : '');
+  const parts = [n(switches, 'switch', 'switches'), n(food, 'food', 'food'), n(pots, 'potion', 'potions'), `${free} free slot${free === 1 ? '' : 's'}`].filter(Boolean);
+  return `${parts.join(', ')}.`;
 }
 
 /** A saved setup's chip: "m:Doom of Mokhaiotl#Normal" → "Doom of Mokh…". */
@@ -182,6 +209,8 @@ const optionOf = (key: string): { key: string; short: string; name: string } | n
 async function targetFor(viewer: GuideViewer, args: Args): Promise<{ target: Target | null; ownKeys: string[] } | null> {
   if (!viewer.userId || !viewer.accountId) return null;
   if (args.target === 'clear') await clearTarget(viewer.accountId);
+  else if (args.lock === '1' && args.target) await lockTarget(viewer.userId, viewer.accountId, args.target, await ownTripKeys(viewer.accountId));
+  else if (args.lock === '0') await unlockTarget(viewer.userId, viewer.accountId);
   else if (args.target) await pickTarget(viewer.userId, viewer.accountId, args.target, await ownTripKeys(viewer.accountId));
   const now = await currentTarget(viewer.userId, viewer.accountId);
   return { target: now.target, ownKeys: now.ownKeys };
@@ -205,6 +234,8 @@ interface Resolved {
   monsters?: Monster[];
   /** The loadout engine's plan (a trip with a boss profile, no own or guide setup). */
   plan?: TripPlan;
+  /** What the CA picked changed in the engine's loadout, one line (lib/loadout/caRules). */
+  caLine?: string | null;
 }
 
 /** What a check reads besides the setup, kept so an adjusted setup is checked the same way. */
@@ -369,6 +400,8 @@ async function resolveCheck(c: {
   raidLevel: number | null;
   /** The loadout plan picked for a trip with a boss profile (lib/tripLoadout). */
   preset: Preset | null;
+  /** The Combat Achievement picked for the engine's loadout, or null. */
+  ca: number | null;
   t: ReturnType<typeof phases>;
 }): Promise<Resolved> {
   const { content, own, viewer, idx, t } = c;
@@ -399,13 +432,15 @@ async function resolveCheck(c: {
   // A trip with a boss profile: the loadout engine's setup for the plan picked, checked like a
   // guide's (the doll its worn loadout, the inventory its switches and supplies).
   let plan: TripPlan | undefined;
+  let caLine: string | null = null;
   if (source === 'calc' && hasProfile(content.key)) {
     const holds = equivalentsFor([...c.worn, ...c.inventory, ...c.bank, ...(c.lootingBag ?? [])].map((i) => i.id), 'holds');
     const nameOf = (id: number) => c.nm.byId.get(id) ?? idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`;
-    const got = loadoutFor({ contentKey: content.key, preset: c.preset, idx, worn: c.worn, inventory: c.inventory, bank: c.bank, lootingBag: c.lootingBag, state: c.state, levels: viewer.levels, raidLevel: c.raidLevel, nameOf, holds, isRunePouch: (id) => c.nm.pouches.has(id), idOfName: (n) => c.nm.byName?.get(n.toLowerCase()) ?? null });
+    const got = loadoutFor({ contentKey: content.key, preset: c.preset, idx, worn: c.worn, inventory: c.inventory, bank: c.bank, lootingBag: c.lootingBag, state: c.state, levels: viewer.levels, raidLevel: c.raidLevel, nameOf, holds, isRunePouch: (id) => c.nm.pouches.has(id), idOfName: (n) => c.nm.byName?.get(n.toLowerCase()) ?? null, ca: c.ca });
     if (got) {
       setup = got.setup;
       plan = got.plan;
+      caLine = got.caLine;
       sourceLine = got.sourceLine;
       t.mark('loadout');
     }
@@ -413,7 +448,15 @@ async function resolveCheck(c: {
   if (!monsters.length && source === 'calc' && !setup) return { source, sourceLine, guide, setup, check: null, monsters };
   const out = runCheck(c, setup, source, monsters, plan);
   t.mark('check');
-  return { source, sourceLine, guide, setup, monsters, plan, ...out };
+  return { source, sourceLine, guide, setup, monsters, plan, caLine, ...out };
+}
+
+/** The card's short source line: "Your Solo shadow setup", "Anvil's Experienced loadout from your bank". */
+function shortSource(source: TripSource, setupName: string | null, preset: string | null, line: string): string {
+  if (source === 'own' && setupName) return `Your ${setupName} setup`;
+  const plan = preset ? PLAN_PRESETS.find((p) => p.key === preset)?.label : null;
+  if (plan) return `Anvil’s ${plan} loadout from your bank`;
+  return line;
 }
 
 async function build(request: Request, args: Args, viewer: GuideViewer, note: string | null, t = phases()): Promise<Built> {
@@ -453,7 +496,10 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   // nothing) the next-trip target is checked.
   const asked = args.target && args.target !== 'clear' ? args.target : args.content;
   const picked = contentFromKey(asked ? canonicalKey(asked) : asked);
-  const fromRegion = !picked && region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id)), regions) : null;
+  const atRegion = !picked && region != null ? contentForRegion(region, new Set([...worn, ...inventory].map((i) => i.id)), regions) : null;
+  // A locked trip (lib/tripTarget 'lock') is checked at every bank: another boss's bank doesn't switch it.
+  const locked = target?.source === 'lock' ? contentFromKey(target.key) : null;
+  const fromRegion = locked ? null : atRegion;
   const content: TripContent | null = picked ?? fromRegion ?? contentFromKey(target?.key);
   const isTarget = !!content && !!target && content.key === target.key && !fromRegion;
   const withContent: TripPanelData = {
@@ -462,6 +508,7 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     fromRegion: !!fromRegion,
     target: target ? { key: target.key, short: contentFromKey(target.key)?.short ?? target.key, why: targetWhy(target) } : null,
     fromTarget: isTarget,
+    lock: locked && content?.key === locked.key ? { at: atRegion && atRegion.key !== locked.key ? atRegion.short : null } : null,
   };
   if (!viewer.accountId || (!snap?.equipment && !snap?.inventory)) return { data: { ...withContent, status: 'off' }, warn: null, armed };
   // The newest push of ANY container: the plugin sends worn and inventory only when they change, so a
@@ -476,27 +523,45 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const behind = !!content && !note && args.held === '1' && age > BEHIND_MS;
   if (!content) return { data: { ...withContent, canSave: false }, warn: null, armed };
 
-  const [state, own, nm, raidLevel, planPref] = await Promise.all([
+  const [state, ownRows, setupPick, nm, raidLevel, planPref, clanRows, caPref] = await Promise.all([
     tripStateForViewer(viewer.userId, viewer.accountId),
-    ownSetupFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []),
+    ownSetupsFor(viewer.userId, viewer.accountId, content.key, tgt?.ownKeys ?? []),
+    tripSetupPickFor(viewer.accountId, content.key),
     itemNames(),
     // ToA's bosses scale with the raid level the player set (lib/tripRaidLevel).
     content.key === 'toa' ? raidLevelFor(viewer.accountId) : Promise.resolve(null),
     // The loadout plan picked for a trip the engine has a profile for (lib/tripLoadout).
     hasProfile(content.key) ? tripPlanFor(viewer.accountId, content.key) : Promise.resolve(null),
+    // Clanmates' setups shared with the clan: the clan is the played character's own member seat.
+    clanSharedSetups(viewer.userId, viewer.accountId, [content.key]),
+    hasProfile(content.key) ? tripCaFor(viewer.accountId, content.key) : Promise.resolve(null),
   ]);
   const preset = hasProfile(content.key) ? cleanPlan(planPref) : null;
+  const clanRow: ClanSetup | null = isClanPick(setupPick) ? (clanRows.find((r) => r.id === clanPickId(setupPick)) ?? null) : null;
+  // A clan pick that is no longer shared falls back to the trip's default.
+  const ownRow = clanRow ? null : pickedSetup(ownRows, isClanPick(setupPick) ? null : setupPick);
+  const own = clanRow?.setup ?? ownRow?.setup ?? null;
+  // "Going for a CA?": the player's undone loadout-changing tasks, with Anvil's loadout only.
+  const caOptions: CaOption[] = hasProfile(content.key) && !own ? casFor(content.key, viewer.cas) : [];
+  const ca = caPref != null && caOptions.some((o) => o.id === caPref) ? caPref : null;
+  // The Setup dropdown: the saved setups by name, the clan's, the one in use (or Anvil's loadout).
+  const setupList: Pick<TripPanelData, 'setups' | 'clanSetups' | 'setupSel' | 'setupName'> = {
+    setups: ownRows.map((r) => ({ id: r.id, name: r.name || r.setup.name })),
+    clanSetups: clanRows.map((r) => ({ id: r.id, name: r.name, rsn: r.rsn })),
+    setupSel: clanRow ? `c:${clanRow.id}` : ownRow ? ownRow.id : 'anvil',
+    setupName: clanRow ? clanRow.name : ownRow ? ownRow.name || ownRow.setup.name : null,
+  };
   t.mark('reads');
   const clanId = content.guide ? await pluginClanId(request, args) : null;
   // Everything the setup and the check read, hashed: the same items, setup and state give the same
   // answer, so a bank-close ask after a warm (warmTrip, on the items push) or a repeat is instant.
   // Each container's readAt too: a reload after any push is worked out from that push (its items are
   // the key already; the stamps make it so even when a push resent the same items).
-  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx), raidLevel, preset, [snap.equipment?.readAt, snap.inventory?.readAt, snap.bank?.readAt, snap.lootingBag?.readAt]]);
+  const key = checkKey([viewer.userId, viewer.accountId, content.key, clanId, own, worn, inventory, snap.bank?.items ?? [], snap.lootingBag?.items ?? null, state, viewer.levels, viewer.prefs ? [...viewer.prefs.skipped.keys()].sort() : null, gearStamp(idx), raidLevel, preset, ca, [snap.equipment?.readAt, snap.inventory?.readAt, snap.bank?.readAt, snap.lootingBag?.readAt]]);
   const hit = CHECKS.get(key);
   const fresh = hit && Date.now() - hit.at < CHECK_TTL ? hit : null;
   if (!fresh) {
-    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel, preset, t });
+    const p = resolveCheck({ request, content, own, clanId, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel, preset, ca, t });
     remember(key, p);
     p.catch(() => CHECKS.delete(key));
   }
@@ -504,7 +569,8 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   if (fresh) t.mark('cached');
   const { source, guide } = got;
   let { sourceLine, check, layout, names } = got;
-  if (!check) return { data: { ...withContent, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
+  if (clanRow) sourceLine = `Checked against ${clanRow.name}, shared by ${clanRow.rsn} in your clan`;
+  if (!check) return { data: { ...withContent, ...setupList, status: 'no-targets', guide, hasOwn: !!own, canSave: true }, warn: null, armed };
   // The player's own picks (a slot clicked, an alternative taken): the same check of the setup with them.
   const ctx: CheckCtx = { content, viewer, idx, state, nm, worn, inventory, bank: snap.bank?.items ?? [], lootingBag: snap.lootingBag?.items, raidLevel };
   const swaps = parseSwaps(args.swap);
@@ -520,9 +586,13 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
   const data: TripPanelData = {
     raid: raidLevel != null ? { level: raidLevel, levels: RAID_LEVELS } : null,
     plan: got.plan ? { preset: got.plan.preset, presets: got.plan.presets, blurb: got.plan.blurb } : null,
+    ca: got.plan && caOptions.length ? { options: caOptions.map((o) => ({ id: o.id, name: o.name, does: o.does })), sel: ca, line: got.caLine ?? null } : null,
     ...withContent,
+    ...setupList,
     source,
     sourceLine,
+    sourceShort: clanRow ? `${clanRow.name}, ${clanRow.rsn}’s clan setup` : shortSource(source, setupList.setupName ?? null, got.plan?.preset ?? null, sourceLine),
+    summary: packSummary(layout, idx, (id) => names?.[id] ?? nm.byId.get(id) ?? idx.item(id)?.n ?? ''),
     guide,
     check: check!,
     layout,
@@ -535,8 +605,9 @@ async function build(request: Request, args: Args, viewer: GuideViewer, note: st
     canSave: worn.length + inventory.length > 0,
   };
   const refused = args.held ? HELD_WHY[args.held] : undefined;
-  if (refused) data.sourceLine = `${refused}: this is from what Anvil last saw`;
-  else if (behind) data.sourceLine = `${sourceLine}. Your newest items haven't arrived: this is from what Anvil last saw`;
+  if (refused) data.sourceLine = data.sourceShort = data.sourceNote = `${refused}: this is from what Anvil last saw`;
+  else if (behind) data.sourceLine = data.sourceShort = data.sourceNote = `${data.sourceShort}. Your newest items haven't arrived: this is from what Anvil last saw`;
+  else if (hasPicks) data.sourceShort = data.sourceNote = sourceLine;
   // Adjusting in the panel is not a bank-close answer: the overlay is left out of it.
   const quiet = behind || !!refused || hasPicks || !!alts;
   return { data, warn: quiet ? null : { ...tripWarn(content.short, check!), ...fightOf(content) }, armed, setup };
@@ -589,13 +660,30 @@ export async function warmTrip(request: Request, region: number | null): Promise
   }
 }
 
-/** 'trip-save' (what they wear and carry becomes their setup for the trip) and 'trip-forget'. */
-export async function tripAct(request: Request, act: string, args: Args): Promise<View | null> {
-  if (act !== 'trip-save' && act !== 'trip-forget' && act !== 'trip-raid' && act !== 'trip-plan') return null;
+/** What the player wears and carries now, as a setup to save (null: nothing held). */
+async function heldSetup(viewer: GuideViewer & { userId: number; accountId: number }, name: string): Promise<GearSetup | null> {
+  const snap = viewer.snapshot;
+  const worn = snap?.equipment?.items ?? [];
+  const inventory = snap?.inventory?.items ?? [];
+  if (!worn.length && !inventory.length) return null;
+  const [idx, state, nm] = await Promise.all([effectiveGearIndex(), tripStateForViewer(viewer.userId, viewer.accountId), itemNames()]);
+  const holds = equivalentsFor([...worn, ...inventory].map((i) => i.id), 'holds');
+  return setupFromHeld(name, worn, inventory, state, idx, holds, viewer.levels, (id) => nm.pouches.has(id));
+}
+
+/**
+ * The card's actions: 'trip-setup' (the Setup dropdown: a saved setup, 'anvil' for Anvil's loadout,
+ * 'new' to save what is worn and carried as a new setup), 'trip-save' (the selected setup gets what
+ * is worn and carried, or the card's setup with the player's picks; with Anvil's loadout shown, that
+ * loadout becomes a new setup), 'trip-forget', 'trip-raid' and 'trip-plan'.
+ */
+export async function tripAct(request: Request, act: string, args: Args, fields: Args = {}): Promise<View | null> {
+  if (act !== 'trip-save' && act !== 'trip-setup' && act !== 'trip-forget' && act !== 'trip-raid' && act !== 'trip-plan' && act !== 'trip-ca') return null;
   const viewer = await tripViewer(request);
   if (viewer === 'not-yours' || !viewer.userId || !viewer.accountId) return message('Sign in with the plugin, on your own character, to save a setup.');
+  const me = viewer as GuideViewer & { userId: number; accountId: number };
   const rl = await rateLimit(request, `plugin-trip-setups:${viewer.userId}`, { limit: 20, windowMs: 60_000 });
-  if (!rl.ok) return message('That’s a lot of changes — give it a minute.');
+  if (!rl.ok) return message('That’s a lot of changes, give it a minute.');
   const content = contentFromKey(args.content);
   if (!content) return tripView(request, args);
   // Back to the check as it was asked for: the region's own trip stays "picked from" the region.
@@ -615,28 +703,73 @@ export async function tripAct(request: Request, act: string, args: Args): Promis
     if (plan && hasProfile(content.key)) await saveTripPlan(viewer.accountId, content.key, plan);
     return tripView(request, again);
   }
+  if (act === 'trip-ca') {
+    // "Going for a CA?": the task picked, remembered per character and trip; 'none' clears it. Only a
+    // task the rules know for this boss (fields come from the panel's select, args from chips).
+    const v = fields.ca ?? args.ca ?? '';
+    const id = Number(v);
+    if (v === 'none' || v === '') await saveTripCa(viewer.accountId, content.key, null);
+    else if (Number.isInteger(id) && hasProfile(content.key) && casFor(content.key, null).some((o) => o.id === id)) await saveTripCa(viewer.accountId, content.key, id);
+    return tripView(request, again);
+  }
+  const ownKeys = await ownTripKeys(viewer.accountId);
+  const mine = await ownSetupsFor(viewer.userId, viewer.accountId, content.key, ownKeys);
   if (act === 'trip-forget') {
-    await forgetOwnTripSetup(viewer.userId, viewer.accountId, content.key);
-    // The same trip's setup saved for the boss picked by hand goes too.
-    const alias = ownAlias(content.key, await ownTripKeys(viewer.accountId));
-    if (alias) await forgetOwnTripSetup(viewer.userId, viewer.accountId, alias);
-    return tripView(request, again, `Forgot your ${content.short} setup.`);
+    const sid = Number(args.sid);
+    const row = mine.find((r) => r.id === sid) ?? pickedSetup(mine, null);
+    if (row) await forgetOwnTripSetup(viewer.userId, viewer.accountId, row.content, row.id);
+    return tripView(request, again, row ? `Forgot your ${row.name} setup.` : null);
   }
-  // The card's setup with the player's picks over it (a slot changed in the panel): that is what is kept.
-  if (parseSwaps(args.swap) && args.swap) {
-    const built = await build(request, { ...again, swap: args.swap }, viewer, null);
-    if (built.setup) {
-      await saveOwnTripSetup(viewer.userId, viewer.accountId, content.key, { ...built.setup, name: `My ${content.short} setup`, tier: 'advanced' });
-      return tripView(request, again, `Saved your picks as your ${content.short} setup.`);
+  /** A new setup from `setup`, picked in the dropdown. */
+  const asNew = async (setup: GearSetup, said: string): Promise<View> => {
+    const made = await createTripSetup(me.userId, me.accountId, content.key, content.short, setup);
+    if (!made) return tripView(request, again, `You have ${mine.length} ${content.short} setups, the most one trip keeps. Delete one on the site first.`);
+    await saveTripSetupPick(me.accountId, content.key, made.id);
+    return tripView(request, again, `${said} as ${made.name}. Rename it on the site.`);
+  };
+  if (act === 'trip-setup') {
+    const v = fields.setup ?? args.setup ?? '';
+    if (v === 'anvil') {
+      await saveTripSetupPick(viewer.accountId, content.key, 'anvil');
+      return tripView(request, again);
     }
+    if (v === 'clan-head') return tripView(request, again);
+    if (isClanPick(v)) {
+      // A clanmate's shared setup, read-only: checked against, never written to. Re-read through the clan.
+      const [row] = await clanSharedSetups(me.userId, me.accountId, [content.key], clanPickId(v));
+      if (row) await saveTripSetupPick(me.accountId, content.key, v);
+      return tripView(request, again, row ? null : 'That setup isn’t shared with your clan any more.');
+    }
+    if (v === 'new') {
+      // With a clanmate's setup picked, "Save current as new" copies it into your own.
+      const prev = await tripSetupPickFor(me.accountId, content.key);
+      if (isClanPick(prev)) {
+        const [row] = await clanSharedSetups(me.userId, me.accountId, [content.key], clanPickId(prev));
+        if (row) return asNew({ ...row.setup, tier: 'advanced' }, `Copied ${row.name} from ${row.rsn}`);
+      }
+      const held = await heldSetup(me, `My ${content.short} setup`);
+      return held ? asNew(held, 'Saved what you wear and carry') : tripView(request, again, 'Nothing worn or packed to save yet.');
+    }
+    const row = mine.find((r) => r.id === Number(v));
+    if (row) await saveTripSetupPick(viewer.accountId, content.key, row.id);
+    return tripView(request, again);
   }
-  const snap = viewer.snapshot;
-  const worn = snap?.equipment?.items ?? [];
-  const inventory = snap?.inventory?.items ?? [];
-  if (!worn.length && !inventory.length) return tripView(request, again, 'Nothing worn or packed to save yet.');
-  const [idx, state, nm] = await Promise.all([effectiveGearIndex(), tripStateForViewer(viewer.userId, viewer.accountId), itemNames()]);
-  const holds = equivalentsFor([...worn, ...inventory].map((i) => i.id), 'holds');
-  const setup = setupFromHeld(`My ${content.short} setup`, worn, inventory, state, idx, holds, viewer.levels, (id) => nm.pouches.has(id));
-  await saveOwnTripSetup(viewer.userId, viewer.accountId, content.key, setup);
-  return tripView(request, again, `Saved as your ${content.short} setup.`);
+  // 'trip-save'. The selected saved setup (sid), else Anvil's loadout was shown.
+  const sid = Number(args.sid);
+  const into = Number.isInteger(sid) && sid > 0 ? mine.find((r) => r.id === sid) ?? null : null;
+  if (!into || args.swap) {
+    // The card's setup (with the player's picks): Anvil's loadout becomes a new setup, picks go into the selected one.
+    const built = await build(request, { ...again, ...(args.swap ? { swap: args.swap } : {}) }, viewer, null);
+    if (built.setup) {
+      const setup: GearSetup = { ...built.setup, tier: 'advanced' };
+      if (!into) return asNew(setup, args.swap ? 'Saved this setup with your picks' : isClanPick(await tripSetupPickFor(me.accountId, content.key)) ? 'Copied the clan setup' : 'Saved Anvil’s loadout');
+      await saveOwnTripSetup(viewer.userId, viewer.accountId, into.content, setup, into.id);
+      return tripView(request, again, `Saved your picks into ${into.name}.`);
+    }
+    if (!into) return tripView(request, again, 'Nothing to save yet.');
+  }
+  const held = await heldSetup(me, into.name);
+  if (!held) return tripView(request, again, 'Nothing worn or packed to save yet.');
+  await saveOwnTripSetup(viewer.userId, viewer.accountId, into.content, held, into.id);
+  return tripView(request, again, `Saved what you wear and carry into ${into.name}.`);
 }

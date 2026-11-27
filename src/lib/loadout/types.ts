@@ -171,12 +171,28 @@ export interface OwnedSupply {
   q: number;
 }
 
-/** Combat Achievement style limits ("no switches", "ranged only"…), optional. */
+/** Combat Achievement limits ("melee only", "no prayer potions"…), optional (lib/loadout/caRules). */
 export interface LoadoutConstraints {
   bannedItems?: number[];
   bannedStyles?: Style[];
   maxSwitches?: number;
   noSpec?: boolean;
+  /** Phase key → the only styles used there (Zebak with melee only): replaces the phase's own. */
+  phaseStyles?: Record<string, Style[]>;
+  /** Item name patterns (case-insensitive) never picked: "^scythe of vitur". */
+  bannedNames?: string[];
+  /** Weapons are only these (name patterns): Barrows weapons only. */
+  weaponsOnly?: string[];
+  /** No prayer potions or restores packed. */
+  noPrayerPots?: boolean;
+  /** No food, karambwans or brews packed. */
+  noFood?: boolean;
+  /** Nothing from the supply plan but the room kept for supplies picked up inside. */
+  noSupplies?: boolean;
+  /** No room kept for supplies picked up inside: the player brings their own. */
+  ownSupplies?: boolean;
+  /** Extra supply slots, packed before the food fills what is left. */
+  moreSupplies?: { kind: SupplyKind; count: number }[];
 }
 
 export interface PlayerInput {

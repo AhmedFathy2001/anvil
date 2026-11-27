@@ -4,6 +4,7 @@
 // played character when it is theirs, else their main. Clanless players get the Anvil library; a
 // clan member pointed at their clan gets the clan's copies where it has them (lib/guides).
 
+import { caName } from '@/lib/loadout/caRules';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -281,7 +282,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       setups: all.map((x) => ({
         key: x.key,
         name: x.community ? `${x.setup.name} (community)` : x.setup.name,
-        sub: [x.setup.pick ? 'Curator pick' : x.setup.tag ?? '', x.dps != null ? `${x.dps.toFixed(1)} DPS` : ''].filter(Boolean).join(', '),
+        sub: [x.setup.ca != null && caName(x.setup.ca) ? `CA: ${caName(x.setup.ca)}` : '', x.setup.pick ? 'Curator pick' : x.setup.tag ?? '', x.dps != null ? `${x.dps.toFixed(1)} DPS` : ''].filter(Boolean).join(', '),
         weapon: x.setup.gear.weapon ?? null,
         blocked: x.fit.ok ? null : x.fit.reason,
         pick: !!x.setup.pick,

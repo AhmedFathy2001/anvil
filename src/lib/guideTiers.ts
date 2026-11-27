@@ -128,6 +128,8 @@ export interface GearSetup {
   id?: string;
   /** A short chip on the pill: "Budget", "Iron-friendly". */
   tag?: string;
+  /** The Combat Achievement this setup is a variant for (a task id, lib/loadout/caRules): "CA: Perfect Zulrah" on the pill. */
+  ca?: number;
   /** The curator's pick for its level: starred, and the default pill when it fits. */
   pick?: boolean;
   /** Account types it is for (lib/guideSetups GUIDE_ACCOUNTS). Absent/empty = every type. */

@@ -5,6 +5,7 @@
 // (a 1 Defence pure can't wear Masori) and requirements (levels, quests). The reader's filters pick
 // the default pill; a setup that doesn't fit is still shown, greyed, with the one reason it doesn't.
 
+import { caName } from '@/lib/loadout/caRules';
 import { TIERS, type GearSetup, type TierKey } from './guideTiers';
 import { sanitizeMarkers } from './groundMarkers';
 
@@ -251,6 +252,8 @@ export function cleanSetupInput(raw: unknown, tier: TierKey): GearSetup {
     ...(Array.isArray(s.steps) ? { steps: s.steps.map((x) => plainText(x, 400)).filter(Boolean).slice(0, 12) } : {}),
     ...(plainText(s.note, 280) ? { note: plainText(s.note, 280) } : {}),
     ...(plainText(s.tag, 20) ? { tag: plainText(s.tag, 20) } : {}),
+    // Only a task the trip card knows (lib/loadout/caRules), by id.
+    ...(typeof s.ca === 'number' && caName(s.ca) ? { ca: s.ca } : {}),
     ...(Array.isArray(s.markers) ? { markers: sanitizeMarkers(s.markers) } : {}),
     ...(Array.isArray(s.targets) ? { targets: s.targets.filter((t): t is string => typeof t === 'string').map((t) => t.slice(0, 80)).slice(0, 12) } : {}),
   };
