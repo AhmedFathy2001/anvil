@@ -1,5 +1,5 @@
 import { formatGp } from '@/lib/itemPrices';
-import { shownKiller } from '@/lib/deathSource';
+import { deathCause, shownKiller } from '@/lib/deathSource';
 import { clogItemIdByName } from '@/lib/moments';
 import { fallenTitle, isFallenDeath } from '@/lib/hardcoreFall';
 import { whoText } from '@/lib/reactionWho';
@@ -155,8 +155,8 @@ function oneTitle(m: MomentLike): string {
   const rawTotal = rawTotalLevel(m);
   if (rawTotal != null) return `${rawTotal.toLocaleString('en-US')} total`;
   if (m.kind === 'pet') return `Pet: ${name}`;
-  if (isFallenDeath(m)) return fallenTitle(shownKiller(m.source));
-  if (m.kind === 'death') return shownKiller(m.source) ? `Died to ${m.source}` : 'Died';
+  if (isFallenDeath(m)) return fallenTitle(deathCause(m.source, m.sourceKind));
+  if (m.kind === 'death') return deathCause(m.source, m.sourceKind) ? `Died to ${deathCause(m.source, m.sourceKind)}` : 'Died';
   if (m.kind === 'ca') return m.tier ? `${m.tier}: ${name}` : name;
   if (m.kind === 'level') {
     // The number reached rides in `quantity`, the skill in `itemName` (lib/moments Observation).

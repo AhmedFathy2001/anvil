@@ -197,16 +197,16 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
       {/* Boss Rush: your own deaths that cost points, each with its screenshot (only you and staff see these). */}
       {row.deathShots && row.deathShots.length > 0 && (
         <details className="mt-1.5 pl-11 text-xs text-text-muted">
-          <summary className="cursor-pointer hover:text-foreground">Your deaths ({row.deathShots.length}) · only you and staff see these</summary>
+          <summary className="cursor-pointer hover:text-foreground">Your deaths ({row.deathShots.length}). Only you and staff see these.</summary>
           <ul className="mt-1 space-y-1">
             {row.deathShots.map((d) => (
               <li key={d.at}>
                 <LocalTime date={d.at} format="short" />
-                {d.source && <> · {d.source}</>}
+                {d.source && <>, {d.source}</>}
                 {d.url ? (
-                  <> · <a href={d.url} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
+                  <>, <a href={d.url} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
                 ) : (
-                  <> · no screenshot</>
+                  <>, no screenshot</>
                 )}
               </li>
             ))}
