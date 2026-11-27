@@ -8,7 +8,7 @@
 // laid out switches first, then the spec, potions, food, anything else, teleports last.
 
 import type { GearSetup, InvItem } from './guideTiers';
-import { supplyKind, type TripRow } from './tripCheck';
+import { bankLayout, heldOne, supplyKind, type BankLayout, type TripRow } from './tripCheck';
 import type { TripState } from './tripState';
 
 export type Have = 'here' | 'bank' | 'none';
@@ -27,6 +27,10 @@ export interface TripLayout {
   inventory: (LayoutItem | null)[];
   pouch: LayoutItem[];
   quiver: LayoutItem | null;
+  /** The quiver slot holds the quiver's own ammo (state.quiver): it comes with the quiver. */
+  quiverRides?: boolean;
+  /** Supplies a failing row wants packed that no slot shows (Doom's food and prayer restore). */
+  extra: LayoutItem[];
   /** Distinct items to take from the bank / not owned at all. */
   inBank: number;
   notOwned: number;
@@ -50,6 +54,12 @@ export interface LayoutInput {
   nameOf: (id: number) => string;
   isRunePouch: (id: number) => boolean;
   isSpec: (id: number) => boolean;
+  /**
+   * The ammo in the player's Dizana's quiver (state.quiver), when they own a quiver: `have` is where
+   * the quiver is ('here' worn or carried, 'bank'). It fires as the ammo slot would, so a setup's ammo
+   * it serves (`serves`: the same arrows, or ones the launcher fires) is held with the quiver.
+   */
+  quiverAmmo?: { id: number; q: number; have: Have; serves: (want: number, weapon: number | null) => boolean; isQuiver: (id: number) => boolean } | null;
 }
 
 const RUNE_RE = /\brunes?$/i;
@@ -152,11 +162,101 @@ export function tripLayout(inp: LayoutInput): TripLayout {
   // The calc's pouch: the runes its rows put there.
   const calcPouch = inp.setup ? null : inp.rows.filter((r) => r.group === 'pouch' && r.inPouch && r.item != null).map((r) => ({ id: r.item!, q: r.need }));
   const pouch = (calcPouch ?? inp.setup?.runePouch ?? []).map((p): LayoutItem => ({ id: p.id, ...(p.q && p.q > 1 ? { q: p.q } : {}), have: (inPouch.get(p.id) ?? 0) >= Math.max(1, calcPouch ? p.q ?? 1 : Math.min(p.q ?? 1, 100)) || (!calcPouch && inp.carries(p.id)) ? 'here' : inp.owns(p.id) ? 'bank' : 'none' }));
+  // The quiver's ammo: what the quiver holds is the player's wherever the quiver is, and along with it.
+  const qa = inp.quiverAmmo ?? null;
+  const weapon = worn.weapon?.id ?? null;
+  const fromQuiver = (): LayoutItem => ({ id: qa!.id, q: qa!.q, have: qa!.have });
   const qid = inp.setup?.quiver ?? inp.setup?.gear.quiver ?? null;
-  const qv = inp.state?.quiver;
-  const quiver: LayoutItem | null = qid ? { id: qid, ...(qv && qv.id === qid ? { q: qv.q } : {}), have: qv && qv.id === qid ? 'here' : inp.owns(qid) ? 'bank' : 'none' } : null;
+  let quiver: LayoutItem | null = null;
+  let quiverRides = false;
+  if (qid) {
+    if (qa && qa.serves(qid, weapon)) [quiver, quiverRides] = [fromQuiver(), true];
+    else quiver = { id: qid, have: inp.owns(qid) ? 'bank' : 'none' };
+  }
+  // The ammo slot's arrows in the quiver (not in the ammo slot): drawn in the quiver, held with it.
+  const am = worn.ammo;
+  if (am && am.have !== 'here' && qa && qa.serves(am.id, weapon)) {
+    delete worn.ammo;
+    if (!quiver || !quiverRides) [quiver, quiverRides] = [fromQuiver(), true];
+  }
+  // A quiver on the doll shows what it holds.
+  if (!quiver && qa && worn.cape && qa.isQuiver(worn.cape.id)) [quiver, quiverRides] = [fromQuiver(), true];
 
-  const all = [...Object.values(worn), ...inventory.filter((x): x is LayoutItem => !!x), ...pouch, ...(quiver ? [quiver] : [])];
+  // A failing supply row with no slot here ("No food packed"): its one stack, to take.
+  const laidKinds = new Set(inventory.filter((x): x is LayoutItem => !!x).map((x) => supplyKind(name(x.id))));
+  const extra: LayoutItem[] = [];
+  for (const r of inp.rows) {
+    if (r.group !== 'supplies' || r.ok || r.need || r.item == null || laidKinds.has(supplyKind(name(r.item)))) continue;
+    laidKinds.add(supplyKind(name(r.item)));
+    extra.push({ id: r.item, have: inp.owns(r.item) ? 'bank' : 'none' });
+  }
+
+  const all = [...Object.values(worn), ...inventory.filter((x): x is LayoutItem => !!x), ...pouch, ...extra, ...(quiver && !quiverRides ? [quiver] : [])];
   const distinct = (h: Have) => new Set(all.filter((x) => x.have === h).map((x) => x.id)).size;
-  return { worn, inventory, pouch, quiver, inBank: distinct('bank'), notOwned: distinct('none') };
+  // Arrows riding in a banked quiver are taken with it: one more only when no quiver is laid out.
+  const quiverToTake = quiverRides && quiver?.have === 'bank' && !all.some((x) => x.have === 'bank' && qa!.isQuiver(x.id)) ? 1 : 0;
+  return { worn, inventory, pouch, quiver, ...(quiverRides ? { quiverRides } : {}), extra, inBank: distinct('bank') + quiverToTake, notOwned: distinct('none') };
+}
+
+/** What the bank filter needs to find the bank's own ids for a layout's items. */
+export interface LayoutBankInput {
+  bank: readonly InvItem[];
+  /** A held id → the ids it counts as (lib/itemFamilies 'holds'). */
+  holds: (id: number) => number[];
+  /** X → the ids that count as having X (lib/itemFamilies 'needs'). */
+  needs: (id: number) => number[];
+  nameOf: (id: number) => string;
+  isRunePouch: (id: number) => boolean;
+  isSpec: (id: number) => boolean;
+  slotOf: (id: number) => string | null;
+  /** Dizana's quiver (or the max cape holding one). */
+  isQuiver: (id: number) => boolean;
+}
+
+/**
+ * The card's two bank filters off the SAME layout the card draws and counts, so "Show the N in my
+ * bank" shows those N: `missing` what the layout marks to take, `setup` the whole layout. Each item
+ * is one bank slot: a piece of gear its held form, a supply ONE stack of its kind (the setup's own
+ * item when the bank holds it, else the kind's highest dose), never every dose or every food.
+ */
+export function layoutBanks(l: TripLayout, o: LayoutBankInput): { missing: BankLayout; setup: BankLayout; bank: number[] } {
+  const bankIds = [...new Set(o.bank.map((it) => it.id))];
+  const dose = (n: string) => Number(/\((\d)\)\s*$/.exec(n)?.[1] ?? 0);
+  const gearBank = (id: number) => heldOne({ item: id, bank: bankIds.filter((b) => b === id || o.needs(id).includes(b) || o.holds(b).includes(id)) }, o.nameOf);
+  const supplyBank = (id: number) => {
+    if (bankIds.includes(id)) return id;
+    const k = supplyKind(o.nameOf(id));
+    return bankIds.filter((b) => supplyKind(o.nameOf(b)) === k).sort((a, b) => dose(o.nameOf(b)) - dose(o.nameOf(a)))[0] ?? null;
+  };
+  const isGear = (id: number) => !!o.slotOf(id) && !isStackable(o.nameOf(id));
+  type Entry = { row: TripRow; have: Have };
+  const entries: Entry[] = [];
+  const add = (it: LayoutItem, group: TripRow['group'], slot?: string) => {
+    const b = group === 'supplies' ? supplyBank(it.id) : isGear(it.id) || slot ? gearBank(it.id) : bankIds.includes(it.id) ? it.id : null;
+    entries.push({ have: it.have, row: { group, ok: it.have === 'here', line: '', item: b ?? it.id, bank: [b ?? it.id], ...(slot ? { slot } : {}) } });
+  };
+  for (const [slot, it] of Object.entries(l.worn)) add(it, 'gear', slot);
+  if (l.quiver) {
+    if (!l.quiverRides) add(l.quiver, 'gear', 'quiver');
+    else if (l.quiver.have === 'bank' && !Object.values(l.worn).some((w) => o.isQuiver(w.id))) {
+      // The arrows ride in a banked quiver: the quiver is what to take.
+      const q = bankIds.find(o.isQuiver);
+      if (q != null) entries.push({ have: 'bank', row: { group: 'gear', ok: false, line: '', item: q, bank: [q] } });
+    }
+  }
+  // One bank slot per distinct item, and per supply kind (its packed and banked slots are one stack):
+  // to take when any of its slots is in the bank.
+  const rank: Record<Have, number> = { here: 0, none: 1, bank: 2 };
+  const byKey = new Map<string, { it: LayoutItem; group: TripRow['group'] }>();
+  for (const it of [...l.inventory.filter((x): x is LayoutItem => !!x), ...l.pouch, ...l.extra]) {
+    const n = o.nameOf(it.id);
+    const group: TripRow['group'] = isGear(it.id) ? (o.isSpec(it.id) ? 'spec' : 'gear') : isStackable(n) || o.isRunePouch(it.id) ? 'pouch' : 'supplies';
+    const key = group === 'supplies' ? `kind:${supplyKind(n)}` : `id:${it.id}`;
+    const prev = byKey.get(key);
+    if (!prev) byKey.set(key, { it, group });
+    else if (rank[it.have] > rank[prev.it.have]) prev.it = { ...prev.it, have: it.have };
+  }
+  for (const { it, group } of byKey.values()) add(it, group);
+  const missing = entries.filter((e) => e.have === 'bank').map((e) => e.row);
+  return { missing: bankLayout(missing, o.nameOf), setup: bankLayout(entries.map((e) => e.row), o.nameOf), bank: [...new Set(missing.map((r) => r.item!))] };
 }
