@@ -106,6 +106,8 @@ export interface Observation {
   raid?: string | null;
   /** Where it happened (lib/momentPlace): stored on the row for analytics. */
   place?: MomentPlace | null;
+  /** 'death' only: monsters nearby when it happened (lib/itemHunt HuntReport.near). */
+  near?: string[] | null;
   kc?: number | null;
   /** 'ca' only: the task as the completion line named it ("Vault of Death"). */
   taskName?: string | null;

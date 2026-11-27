@@ -141,6 +141,13 @@ function h2hDropsFrom(raws: unknown[], now: number): ReportedDrop[] {
   return out;
 }
 
+/** The death's nearby monsters as sent: names only, a few, short. */
+function nearNames(v: unknown[]): string[] {
+  const out = new Set<string>();
+  for (const n of v) if (typeof n === 'string' && n.trim() && n.length <= 64 && out.size < 12) out.add(n.trim());
+  return [...out];
+}
+
 export async function POST(request: Request) {
   // A separate save never becomes main-game progression. Its notable moments are retained only for
   // the opt-in Modes timeline; a Hardcore death is additionally marked Fallen there.
@@ -226,6 +233,8 @@ export async function POST(request: Request) {
       ...(kind === 'death' && typeof raw?.raid === 'string' ? { raid: raw.raid } : {}),
       // Where it happened, for analytics only (lib/momentPlace): region, and raid mode/level/party.
       place: raw && typeof raw === 'object' ? momentPlace(raw as Record<string, unknown>) : null,
+      // Monsters the plugin saw close by as it died: a Boss Rush counts a minion's or mechanic's death at its boss.
+      ...(kind === 'death' && Array.isArray(raw?.near) ? { near: nearNames(raw.near) } : {}),
       kc: int(raw?.kc, MAX_KC),
       // Combat tasks: the task as the completion line named it, and the tier that line claimed.
       // Both are only ever read for kind 'ca' — the tier is the fallback for a task our own dataset
