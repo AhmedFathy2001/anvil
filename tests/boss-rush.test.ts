@@ -104,7 +104,7 @@ test('the rules read out plainly', () => {
 });
 
 test('raid modes and group targets', () => {
-  assert.equal(raidOfTarget('Theatre of Blood: Entry Mode'), 'tob');
+  assert.equal(raidOfTarget('Theatre of Blood: Entry Mode'), 'tob-entry');
   assert.equal(raidOfTarget('tombs of amascut: entry mode'), 'toa-entry');
   assert.equal(raidOfTarget('Tombs of Amascut: Expert Mode'), 'toa');
   assert.equal(raidOfTarget('Vorkath'), null);
@@ -199,6 +199,9 @@ test('a raid death is the raid’s, whatever monster the plugin named', async ()
   const entry: Record<string, unknown> = { kind: 'death', source: 'Akkha', sourceKind: 'npc', raid: 'toa-entry' };
   settleDeathSource(entry);
   assert.equal(entry.raid, 'toa-entry');
+  const tobEntry: Record<string, unknown> = { kind: 'death', source: null, sourceKind: null, raid: 'tob-entry' };
+  settleDeathSource(tobEntry);
+  assert.equal(tobEntry.raid, 'tob-entry');
   // Anything else it sends there is dropped.
   const junk: Record<string, unknown> = { kind: 'death', source: 'Jad', sourceKind: 'npc', raid: 'inferno' };
   settleDeathSource(junk);

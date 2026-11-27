@@ -39,7 +39,7 @@ type DropRow = { i: number; d: number; r?: number };
 const DROPS = npcDrops as unknown as Record<string, DropRow[]>;
 
 /** The raid each tag's log page is filed under. */
-const RAID_PAGE_KEY: Record<string, string> = { cox: 'chambersOfXeric', tob: 'theatreOfBlood', toa: 'tombsOfAmascut', 'toa-entry': 'tombsOfAmascut' };
+const RAID_PAGE_KEY: Record<string, string> = { cox: 'chambersOfXeric', tob: 'theatreOfBlood', toa: 'tombsOfAmascut', 'toa-entry': 'tombsOfAmascut', 'tob-entry': 'theatreOfBlood' };
 
 /** "Vorkath#Post-quest" is Vorkath: the wiki's own variants fold into one table. */
 function monsterTable(name: string): DropRow[] {

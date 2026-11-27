@@ -7,6 +7,7 @@ import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { shownKiller } from '@/lib/deathSource';
 import { FALLEN_MODE, fallenSentence, isFallenDeath } from '@/lib/hardcoreFall';
 import { milestoneSentence } from '@/lib/milestoneMoments';
+import type { MomentPlace } from '@/lib/momentPlace';
 import { DEFAULT_LEVEL_RULES, levelPostMatches, type LevelPost, type LevelRules } from '@/lib/levelRules';
 
 /**
@@ -103,6 +104,8 @@ export interface Observation {
   sourceKind?: string | null;
   /** 'death' only: the raid it happened in, read off the plugin's killer name (lib/raidNpcs). */
   raid?: string | null;
+  /** Where it happened (lib/momentPlace): stored on the row for analytics. */
+  place?: MomentPlace | null;
   kc?: number | null;
   /** 'ca' only: the task as the completion line named it ("Vault of Death"). */
   taskName?: string | null;
@@ -217,6 +220,8 @@ export interface PlannedMoment {
   rarityDenominator: number | null;
   /** 'ca' only: which tier of combat task it was. */
   tier: string | null;
+  /** Where it happened (lib/momentPlace), or null. */
+  place: MomentPlace | null;
   occurredAt: string;
   /** The client's key, suffixed with the scope — one observation can legitimately land on two boards. */
   dedupKey: string;
@@ -602,6 +607,7 @@ export function classifyObservation(
     sourceKind: obs.kind === 'ca' ? 'ca' : obs.sourceKind ?? null,
     kc: obs.kc ?? null,
     tier: obs.kind === 'diary' ? diaryTier(obs.tier) : obs.kind === 'death' ? (obs.tier === FALLEN_MODE ? FALLEN_MODE : null) : ca?.tier ?? null,
+    place: obs.place ?? null,
     occurredAt: obs.occurredAt,
   };
   const info = dropInfo(obs.source, obs.itemId);

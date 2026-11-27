@@ -18,6 +18,7 @@ import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
 import { feedItemFromMoment } from '@/lib/chatFeedRules';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { settleDeathSource } from '@/lib/deathSource';
+import { momentPlace } from '@/lib/momentPlace';
 import { FALLEN_MODE } from '@/lib/hardcoreFall';
 import { recordH2hDrops, type ReportedDrop } from '@/lib/h2h';
 import { recordHuntReports } from '@/lib/itemHuntDb';
@@ -223,6 +224,8 @@ export async function POST(request: Request) {
       sourceKind: str(raw?.sourceKind, 16),
       // Set by settleDeathSource above, never by the client: the name it was read from is the client's.
       ...(kind === 'death' && typeof raw?.raid === 'string' ? { raid: raw.raid } : {}),
+      // Where it happened, for analytics only (lib/momentPlace): region, and raid mode/level/party.
+      place: raw && typeof raw === 'object' ? momentPlace(raw as Record<string, unknown>) : null,
       kc: int(raw?.kc, MAX_KC),
       // Combat tasks: the task as the completion line named it, and the tier that line claimed.
       // Both are only ever read for kind 'ca' — the tier is the fallback for a task our own dataset
