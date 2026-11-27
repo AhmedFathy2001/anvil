@@ -1634,13 +1634,6 @@
       "breakpoints": true
     },
     {
-      "idx": 296,
-      "version": "7",
-      "when": 1795761240964,
-      "tag": "0296_trip_setups_many",
-      "breakpoints": true
-    },
-    {
       "idx": 297,
       "version": "7",
       "when": 1795763510702,
@@ -1652,6 +1645,13 @@
       "version": "7",
       "when": 1795765036771,
       "tag": "0298_rush_death_shots",
+      "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1795765636771,
+      "tag": "0299_trip_setups_many",
       "breakpoints": true
     }
   ]
