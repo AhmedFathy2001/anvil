@@ -318,7 +318,7 @@ test('start from Anvil’s loadout: only on your own character, only with a bank
   const { startFromAnvil } = await import('../src/lib/tripLoadoutStart.ts');
   const me = await user('StartMe');
   const other = await user('StartOther');
-  assert.deepEqual(await startFromAnvil(me, me.accountId, 'doom', 'max'), { ok: false, error: 'Pick a boss and a plan.' }, 'no profile');
+  assert.deepEqual(await startFromAnvil(me, me.accountId, 'barrows', 'max'), { ok: false, error: 'Pick a boss and a plan.' }, 'no profile');
   assert.deepEqual(await startFromAnvil(me, me.accountId, 'zulrah', 'junk'), { ok: false, error: 'Pick a boss and a plan.' });
   assert.deepEqual(await startFromAnvil(other, me.accountId, 'zulrah', 'max'), { ok: false, error: 'Not one of your characters.' });
   const r = await startFromAnvil(me, me.accountId, 'zulrah', 'max');
