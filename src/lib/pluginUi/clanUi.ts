@@ -1,3 +1,4 @@
+import { petLine } from '@/lib/petName';
 import type { ClanCard } from '@/lib/clanCard';
 import { clanBoostInk } from '@/lib/clanBoostRules';
 import { inkForSurface } from '@/lib/supporterStyle';
@@ -162,7 +163,7 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     // The cached list shows at once; the live feed (counts, GZ buttons, more lines) replaces it.
     const quick = col(
       c.highlights.flatMap((h) => [
-        dropLine(h.itemId, h.kind === 'pet' ? `${h.label}, pet` : h.label, h.at, nameText(h.rsn, 'muted', { font: 'small' })),
+        dropLine(h.itemId, h.kind === 'pet' ? petLine(h.label) : h.label, h.at, nameText(h.rsn, 'muted', { font: 'small' })),
         gap(6),
       ]),
     );

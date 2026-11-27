@@ -15,6 +15,8 @@ import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { MILESTONE_KIND, type MilestoneFacts } from '@/lib/milestoneMoments';
+import { GENERIC_PET_NAMES } from '@/lib/genericPetName';
+import { fillForPet, isGenericPetName, PET_LOOT_AFTER_MS, PET_LOOT_BEFORE_MS, petForSource } from '@/lib/petName';
 import {
   ACHIEVEMENT_KINDS,
   DEFAULT_CLAN_SCOPE,
@@ -898,4 +900,75 @@ async function sameDropNearby(
     await db.update(moments).set({ source: row.source, sourceKind: row.sourceKind, kc: row.kc }).where(eq(moments.id, same.id));
   }
   return true;
+}
+
+/** The generic names an unnamed pet row may carry (lib/petName isGenericPetName), for SQL. */
+const GENERIC_PET_SQL = or(isNull(moments.itemName), inArray(sql`lower(trim(${moments.itemName}))`, [...GENERIC_PET_NAMES]))!;
+
+/**
+ * Name the pets a push could not name, out of the kills on either side of it (lib/petName).
+ *
+ * A push names its own pets off its own loot before this is called. What is left is the split
+ * case: the pet went up in one push and the kill's loot in the next, or the other way round. So:
+ * a pet still unnamed here looks back at this member's stored drops around it, and every drop in
+ * this push from a boss with one pet names a stored unnamed pet of theirs just before it. Mutates
+ * `observations`; returns how many stored rows it renamed. Feed colour only: never scores anything.
+ */
+export async function settleUnnamedPets(clanMemberId: number, observations: Observation[]): Promise<number> {
+  const iso = (ms: number) => new Date(ms).toISOString();
+  // Backward: an unnamed pet in this push, its kill's loot already stored.
+  for (const o of observations) {
+    if (o.kind !== 'pet' || !isGenericPetName(o.itemName)) continue;
+    const at = Date.parse(o.occurredAt);
+    if (!Number.isFinite(at)) continue;
+    // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
+    const stored = await db
+      .select({ source: moments.source, sourceKind: moments.sourceKind, kc: moments.kc, occurredAt: moments.occurredAt })
+      .from(moments)
+      .where(and(
+        eq(moments.clanMemberId, clanMemberId),
+        inArray(moments.kind, ['unique', 'loot']),
+        isNotNull(moments.source),
+        gte(moments.occurredAt, iso(at - PET_LOOT_BEFORE_MS)),
+        lt(moments.occurredAt, iso(at + PET_LOOT_AFTER_MS + 1)),
+      ))
+      .limit(20);
+    const fill = fillForPet(
+      { ...o, at },
+      stored.map((s) => ({ kind: 'drop', source: s.source, sourceKind: s.sourceKind, kc: s.kc, at: Date.parse(s.occurredAt) })),
+    );
+    if (fill) Object.assign(o, fill);
+  }
+  // Forward: this push's loot names an unnamed pet stored a moment before it.
+  let renamed = 0;
+  const seen = new Set<string>();
+  for (const o of observations) {
+    if (o.kind !== 'drop') continue;
+    const pet = petForSource(o.source);
+    const at = Date.parse(o.occurredAt);
+    if (!pet || !Number.isFinite(at) || seen.has(`${pet.id}:${o.occurredAt}`)) continue;
+    seen.add(`${pet.id}:${o.occurredAt}`);
+    // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
+    const rows = await db
+      .update(moments)
+      .set({
+        itemName: pet.name,
+        itemId: pet.id,
+        source: o.source!.trim(),
+        sourceKind: sql`coalesce(${moments.sourceKind}, ${o.sourceKind ?? null})`,
+        kc: sql`coalesce(${moments.kc}, ${o.kc ?? null}::integer)`,
+      })
+      .where(and(
+        eq(moments.clanMemberId, clanMemberId),
+        eq(moments.kind, 'pet'),
+        GENERIC_PET_SQL,
+        // A row that already says where it came from keeps it unless this is the same boss.
+        or(isNull(moments.source), sql`lower(${moments.source}) = ${o.source!.trim().toLowerCase()}`),
+        gte(moments.occurredAt, iso(at - PET_LOOT_AFTER_MS)),
+        lt(moments.occurredAt, iso(at + PET_LOOT_BEFORE_MS + 1)),
+      ))
+      .returning({ id: moments.id });
+    renamed += rows.length;
+  }
+  return renamed;
 }
