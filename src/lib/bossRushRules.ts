@@ -134,37 +134,54 @@ export const MAX_GROUP_KILLS = 3000;
  * SYNERGY_WINDOW_MS of it, one per entrant. A group of n >= 2 gives each of them `points` ('flat'),
  * or min(max, (n - 1) x points) ('perMate').
  */
-export function rushSynergy(rules: Pick<RushRules, 'synergy'>, kills: Map<string, [string, number][]>): Map<string, number> {
-  const out = new Map<string, number>();
-  const s = rules.synergy;
-  if (!synergyLive(s)) return out;
-  const byTarget = new Map<string, { who: string; at: number }[]>();
+/** One kill clanmates finished together: the target, when the first of them finished, and who. */
+export interface TogetherRun {
+  target: string;
+  at: number;
+  who: string[];
+}
+
+/**
+ * The kills entrants finished together: the same target within SYNERGY_WINDOW_MS of the first of
+ * them, two or more people. Oldest first. What Clan Synergy pays for, and what the feed shows.
+ */
+export function togetherRuns(kills: Map<string, [string, number][]>): TogetherRun[] {
+  const byTarget = new Map<string, { target: string; who: string; at: number }[]>();
   for (const [who, list] of kills) {
     for (const [target, at] of list) {
       if (typeof target !== 'string' || !Number.isFinite(at)) continue;
       const key = target.toLowerCase();
       const arr = byTarget.get(key) ?? [];
-      arr.push({ who, at });
+      arr.push({ target, who, at });
       byTarget.set(key, arr);
     }
   }
+  const out: TogetherRun[] = [];
   for (const finishes of byTarget.values()) {
     finishes.sort((a, b) => a.at - b.at);
     let i = 0;
     while (i < finishes.length) {
       const start = finishes[i].at;
-      const group = new Set<string>();
+      const group: string[] = [];
       let j = i;
       while (j < finishes.length && finishes[j].at - start <= SYNERGY_WINDOW_MS) {
-        group.add(finishes[j].who);
+        if (!group.includes(finishes[j].who)) group.push(finishes[j].who);
         j++;
       }
-      if (group.size >= 2) {
-        const each = s.mode === 'flat' ? s.points : Math.min(s.max, (group.size - 1) * s.points);
-        for (const who of group) out.set(who, (out.get(who) ?? 0) + each);
-      }
+      if (group.length >= 2) out.push({ target: finishes[i].target, at: start, who: group });
       i = j;
     }
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
+export function rushSynergy(rules: Pick<RushRules, 'synergy'>, kills: Map<string, [string, number][]>): Map<string, number> {
+  const out = new Map<string, number>();
+  const s = rules.synergy;
+  if (!synergyLive(s)) return out;
+  for (const run of togetherRuns(kills)) {
+    const each = s.mode === 'flat' ? s.points : Math.min(s.max, (run.who.length - 1) * s.points);
+    for (const who of run.who) out.set(who, (out.get(who) ?? 0) + each);
   }
   return out;
 }

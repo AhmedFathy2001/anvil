@@ -63,7 +63,7 @@ import {
   serializeHunt,
 } from '@/lib/itemHunt';
 import { huntRates } from '@/lib/huntRates';
-import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode } from '@/lib/bossRushRules';
+import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns } from '@/lib/bossRushRules';
 import { bossKeyForName } from '@/lib/pluginStats';
 import { killTargetKeys } from '@/lib/pluginFacts/match';
 import { claimTileFacts, type FactOwner } from '@/lib/pluginFacts/factIdStore';
@@ -1030,4 +1030,29 @@ export async function rushDeathShotsOf(competitionId: number, memberIds?: number
   const out = new Map<string, { at: string; source: string | null; url: string | null }[]>();
   for (const r of rows) out.set(r.rsn, [...(out.get(r.rsn) ?? []), { at: r.at, source: r.source, url: r.url }]);
   return out;
+}
+
+/**
+ * A rush's feed facts beyond its drops: each death it took points for, and each kill clanmates
+ * finished together (lib/bossRushRules togetherRuns), by entrant name. Opted-out entrants left out.
+ */
+export async function rushFeedFacts(competitionId: number): Promise<{ deaths: { rsn: string; source: string | null; at: string }[]; together: { target: string; at: string; who: string[] }[] }> {
+  // clan-scope: global -- one competition the caller already resolved for its clan.
+  const seats = await db
+    .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsn, raids: weeklyParticipants.rushRaids, optedOut: weeklyParticipants.optedOut })
+    .from(weeklyParticipants)
+    .where(eq(weeklyParticipants.competitionId, competitionId));
+  const live = seats.filter((s) => !s.optedOut);
+  const rsnOf = new Map(live.map((s) => [s.id, s.rsn]));
+  // clan-scope: global -- the same competition's own rows.
+  const shots = await db
+    .select({ participantId: rushDeathShots.participantId, source: rushDeathShots.source, at: rushDeathShots.occurredAt })
+    .from(rushDeathShots)
+    .where(eq(rushDeathShots.competitionId, competitionId))
+    .orderBy(desc(rushDeathShots.occurredAt))
+    .limit(40);
+  const deaths = shots.flatMap((d) => (rsnOf.has(d.participantId) ? [{ rsn: rsnOf.get(d.participantId)!, source: d.source, at: d.at }] : []));
+  const runs = togetherRuns(new Map(live.map((s) => [s.rsn, s.raids ?? []])));
+  const together = runs.slice(-40).map((r) => ({ target: r.target, at: new Date(r.at).toISOString(), who: r.who }));
+  return { deaths, together };
 }
