@@ -265,7 +265,11 @@ export async function POST(request: Request) {
   });
   // Each new hunt drop's screenshot key, by item: a current plugin uploads the shot it took of the drop
   // under it (POST /api/plugin/facts/proof). An older one ignores it; the drop counts either way.
-  const huntProofs = hunted?.proofs.length ? { huntProofs: hunted.proofs } : {};
+  // A Boss Rush death that cost points: its screenshot goes up under this key the same way.
+  const huntProofs = {
+    ...(hunted?.proofs.length ? { huntProofs: hunted.proofs } : {}),
+    ...(hunted?.deathProofs.length ? { deathProofs: hunted.deathProofs } : {}),
+  };
   // Lab boards left out: one would win the pick and stamp a real moment with the lab board, in the real
   // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
   const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false, practice: false }));

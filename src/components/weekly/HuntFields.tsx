@@ -573,6 +573,7 @@ export default function HuntFields({
                         <span className="text-text-muted">{it.count === 'quantity' ? 'pts each' : it.points === 1 ? 'pt' : 'pts'}</span>
                       </label>
                     )}
+                    {rush && <Checkbox checked={!!it.once} onChange={(on) => setItem(it.id, { once: on })} label="Counts once" className="text-sm" />}
                     {rush && it.rate != null && <span className="text-xs text-text-muted">{rarityWords(it.rate)}</span>}
                     {!it.pet && !rush && (
                       <div className="w-full max-w-xs sm:w-60">
