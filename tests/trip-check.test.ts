@@ -802,3 +802,24 @@ test('runes: Arceuus at a raid packs thrall and Death Charge runes; the fifth ki
   assert.equal(pouchRows(c).filter((r) => !r.inPouch).length, 1);
   assert.ok(c.rows.some((r) => r.group === 'pouch' && r.item === DIVINE_POUCH), 'the pouch itself is packed');
 });
+
+test('layout: a raid the carried setup covers draws what is worn on the doll, never a worn piece as a switch', async () => {
+  const { tripLayout } = await import('../src/lib/tripLayout.ts');
+  const toa = tripContent('toa')!;
+  const wornNames = ['Ancestral hat', 'Ancestral robe top', 'Ancestral robe bottom', 'Occult necklace', 'Confliction gauntlets', 'Avernic treads (max)', 'Lightbearer'];
+  const worn = [...wornNames.map((n) => ({ id: id(n) })), { id: SHADOW_U }];
+  const inventory = ['Twisted bow', 'Masori mask (f)', 'Masori body (f)', 'Masori chaps (f)', "Osmumten's fang", 'Torva platebody', 'Avernic defender', 'Amulet of rancour', 'Ferocious gloves', 'Ultor ring', 'Infernal cape'].map((n) => ({ id: id(n) }));
+  const c = checkTrip(input({ setup: null, content: toa, monsters: toa.targets.map(mon), worn, inventory, bank: [{ id: DRAGON_ARROW }], state: QUIVER_STATE, nameOf: endgameName, raidLevel: 300 }));
+  const has = (list: InvItem[]) => (x: number) => list.some((i) => i.id === x);
+  const holds = equivalentsFor([...worn, ...inventory].map((x) => x.id), 'holds');
+  const slotOf = (x: number) => {
+    const it = idx.item(x) ?? holds(x).map((h) => idx.item(h)).find(Boolean);
+    return it ? (it.s === '2h' ? 'weapon' : it.s) : null;
+  };
+  const l = tripLayout({ setup: null, rows: c.rows, worn, inventory, bank: [], state: QUIVER_STATE, carries: has([...worn, ...inventory]), owns: has([...worn, ...inventory]), slotOf, nameOf: endgameName, isRunePouch: () => false, isSpec: (x) => isSpecWeapon(endgameName(x)) });
+  // However the calc words it ("covers all 5 bosses" or a worn kit), the doll is never empty.
+  for (const s of ['head', 'body', 'legs', 'neck', 'hands', 'feet', 'ring', 'weapon']) assert.ok(l.worn[s], `${s} on the doll: ${c.rows.map((r) => r.line).join(' | ')}`);
+  if (!c.rows.some((r) => r.group === 'gear' && r.slot)) assert.equal(l.worn.ring.id, id('Lightbearer'));
+  const invIds = l.inventory.filter((x) => !!x).map((x) => x!.id);
+  for (const w of Object.values(l.worn)) assert.ok(!invIds.includes(w.id), `${endgameName(w.id)} is worn, not a switch`);
+});

@@ -97,6 +97,9 @@ export function tripLayout(inp: LayoutInput): TripLayout {
     for (const r of inp.rows) if (r.group === 'gear' && r.item != null && r.slot) wear(r.item, r.slot);
     for (const r of inp.rows) if (r.group === 'gear' && r.swaps) for (const id of [...(r.item != null ? [r.item] : []), ...r.swaps]) wear(id, inp.slotOf(id));
     for (const r of inp.rows) if (r.group === 'gear' && r.item != null && !r.slot && !r.swaps && inp.worn.some((w) => w.id === r.item)) wear(r.item, inp.slotOf(r.item));
+    // No row laid a worn kit out ("Your setup covers all 5 bosses", "Kephri: Fang"): what is worn
+    // now is the setup, so the doll shows it (and a worn piece is never drawn as a switch).
+    if (!inp.rows.some((r) => r.group === 'gear' && r.slot)) for (const w of inp.worn) wear(w.id, inp.slotOf(w.id));
   }
   const wornIds = new Set(Object.values(worn).map((w) => w.id));
 
