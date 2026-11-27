@@ -252,6 +252,7 @@ test('CoX: Twisted bow worn, melee for the Olm melee hand, Challenge Mode slower
   assert.equal(l.wornStyle, 'ranged');
   assert.equal(name(l.worn.weapon), 'Twisted bow');
   assert.equal(phaseKit(l, 'olm-melee'), 'melee');
+  assert.equal(phaseKit(l, 'tekton'), 'melee', 'Tekton is meleed, never bowed');
   assert.ok(switchWeapons(l, 'melee').length === 1);
   assert.ok(l.inventory.filter((s) => s?.kind === 'reserved').length >= 10);
   const cm = run(COX, maxPlayer({ mode: { variant: 'cm' } }));
@@ -260,4 +261,5 @@ test('CoX: Twisted bow worn, melee for the Olm melee hand, Challenge Mode slower
   sane(mid, MID_BANK);
   assert.equal(mid.wornStyle, 'ranged');
   assert.equal(phaseKit(mid, 'olm-melee'), 'melee');
+  assert.equal(phaseKit(mid, 'tekton'), 'melee');
 });
