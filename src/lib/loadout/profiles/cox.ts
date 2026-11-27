@@ -35,7 +35,8 @@ export const COX: BossProfile = {
     { key: 'cm', label: 'Challenge Mode', monsters: CM },
   ],
   phases: [
-    { key: 'tekton', name: 'Tekton', monster: 'Tekton#Normal', share: 0.5, allowed: ['melee', 'ranged', 'magic'], prefer: ['melee'] },
+    // Tekton is meleed: the bow's numbers look fine on paper, but the room is played in melee (spec, then hits under the anvil).
+    { key: 'tekton', name: 'Tekton', monster: 'Tekton#Normal', share: 0.5, allowed: ['melee'], required: ['melee'], prefer: ['melee'] },
     { key: 'vasa', name: 'Vasa Nistirio', monster: 'Vasa Nistirio#Normal', share: 0.5, allowed: ['melee', 'ranged', 'magic'], prefer: ['ranged'] },
     { key: 'vespula', name: 'Vespula', monster: 'Vespula#Normal', share: 0.5, allowed: ['ranged', 'magic'], immune: ['melee'], prefer: ['ranged'] },
     { key: 'shamans', name: 'Lizardman shamans', monster: 'Lizardman shaman (Chambers of Xeric)#Normal', share: 1.5, allowed: ['melee', 'ranged', 'magic'], prefer: ['ranged'] },
