@@ -63,3 +63,17 @@ export async function tripPlanFor(accountId: number, contentKey: string): Promis
 export async function saveTripPlan(accountId: number, contentKey: string, plan: string): Promise<void> {
   await savePrefs(accountId, { [planKey(contentKey)]: plan });
 }
+
+/** A trip key as the prefs field of the setup picked in the panel's Setup dropdown: "setup:toa". */
+const setupKey = (contentKey: string) => `setup:${contentKey.slice(0, 90)}`;
+
+/** The Setup dropdown's pick for this trip: a saved setup's id, 'anvil' (Anvil's loadout), or null (the default). */
+export async function tripSetupPickFor(accountId: number, contentKey: string): Promise<number | 'anvil' | null> {
+  const v = (await prefsOf(accountId))[setupKey(contentKey)];
+  return v === 'anvil' ? 'anvil' : typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null;
+}
+
+/** Remembers the dropdown's pick for the trip; null goes back to the trip's default setup. */
+export async function saveTripSetupPick(accountId: number, contentKey: string, pick: number | 'anvil' | null): Promise<void> {
+  await savePrefs(accountId, { [setupKey(contentKey)]: pick });
+}

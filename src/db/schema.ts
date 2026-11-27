@@ -4700,17 +4700,32 @@ export const playerItemSnapshots = pgTable('player_item_snapshots', {
 }, (t) => [primaryKey({ columns: [t.accountId, t.container] })]);
 
 /**
- * A player's own setup for one trip (lib/tripSetups): "Save what you're wearing + inventory as my ToA
- * setup". The pre-trip check uses it before any guide's. OWNER-ONLY, like the item snapshots.
- * `content` is a trip key (lib/tripContent) or "m:<monster>" for one picked by hand.
+ * A player's own setups for one trip (lib/tripSetups): "Save what you're wearing + inventory as a ToA
+ * setup". Several per character and trip, one of them the trip's default; the pre-trip check uses the
+ * one picked in the panel, else the default, before any guide's. OWNER-ONLY, like the item snapshots
+ * (a shared setup shows only the setup itself, never the bank). `content` is a trip key
+ * (lib/tripContent) or "m:<monster>" for one picked by hand. `name` ≤24 characters, set on the site.
  */
 export const tripSetups = pgTable('trip_setups', {
+  id: serial('id').primaryKey(),
   accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   setup: jsonb('setup').$type<Record<string, unknown>>().notNull(),
+  name: text('name').notNull().default(''),
+  /** A preset tag for the content (lib/tripSetupNames): "Solo", "CM", "Contract 1"; null none. */
+  tag: text('tag'),
+  isDefault: boolean('is_default').notNull().default(false),
+  /** The clan sees it (the setup only). */
+  shareClan: boolean('share_clan').notNull().default(false),
+  /** The share link's token; null until a link is made. */
+  shareToken: text('share_token'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-}, (t) => [primaryKey({ columns: [t.accountId, t.content] })]);
+}, (t) => [
+  index('trip_setups_account_content_idx').on(t.accountId, t.content),
+  uniqueIndex('trip_setups_default_unique').on(t.accountId, t.content).where(sql`is_default`),
+  uniqueIndex('trip_setups_share_token_unique').on(t.shareToken).where(sql`share_token IS NOT NULL`),
+]);
 
 /**
  * Per-team Discord resources in servers OTHER than the host's bound one (lib/eventDiscord). The

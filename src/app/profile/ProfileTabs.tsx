@@ -74,6 +74,18 @@ export function SettingsButton() {
   );
 }
 
+/** "My setups": the player's saved pre-trip setups (app/profile/setups), beside Settings on every tab. */
+export function MySetupsButton() {
+  return (
+    <ClanLink
+      href="/profile/setups"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-card-border bg-card-bg px-3 py-1.5 text-[13px] text-foreground transition-colors hover:border-gold/40 hover:text-gold-light"
+    >
+      My setups
+    </ClanLink>
+  );
+}
+
 /** "Host for friends" (lib/friendEventRules): a Supporter's private events, beside Settings on every tab. */
 export function HostForFriendsButton() {
   return (
