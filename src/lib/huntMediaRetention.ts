@@ -41,19 +41,22 @@ const withForce = <T extends { endDate: string }>(r: T): T & { forceEndedAt: nul
 export async function huntMediaUrls(competitionId: number): Promise<{ id: number; url: string; stored: boolean; death?: true }[]> {
   // clan-scope: global -- one competition's own rows, by id; the caller settled which.
   const rows = await db
-    .select({ id: huntDrops.id, url: huntDrops.screenshotUrl, proofKey: huntDrops.proofKey })
+    .select({ id: huntDrops.id, url: huntDrops.screenshotUrl, clean: huntDrops.cleanScreenshotUrl, proofKey: huntDrops.proofKey })
     .from(huntDrops)
     .where(and(eq(huntDrops.competitionId, competitionId), isNotNull(huntDrops.screenshotUrl)));
   // A rush's death screenshots: only ever written by the server, under the death's own key.
   // clan-scope: global -- one competition's own rows, by id; the caller settled which.
   const deaths = await db
-    .select({ id: rushDeathShots.id, url: rushDeathShots.screenshotUrl, proofKey: rushDeathShots.proofKey })
+    .select({ id: rushDeathShots.id, url: rushDeathShots.screenshotUrl, clean: rushDeathShots.cleanScreenshotUrl, proofKey: rushDeathShots.proofKey })
     .from(rushDeathShots)
     .where(and(eq(rushDeathShots.competitionId, competitionId), isNotNull(rushDeathShots.screenshotUrl)));
   const live = <T extends { url: string | null }>(r: T): r is T & { url: string } => !!r.url && r.url !== EXPIRED_PROOF_URL;
+  // The unstamped frame kept beside a stamped one (lib/huntStamp) goes with it; only the server writes it.
+  const cleanOf = <T extends { id: number; clean: string | null; proofKey: string | null }>(r: T) =>
+    r.clean && r.clean !== EXPIRED_PROOF_URL ? [{ id: r.id, url: r.clean, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX) }] : [];
   return [
-    ...rows.filter(live).map((r) => ({ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX) })),
-    ...deaths.filter(live).map((r) => ({ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX), death: true as const })),
+    ...rows.filter(live).flatMap((r) => [{ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX) }, ...cleanOf(r)]),
+    ...deaths.filter(live).flatMap((r) => [{ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX), death: true as const }, ...cleanOf(r).map((c) => ({ ...c, death: true as const }))]),
   ];
 }
 
@@ -133,10 +136,10 @@ export async function purgeHuntMedia(competitionId: number, opts: { dryRun?: boo
   const result = { competitionId, name: comp.title, files: media.length, dryRun: !!opts.dryRun };
   if (opts.dryRun) return result;
   await db.transaction(async (tx) => {
-    const drops = media.filter((m) => !m.death).map((m) => m.id);
-    const deaths = media.filter((m) => m.death).map((m) => m.id);
-    if (drops.length) await tx.update(huntDrops).set({ screenshotUrl: EXPIRED_PROOF_URL }).where(inArray(huntDrops.id, drops));
-    if (deaths.length) await tx.update(rushDeathShots).set({ screenshotUrl: EXPIRED_PROOF_URL }).where(inArray(rushDeathShots.id, deaths));
+    const drops = [...new Set(media.filter((m) => !m.death).map((m) => m.id))];
+    const deaths = [...new Set(media.filter((m) => m.death).map((m) => m.id))];
+    if (drops.length) await tx.update(huntDrops).set({ screenshotUrl: EXPIRED_PROOF_URL, cleanScreenshotUrl: null }).where(inArray(huntDrops.id, drops));
+    if (deaths.length) await tx.update(rushDeathShots).set({ screenshotUrl: EXPIRED_PROOF_URL, cleanScreenshotUrl: null }).where(inArray(rushDeathShots.id, deaths));
     await tx.update(weeklyCompetitions).set({ mediaPurgedAt: new Date().toISOString() }).where(eq(weeklyCompetitions.id, competitionId));
   });
   const tenant: MediaTenant | null = comp.slug ? { slug: comp.slug, kind: comp.kind } : null;

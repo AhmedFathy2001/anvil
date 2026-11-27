@@ -16,15 +16,18 @@ import crypto from 'crypto';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, huntDrops, proofUploads, rushDeathShots, weeklyCompetitions, type HuntDropRow } from '@/db/schema';
+import { clans, huntDrops, proofUploads, rushDeathShots, weeklyCompetitions, weeklyParticipants, type HuntDropRow } from '@/db/schema';
 import { resolvePluginMember } from '@/lib/auth';
 import { parseStamp } from '@/lib/dbTime';
 import { deleteWeeklyHuntDrop, notifyWeeklyHuntDrop } from '@/lib/discord';
 import { HUNT_DROP_POSTS_KEY, huntDropPostable, huntProofOpen, type HuntDropPost } from '@/lib/huntDropPost';
-import { defaultHuntTitle, dropOriginWords, dropStatWords, huntIconUrl, huntKindWord } from '@/lib/itemHunt';
+import { defaultHuntTitle, dropOriginWords, dropStatWords, huntIconUrl, huntKindWord, isRush, parseHunt } from '@/lib/itemHunt';
+import { huntStampModel } from '@/lib/huntStamp';
 import { huntDropStanding } from '@/lib/itemHuntDb';
 import { log } from '@/lib/logger';
 import { attachedKeyMark } from '@/lib/proofAfter';
+import type { StampModel } from '@/lib/proofStamp';
+import { bakeStamp } from '@/lib/proofStampImage';
 import { getSetting } from '@/lib/settings';
 import { clanMediaKey, put } from '@/lib/storage';
 import { stripImageMetadata } from '@/lib/stripImageMetadata';
@@ -134,19 +137,36 @@ const SHOT_MAX_BYTES = 10 * 1024 * 1024;
  * metadata dropped, at most 1600px, WebP), in the clan's media folder. Stored here rather than through
  * /api/upload, which takes a plugin token only with a bingo seat: a hunt needs no board.
  */
-async function storeHuntShot(clanId: number, userId: number, file: File): Promise<{ url: string } | { status: number; error: string }> {
+async function storeHuntShot(
+  clanId: number,
+  userId: number,
+  file: File,
+  stamp: (sha256: string) => StampModel,
+): Promise<{ url: string; cleanUrl: string | null } | { status: number; error: string }> {
   if (file.size > SHOT_MAX_BYTES) return { status: 400, error: 'File too large. Max 10MB' };
   const clean = await stripImageMetadata(Buffer.from(await file.arrayBuffer()), { maxDimension: 1600, quality: 80, onUnreadable: 'refuse' });
   if (!clean) return { status: 400, error: 'That image could not be read' };
   try {
     const tenant = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { slug: true, kind: true } });
-    const { url } = await put(clanMediaKey(tenant, `hunts/${crypto.randomUUID()}.${clean.ext}`), clean.bytes, clean.contentType ?? 'image/webp');
-    await db
-      .insert(proofUploads)
-      .values({ url, sha256: crypto.createHash('sha256').update(clean.bytes).digest('hex'), via: 'plugin', userId })
-      .onConflictDoNothing()
-      .catch((err) => log.warn('hunt.proof-provenance-failed', {}, err));
-    return { url };
+    const keep = async (bytes: Buffer, ext: string, type: string) => {
+      const { url } = await put(clanMediaKey(tenant, `hunts/${crypto.randomUUID()}.${ext}`), bytes, type);
+      await db
+        .insert(proofUploads)
+        .values({ url, sha256: crypto.createHash('sha256').update(bytes).digest('hex'), via: 'plugin', userId })
+        .onConflictDoNothing()
+        .catch((err) => log.warn('hunt.proof-provenance-failed', {}, err));
+      return url;
+    };
+    const cleanUrl = await keep(clean.bytes, clean.ext, clean.contentType ?? 'image/webp');
+    // The stamp the site draws, like a bingo proof's (lib/huntStamp): the clean frame is kept beside it.
+    // A frame the stamp cannot be drawn on is still stored, plain.
+    const sha = crypto.createHash('sha256').update(clean.bytes).digest('hex');
+    const stamped = await bakeStamp(clean.bytes, stamp(sha)).catch((err) => {
+      log.warn('hunt.stamp-failed', { clanId }, err);
+      return null;
+    });
+    if (!stamped) return { url: cleanUrl, cleanUrl: null };
+    return { url: await keep(stamped, 'webp', 'image/webp'), cleanUrl };
   } catch (err) {
     log.warn('hunt.proof-store-failed', { clanId }, err);
     return { status: 503, error: 'Image upload failed' };
@@ -173,12 +193,18 @@ export async function huntProofUpload(request: Request, key: string, file: File 
   if (!file) return Response.json({ error: 'No file provided' }, { status: 400 });
   const comp = await competitionOf(row);
   if (!comp) return Response.json({ error: 'Not found' }, { status: 404 });
-  const stored = await storeHuntShot(comp.clanId, member.userId, file);
+  const rush = isRush(parseHunt(comp.hunt));
+  const stored = await storeHuntShot(comp.clanId, member.userId, file, (sha256) =>
+    huntStampModel({
+      kind: 'drop', competition: comp.title, rush, rsn: row.rsn, item: row.itemName, quantity: row.quantity, source: row.source,
+      recordedAt: parseStamp(row.createdAt) ?? Date.now(), stampedAt: Date.now(), id: row.id, sha256, split: 0.5,
+    }),
+  );
   if ('error' in stored) return Response.json({ error: stored.error }, { status: stored.status });
   // Only status-free columns change: a screenshot never moves a drop in or out of the standings.
   const attached = await db
     .update(huntDrops)
-    .set({ screenshotUrl: stored.url, proofKey: attachedKeyMark(key) })
+    .set({ screenshotUrl: stored.url, cleanScreenshotUrl: stored.cleanUrl, proofKey: attachedKeyMark(key) })
     .where(and(eq(huntDrops.id, row.id), eq(huntDrops.proofKey, key)))
     .returning({ id: huntDrops.id });
   if (attached.length === 0) return Response.json({ ok: true, attached: 0 });
@@ -201,13 +227,19 @@ async function rushDeathShotUpload(request: Request, key: string, file: File | n
     return Response.json({ error: 'Too late for this death’s screenshot. The death still counts.' }, { status: 410 });
   }
   if (!file) return Response.json({ error: 'No file provided' }, { status: 400 });
-  const [comp] = await db.select({ clanId: weeklyCompetitions.clanId }).from(weeklyCompetitions).where(eq(weeklyCompetitions.id, row.competitionId)).limit(1);
+  const [comp] = await db.select({ clanId: weeklyCompetitions.clanId, title: weeklyCompetitions.title }).from(weeklyCompetitions).where(eq(weeklyCompetitions.id, row.competitionId)).limit(1);
   if (!comp) return Response.json({ error: 'Not found' }, { status: 404 });
-  const stored = await storeHuntShot(comp.clanId, member.userId, file);
+  const [seat] = await db.select({ rsn: weeklyParticipants.rsn }).from(weeklyParticipants).where(eq(weeklyParticipants.id, row.participantId)).limit(1);
+  const stored = await storeHuntShot(comp.clanId, member.userId, file, (sha256) =>
+    huntStampModel({
+      kind: 'death', competition: comp.title, rush: true, rsn: seat?.rsn ?? 'Unknown', source: row.source,
+      recordedAt: parseStamp(row.createdAt) ?? Date.now(), stampedAt: Date.now(), id: row.id, sha256, split: null,
+    }),
+  );
   if ('error' in stored) return Response.json({ error: stored.error }, { status: stored.status });
   const attached = await db
     .update(rushDeathShots)
-    .set({ screenshotUrl: stored.url, proofKey: attachedKeyMark(key) })
+    .set({ screenshotUrl: stored.url, cleanScreenshotUrl: stored.cleanUrl, proofKey: attachedKeyMark(key) })
     .where(and(eq(rushDeathShots.id, row.id), eq(rushDeathShots.proofKey, key)))
     .returning({ id: rushDeathShots.id });
   return Response.json({ ok: true, attached: attached.length });

@@ -1653,6 +1653,13 @@
       "when": 1795765636771,
       "tag": "0299_trip_setups_many",
       "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1795768145213,
+      "tag": "0300_hunt_clean_shots",
+      "breakpoints": true
     }
   ]
 }

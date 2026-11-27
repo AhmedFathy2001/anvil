@@ -1936,6 +1936,8 @@ export const rushDeathShots = pgTable('rush_death_shots', {
   source: text('source'),
   proofKey: text('proof_key'),
   screenshotUrl: text('screenshot_url'),
+  /** The frame as the plugin took it, before the site drew its stamp (lib/huntStamp). */
+  cleanScreenshotUrl: text('clean_screenshot_url'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('rush_death_shots_comp_idx').on(table.competitionId, table.participantId),
@@ -1982,6 +1984,8 @@ export const huntDrops = pgTable('hunt_drops', {
   flagReason: text('flag_reason'),
   dedupKey: text('dedup_key').notNull(),
   screenshotUrl: text('screenshot_url'),
+  /** The frame as the plugin took it, before the site drew its stamp on screenshotUrl (lib/huntStamp). */
+  cleanScreenshotUrl: text('clean_screenshot_url'),
   note: text('note'),
   requestedByUserId: integer('requested_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
