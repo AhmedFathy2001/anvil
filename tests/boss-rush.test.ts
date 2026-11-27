@@ -19,6 +19,7 @@ import {
   rushTotal,
   targetsFromInput,
   rushTakesRaidMode,
+  togetherRuns,
 } from '@/lib/bossRushRules';
 import { type HuntDrop, defaultHuntTitle, huntFromInput, huntPanelLine, isRush, matchHuntReport, rankHunt, rushBossKeys, rushTargets, serializeHunt, parseHunt } from '@/lib/itemHunt';
 
@@ -268,4 +269,15 @@ test('Clan Synergy: kills of one group target landing together', () => {
   assert.equal(per.get('a'), 4);
   assert.equal(per.get('c'), 3);
   assert.equal(rushSynergy({ synergy: { on: false, mode: 'flat', points: 1, max: 3 } }, seats).size, 0);
+});
+
+test('kills finished together: same target, within the window, two or more people', () => {
+  const runs = togetherRuns(new Map<string, [string, number][]>([
+    ['Ann', [['Nex', 1_000], ['Vorkath', 5_000]]],
+    ['Bob', [['nex', 6_000]]],
+    ['Cy', [['Nex', 900_000]]],
+  ]));
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].target, 'Nex');
+  assert.deepEqual(runs[0].who, ['Ann', 'Bob']);
 });
