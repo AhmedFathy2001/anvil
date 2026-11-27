@@ -21,7 +21,7 @@
 
 import { clamp, code, EMBED_COLOR, LIMIT, type DiscordEmbed, type DiscordEmbedField } from './discordEmbeds';
 import { FUN_DEATH_MESSAGES } from './constants';
-import { foughtBoss, FOUGHT_SOURCE_KIND, shownKiller } from './deathSource';
+import { deathCause, foughtBoss, FOUGHT_SOURCE_KIND, shownKiller } from './deathSource';
 import { NOTIFY_DEFAULTS } from './notifyPrefs';
 import { absoluteAssetUrl, discordAssetUrl } from './seo';
 import { itemIconUrl as itemIconPath, skillIconUrl as skillIconPath, wikiImageUrl } from './tileIcons';
@@ -180,7 +180,7 @@ export interface DeathFacts {
   /** What killed them: an NPC or a player's name, or null when nothing can be named truthfully. */
   source?: string | null;
   /** 'npc' or 'player' once parsed ('pvp' is read as 'player'; 'fought' is settled to a boss or nothing). */
-  sourceKind?: 'npc' | 'player' | null;
+  sourceKind?: 'npc' | 'player' | 'poison' | 'venom' | null;
   /** Distinct players who attacked them in the last few seconds before the death (the plugin's attacker window). */
   pile?: number | null;
 }
@@ -420,7 +420,10 @@ function deathEmbed(f: DeathFacts, wording: DeathWording, random: () => number):
     : pick(taunts.length ? taunts : DEATH_TAUNT_LINES, random);
   const desc = `${template.replaceAll('{name}', name)}\n${reaction}`;
   const e = base(f.rsn, '💀 Death', desc, EMBED_COLOR.red);
-  if (f.source) {
+  if (f.sourceKind === 'poison' || f.sourceKind === 'venom') {
+    const cause = deathCause(f.source, f.sourceKind)!;
+    e.fields = [stat('Killed by', cause.charAt(0).toUpperCase() + cause.slice(1))];
+  } else if (f.source) {
     const others = f.sourceKind === 'player' && pile > 1 ? ` + ${pile - 1} other${pile === 2 ? '' : 's'}` : '';
     e.fields = [stat('Killed by', f.sourceKind === 'player' ? `${f.source} (PvP)${others}` : f.source)];
   }
@@ -816,9 +819,10 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
       // as a known boss, and a never-killer (Death in his domain) names nobody.
       let source = shownKiller(optStr(o, 'source', 64)?.trim() || null);
       const rawKind = optStr(o, 'sourceKind', 32)?.toLowerCase() ?? null;
-      let sourceKind: DeathFacts['sourceKind'] = rawKind === 'player' || rawKind === 'pvp' ? 'player' : 'npc';
+      let sourceKind: DeathFacts['sourceKind'] = rawKind === 'player' || rawKind === 'pvp' ? 'player' : rawKind === 'poison' || rawKind === 'venom' ? rawKind : 'npc';
       if (rawKind === FOUGHT_SOURCE_KIND) source = foughtBoss(source);
-      if (!source) sourceKind = null;
+      // A poison death names the poison even with no culprit to put beside it.
+      if (!source && sourceKind !== 'poison' && sourceKind !== 'venom') sourceKind = null;
       const pile = optInt(o, 'pile');
       return { kind, facts: { rsn: rsnOf(o), source, sourceKind, pile: pile == null ? null : Math.min(Math.max(pile, 0), 50) } };
     }
