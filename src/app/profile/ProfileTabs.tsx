@@ -1,3 +1,4 @@
+import { tripEnabled } from '@/lib/serverInfo';
 import ClanLink from '@/components/ClanLink';
 import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import type { MyClan } from '@/lib/myClans';
@@ -76,6 +77,7 @@ export function SettingsButton() {
 
 /** "My setups": the player's saved pre-trip setups (app/profile/setups), beside Settings on every tab. */
 export function MySetupsButton() {
+  if (!tripEnabled()) return null;
   return (
     <ClanLink
       href="/profile/setups"

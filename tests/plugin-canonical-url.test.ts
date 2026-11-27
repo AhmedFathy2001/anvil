@@ -73,3 +73,28 @@ test('serverInfo carries it, alongside the capability the plugin gates on', () =
       'still needs its per-clan address',
   );
 });
+
+test('the pre-trip check is on at beta or local addresses only, unless TRIP_CHECK says otherwise', async () => {
+  const { tripEnabled, serverInfo } = await import('../src/lib/serverInfo.ts');
+  const env = process.env as Record<string, string | undefined>;
+  const saved = { APP_URL: env.APP_URL, ANVIL_APEX_DOMAIN: env.ANVIL_APEX_DOMAIN, TRIP_CHECK: env.TRIP_CHECK, TRIP_AUTO: env.TRIP_AUTO };
+  try {
+    delete env.TRIP_CHECK;
+    delete env.TRIP_AUTO;
+    env.APP_URL = 'https://anvilosrs.com';
+    assert.equal(tripEnabled(), false);
+    assert.ok(!serverInfo().capabilities.includes('trip-check'));
+    assert.ok(!serverInfo().capabilities.includes('trip-target'));
+    env.APP_URL = 'https://beta.anvilosrs.com';
+    assert.equal(tripEnabled(), true);
+    assert.ok(serverInfo().capabilities.includes('trip-check'));
+    assert.ok(!serverInfo().capabilities.includes('trip-auto'), 'automatic asking stays off unless TRIP_AUTO=1');
+    env.TRIP_AUTO = '1';
+    assert.ok(serverInfo().capabilities.includes('trip-auto'));
+    env.APP_URL = 'https://anvilosrs.com';
+    env.TRIP_CHECK = '1';
+    assert.equal(tripEnabled(), true);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete env[k]; else env[k] = v;
+  }
+});

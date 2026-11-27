@@ -281,12 +281,35 @@ export function pushEnabled(): boolean {
   return process.env.PUSH_WS === '1';
 }
 
+/**
+ * The pre-trip check, its setups and loadouts, while they are being finished: on at a beta (or local)
+ * address only. TRIP_CHECK=1 / 0 overrides. Off, the site drops 'trip-check' and 'trip-target' (the
+ * plugin then does nothing trip-related) and hides every way in.
+ */
+export function tripEnabled(): boolean {
+  const v = process.env.TRIP_CHECK;
+  if (v === '1') return true;
+  if (v === '0') return false;
+  const host = (canonicalUrl() ?? '').replace(/^https?:\/\//, '');
+  return !host || host.startsWith('beta.') || host.startsWith('localhost') || host.startsWith('127.');
+}
+
+/** 'trip-auto': the plugin asks on its own at a trip's bank (panel opened, "Checking…"). TRIP_AUTO=1 only. */
+export function tripAutoEnabled(): boolean {
+  return tripEnabled() && process.env.TRIP_AUTO === '1';
+}
+
 export function serverInfo() {
+  const trip = tripEnabled();
   return {
     version: APP_VERSION,
     sha: GIT_SHA,
     apiLevel: PLUGIN_API_LEVEL,
-    capabilities: [...PLUGIN_CAPABILITIES, ...(pushEnabled() ? ['push-ws'] : [])],
+    capabilities: [
+      ...PLUGIN_CAPABILITIES.filter((c) => trip || (c !== 'trip-check' && c !== 'trip-target')),
+      ...(pushEnabled() ? ['push-ws'] : []),
+      ...(tripAutoEnabled() ? ['trip-auto'] : []),
+    ],
     // Where this deployment prefers to be called. Additive: older plugins ignore it.
     canonicalUrl: canonicalUrl(),
   };

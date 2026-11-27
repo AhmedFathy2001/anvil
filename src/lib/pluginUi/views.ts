@@ -1,3 +1,4 @@
+import { tripEnabled } from '@/lib/serverInfo';
 import type { PanelHighlights } from './highlightsUi';
 import { spendLifeline, teamEasePayload } from '@/lib/raceEaseDb';
 import { withoutPetDoubles } from '@/lib/momentDupes';
@@ -203,7 +204,7 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
         below: [
           goalsNode,
           ...(owner && hasGuidesPanel(request)
-            ? [tripEntryUi(await targetLabel(owner.userId, owner.accountId).catch(() => null)), await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n)
+            ? [tripEnabled() ? tripEntryUi(await targetLabel(owner.userId, owner.accountId).catch(() => null)) : null, await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n)
             : []),
         ],
       })

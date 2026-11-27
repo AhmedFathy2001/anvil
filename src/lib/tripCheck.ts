@@ -27,7 +27,7 @@ import { setupLoadout, type GearIndex } from './dps/summary';
 import { ownStats, withSlot } from './gearNow';
 import { personalSetup, resolveSetup, type Equivalents, type Prefs, type Snapshot } from './gearOwnership';
 import type { GearSetup, InvItem } from './guideTiers';
-import type { TripContent } from './tripContent';
+import type { SupplyKind, TripContent } from './tripContent';
 import { DEFAULT_SUPPLIES, ownedSupply, SUPPLY_ITEMS } from './tripSupplies';
 import type { TripState } from './tripState';
 
@@ -92,26 +92,33 @@ export function heldOne(r: Pick<TripRow, 'item' | 'bank'>, nameOf: (id: number) 
 
 /**
  * A bank tag layout for these rows, the way a player lays a setup out: worn pieces as a paper doll on
- * the left, switches to its right (four a row), then each kind of supply on rows of its own, doses
- * 4 → 1. Only what is in the bank (each row's `bank` ids). Display only: the plugin moves nothing.
+ * the left, switches to its right (four a row), then the supplies, ONE stack per kind (the row's own
+ * item when the bank holds it, else its highest dose), four a row. Only what is in the bank (each
+ * row's `bank` ids). Display only: the plugin moves nothing.
  */
 export function bankLayout(rows: readonly TripRow[], nameOf: (id: number) => string): BankLayout {
   const place = new Map<number, number>();
   const used = new Set<number>();
-  const side: number[][] = [];
+  const supplies: number[] = [];
   const loose: number[] = [];
+  // A supply is ONE stack of its kind (never every dose and every food); a piece of gear is ONE bank
+  // slot, never every form owned.
+  const supplyOne = (r: TripRow): number | null => {
+    const b = r.bank ?? [];
+    if (r.item != null && b.includes(r.item)) return r.item;
+    return [...b].sort((x, y) => dose(nameOf(y)) - dose(nameOf(x)))[0] ?? null;
+  };
   for (const r of rows) {
-    // A supply is its kind (every dose); a piece of gear is ONE bank slot, never every form owned.
-    const b = (r.group === 'supplies' ? r.bank ?? [] : [heldOne(r, nameOf)].filter((x): x is number => x != null)).filter((x) => !used.has(x));
-    if (!b.length) continue;
-    b.forEach((x) => used.add(x));
+    const one = r.group === 'supplies' ? supplyOne(r) : heldOne(r, nameOf);
+    if (one == null || used.has(one)) continue;
+    used.add(one);
     const at = r.group === 'spec' ? DOLL.spec : r.slot ? DOLL[r.slot] : undefined;
-    if (at != null && !place.has(at)) place.set(at, b[0]);
-    else if (r.group === 'supplies') side.push([...b].sort((x, y) => dose(nameOf(y)) - dose(nameOf(x))));
-    else loose.push(...b);
+    if (at != null && !place.has(at)) place.set(at, one);
+    else if (r.group === 'supplies') supplies.push(one);
+    else loose.push(one);
   }
   let line = 0;
-  for (const list of [loose, ...side]) {
+  for (const list of [loose, supplies]) {
     list.forEach((id, i) => place.set((line + Math.floor(i / 4)) * 8 + 4 + (i % 4), id));
     line += Math.ceil(list.length / 4);
   }
@@ -651,7 +658,7 @@ function calcHeld(inp: TripInput, h: Held, qv: { id: number; q: number } | null,
     if (k != null) forms.set(k, [...(forms.get(k) ?? []), r]);
   }
   const inQuiver = (id: number) => !!qv && qv.id === id;
-  const quivers = [...new Set(inp.bank.map((it) => it.id).filter((id) => QUIVER_RE.test(inp.nameOf(id))))];
+  const quivers = quiversIn(inp);
   const along = (id: number) => (inQuiver(id) ? quiverIn : h.carries(id));
   const bankOf = (id: number) => (inQuiver(id) ? quivers : h.inBank(id));
   const needsCharge = (id: number) => {
@@ -1054,6 +1061,19 @@ export function checkTrip(input: TripInput): TripCheck {
         }
         continue;
       }
+      // The ammo slot: the quiver fires what it holds as the ammo slot would. When the arrows the
+      // setup wants (or others its launcher fires) are in a quiver, the quiver brings them.
+      if (pick.slot === 'ammo') {
+        const use = pick.use ?? pick.guide;
+        const qv = quiverAmmo(inp, h, true);
+        if (use != null && !h.carries(use) && qv && typeof qv === 'object' && quiverServes(inp, use, qv.id, mine.gear.weapon ?? null)) {
+          const qn = shortName(name(qv.id));
+          rows.push(quiverAmmo(inp, h) !== 'no-quiver'
+            ? { group: 'gear', ok: true, line: `Ammo: ${qn} in your quiver`, item: qv.id, slot: 'ammo' }
+            : { group: 'gear', ok: false, line: `${qn} (in your quiver): take the quiver`, detail: `${SLOT_LABEL.ammo}: your quiver holds them`, item: qv.id, slot: 'ammo', bank: quiversIn(inp) });
+          continue;
+        }
+      }
       const label = SLOT_LABEL[pick.slot] ?? pick.slot;
       // Nowhere at all: for a guide's setup an upgrade, not a trip problem; for the player's own setup
       // (what they wore when they saved it) it went somewhere, and the trip is short of it.
@@ -1253,11 +1273,21 @@ export function checkTrip(input: TripInput): TripCheck {
   // ── Food and a prayer restore, for content that always wants them ──
   if (inp.content.basics) {
     const has = (re: RegExp) => inp.inventory.find((it) => re.test(name(it.id).trim()));
-    const banked = (re: RegExp) => [...new Set(inp.bank.map((it) => it.id).filter((id) => re.test(name(id).trim())))];
+    // What to take: ONE kind from the bank (the usual pick, its highest dose), never every food and dose.
+    const inBankNamed = [...new Set(inp.bank.map((it) => it.id))].map((id) => ({ id, name: name(id) }));
+    const pick = (kinds: SupplyKind[], re: RegExp): number | null => {
+      for (const k of kinds) {
+        const o = ownedSupply(k, inBankNamed);
+        if (o && re.test(name(o.id).trim())) return o.id;
+      }
+      return inBankNamed.filter((o) => re.test(o.name.trim())).sort((a, b) => b.name.localeCompare(a.name))[0]?.id ?? null;
+    };
     const food = has(HEALS);
     const pots = has(RESTORES);
-    rows.push(food ? { group: 'supplies', ok: true, line: 'Food packed', item: food.id } : { group: 'supplies', ok: false, bank: banked(HEALS), line: 'No food packed', detail: `${inp.content.short} wants food or brews along` });
-    rows.push(pots ? { group: 'supplies', ok: true, line: 'Prayer restores packed', item: pots.id } : { group: 'supplies', ok: false, bank: banked(RESTORES), line: 'No prayer restore packed', detail: `${inp.content.short} wants prayer pots or restores along` });
+    const foodPick = food ? null : pick(['Food', 'Brews'], HEALS);
+    const potPick = pots ? null : pick(['Restores'], RESTORES);
+    rows.push(food ? { group: 'supplies', ok: true, line: 'Food packed', item: food.id } : { group: 'supplies', ok: false, ...(foodPick != null ? { item: foodPick, bank: [foodPick] } : {}), line: 'No food packed', detail: `${inp.content.short} wants food or brews along` });
+    rows.push(pots ? { group: 'supplies', ok: true, line: 'Prayer restores packed', item: pots.id } : { group: 'supplies', ok: false, ...(potPick != null ? { item: potPick, bank: [potPick] } : {}), line: 'No prayer restore packed', detail: `${inp.content.short} wants prayer pots or restores along` });
   }
 
   // ── Prayers ──
@@ -1302,6 +1332,36 @@ const QUIVER_RE = /dizana's quiver/i;
 function quiverAmmo(inp: TripInput, h: Held, anywhere = false): { id: number; q: number } | null | undefined | 'no-quiver' {
   if (![...(anywhere ? h.owned : h.carried).keys()].some((id) => QUIVER_RE.test(inp.nameOf(id)) || inp.holds(id).some((x) => QUIVER_RE.test(inp.idx.item(x)?.n ?? '')))) return 'no-quiver';
   return inp.state?.quiver;
+}
+
+/**
+ * The quiver's ammo for the card's layout (lib/tripLayout `quiverAmmo`): what state.quiver names, when
+ * the player owns a quiver, with where the quiver is ('here' worn or carried, else 'bank'). Null with
+ * no quiver owned, or the ammo unknown or empty.
+ */
+export function heldQuiverAmmo(inp: TripInput): { id: number; q: number; have: 'here' | 'bank'; serves: (want: number, weapon: number | null) => boolean; isQuiver: (id: number) => boolean } | null {
+  const h = held(inp);
+  const qv = quiverAmmo(inp, h, true);
+  if (!qv || typeof qv !== 'object') return null;
+  const isQuiver = (id: number) => [inp.nameOf(id), ...inp.holds(id).map((x) => inp.idx.item(x)?.n ?? '')].some((n) => QUIVER_RE.test(n));
+  return { id: qv.id, q: qv.q, have: quiverAmmo(inp, h) !== 'no-quiver' ? 'here' : 'bank', serves: (want, weapon) => quiverServes(inp, want, qv.id, weapon), isQuiver };
+}
+
+/** The bank's Dizana's quivers (and the max cape that holds one): what "take the quiver" shows. */
+function quiversIn(inp: Pick<TripInput, 'bank' | 'nameOf'>): number[] {
+  return [...new Set(inp.bank.map((it) => it.id).filter((id) => QUIVER_RE.test(inp.nameOf(id)) || /dizana's max cape/i.test(inp.nameOf(id))))];
+}
+
+/**
+ * Does the quiver's ammo `q` stand for the ammo `want`: the same arrows (or a form of them), or
+ * ammo the setup's launcher fires (lib/tripCheck ammoFits), as the quiver fires it in the ammo
+ * slot's place.
+ */
+export function quiverServes(inp: Pick<TripInput, 'idx' | 'needs' | 'holds'>, want: number, q: number, weapon: number | null): boolean {
+  if (q === want || inp.needs(want).includes(q) || inp.holds(q).includes(want)) return true;
+  const w = weapon != null ? inp.idx.item(weapon) : null;
+  const a = inp.idx.item(q);
+  return !!w && !!a && a.s === 'ammo' && w.c != null && /bow/i.test(w.c) && ammoFits(w, a);
 }
 
 /** The overlay's answer: "ToA: 2 problems" with the first lines, or "✓ Ready for ToA". */

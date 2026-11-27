@@ -79,7 +79,11 @@ export function loadoutFor(inp: TripLoadoutInput): { setup: GearSetup; plan: Tri
   const held = [...inp.worn, ...inp.inventory, ...inp.bank, ...(inp.lootingBag ?? [])];
   // Gear by the id the gear data knows it as (an uncharged Shadow is the Shadow; a kit counts as the piece).
   const known = (id: number) => (inp.idx.item(id) ? id : (inp.holds(id).find((x) => inp.idx.item(x)) ?? null));
-  const owned = [...new Set(held.map((it) => known(it.id)).filter((x): x is number => x != null))];
+  // The arrows in a Dizana's quiver are in no container: the plugin reads them (state.quiver). They are
+  // the player's wherever the quiver is, so the loadout picks them like any ammo owned.
+  const isQuiver = (id: number) => [inp.nameOf(id), ...inp.holds(id).map((x) => inp.idx.item(x)?.n ?? '')].some((n) => /dizana's quiver/i.test(n));
+  const quiverAmmo = inp.state?.quiver && held.some((it) => isQuiver(it.id)) ? known(inp.state.quiver.id) : null;
+  const owned = [...new Set([...held.map((it) => known(it.id)), quiverAmmo].filter((x): x is number => x != null))];
   const supplies = new Map<number, OwnedSupply>();
   for (const it of held) {
     if (inp.idx.item(it.id)) continue;
