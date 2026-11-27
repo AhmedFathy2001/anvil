@@ -1,6 +1,6 @@
 import type { Node } from './nodes';
-import { col, icon, muted, nameText, row, text } from './nodes';
-import { SOFT, clip, more, section, title } from './sections';
+import { type Color, col, icon, muted, nameText, row, text } from './nodes';
+import { GOLD, GREEN, SOFT, clip, more, section, title } from './sections';
 import { rankBestDrops, type DropMoment } from '@/lib/bestDrops';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
 
@@ -26,7 +26,50 @@ export interface PanelDrop {
 export interface PanelHighlights {
   best: PanelDrop[];
   latest: PanelDrop[];
+  /** The competition's feed, newest first: drops, deaths and kills finished together. Replaces "Latest" when sent. */
+  feed?: PanelFeedLine[];
 }
+
+/** One feed line: a drop (with its item), a death, or clanmates finishing a kill together. */
+export interface PanelFeedLine {
+  kind: 'drop' | 'death' | 'together';
+  /** Who: one name, or "Ann, Bob and Cy" for a kill done together. */
+  who: string;
+  /** What, after the name: "Twisted bow", "died to Zebak", "finished Nex together". */
+  text: string;
+  itemId?: number | null;
+  /** Rush points a drop was worth, when it was worth any. */
+  pts?: number | null;
+  at: string;
+}
+
+/** "Ann", "Ann and Bob", "Ann, Bob and Cy". */
+export function namesWords(names: string[]): string {
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+const DEATH_RED: Color = '#ff7b6b';
+
+/** One feed line: picture, who and what, and how long ago. */
+export function feedLineRow(l: PanelFeedLine): Node {
+  const pic =
+    l.kind === 'drop' ? icon({ item: l.itemId ?? undefined, w: 24, h: 22 }) : icon({ glyph: l.kind === 'together' ? 'star' : 'close', w: 12, h: 12, color: l.kind === 'together' ? GOLD : DEATH_RED });
+  const color: Color = l.kind === 'death' ? DEATH_RED : l.kind === 'together' ? GOLD : SOFT;
+  return row(
+    pic,
+    col([
+      text(clip(l.who, 30), 'white', { tip: l.who, wrap: 165 }),
+      text(l.text, color, { tip: l.text, wrap: 165 }),
+      muted('', { at: l.at, font: 'small' }),
+    ]),
+    l.pts ? text(`+${l.pts}`, GREEN, { font: 'bold' }) : undefined,
+    { gap: 6 },
+  );
+}
+
+/** How many feed lines show before "+N more", and how many the panel is sent. */
+const FEED_SHOWN = 5;
+export const PANEL_FEED = 20;
 
 /** How many best drops show before "+N more". */
 const BEST_SHOWN = 3;
@@ -55,7 +98,8 @@ export function highlightNodes(h: PanelHighlights | null | undefined, key: strin
   if (!h) return [];
   const out: Node[] = [];
   if (h.best.length) out.push(section([title('Best drops'), ...more(h.best.map(dropRow), BEST_SHOWN, `best:${key}`, 5)], { gap: 5 }));
-  if (h.latest.length) out.push(section([title('Latest'), ...h.latest.map(dropRow)], { gap: 5 }));
+  if (h.feed?.length) out.push(section([title('Feed'), ...more(h.feed.map(feedLineRow), FEED_SHOWN, `feed:${key}`, 5)], { gap: 5 }));
+  else if (h.latest.length) out.push(section([title('Latest'), ...h.latest.map(dropRow)], { gap: 5 }));
   return out;
 }
 
