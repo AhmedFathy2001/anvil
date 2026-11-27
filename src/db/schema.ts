@@ -3688,6 +3688,13 @@ export const moments = pgTable('moments', {
   // The player's XP in the competition's skill when this landed (a skilling pet in a skill week), from
   // the site's live reading. Null for everything else and for rows from before this was recorded.
   statXp: integer('stat_xp'),
+    // Where it happened (lib/momentPlace), for analytics: map region, and inside a raid its mode,
+    // Tombs level and party size. Null when the plugin did not say (older clients, non-plugin rows).
+    regionId: integer('region_id'),
+    raid: text('raid'),
+    raidMode: text('raid_mode'),
+    raidLevel: integer('raid_level'),
+    partySize: integer('party_size'),
   /** 1-in-N, priced HERE from the shipped drop dataset — never trusted from the client. */
   rarityDenominator: integer('rarity_denominator'),
   /**

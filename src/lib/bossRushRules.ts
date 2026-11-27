@@ -191,10 +191,10 @@ export function rushRulesWords(rules: RushRules): string {
  * the raid it is in (the plugin's death raid tag). Entry Mode is its own target: the hiscores do not
  * keep it, so only the plugin can count it.
  */
-export const RUSH_RAID_TARGETS: readonly { name: string; raid: 'cox' | 'tob' | 'toa' | 'toa-entry'; group: true }[] = [
+export const RUSH_RAID_TARGETS: readonly { name: string; raid: 'cox' | 'tob' | 'tob-entry' | 'toa' | 'toa-entry'; group: true }[] = [
   { name: 'Chambers of Xeric', raid: 'cox', group: true },
   { name: 'Chambers of Xeric Challenge Mode', raid: 'cox', group: true },
-  { name: 'Theatre of Blood: Entry Mode', raid: 'tob', group: true },
+  { name: 'Theatre of Blood: Entry Mode', raid: 'tob-entry', group: true },
   { name: 'Theatre of Blood', raid: 'tob', group: true },
   { name: 'Theatre of Blood: Hard Mode', raid: 'tob', group: true },
   { name: 'Tombs of Amascut: Entry Mode', raid: 'toa-entry', group: true },
