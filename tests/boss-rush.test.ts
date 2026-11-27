@@ -179,6 +179,9 @@ test('a raid death is the raid’s, whatever monster the plugin named', async ()
   assert.equal(raidOfNpc('Baboon Brawler'), 'toa');
   assert.equal(raidOfNpc('Vorkath'), null);
   assert.equal(raidOfNpc('Corea'), null);
+  // Also outside raids (Kebos, Sophanem): never guessed.
+  assert.equal(raidOfNpc('Lizardman shaman'), null);
+  assert.equal(raidOfNpc('Scarab swarm'), null);
   assert.deepEqual(raidKeys('toa'), ['tombsOfAmascut', 'tombsOfAmascutExpertMode']);
   assert.deepEqual(raidKeys('nonsense'), []);
 
@@ -203,6 +206,13 @@ test('a raid death is the raid’s, whatever monster the plugin named', async ()
   settleDeathSource(tobEntry);
   assert.equal(tobEntry.raid, 'tob-entry');
   // Anything else it sends there is dropped.
+  // A client that sent where it stood checked the raid state: no tag means no raid, whatever killed it.
+  const outside: Record<string, unknown> = { kind: 'death', source: 'Deathly mage', sourceKind: 'npc', regionId: 6192 };
+  settleDeathSource(outside);
+  assert.equal(outside.raid, undefined);
+  const older: Record<string, unknown> = { kind: 'death', source: 'Deathly mage', sourceKind: 'npc' };
+  settleDeathSource(older);
+  assert.equal(older.raid, 'cox');
   const junk: Record<string, unknown> = { kind: 'death', source: 'Jad', sourceKind: 'npc', raid: 'inferno' };
   settleDeathSource(junk);
   assert.equal(junk.raid, undefined);
