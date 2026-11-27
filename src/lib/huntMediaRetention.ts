@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { clans, huntDrops, weeklyCompetitions } from '@/db/schema';
+import { clans, huntDrops, rushDeathShots, weeklyCompetitions } from '@/db/schema';
 import { del, isClanMediaUrl, isManagedMediaUrl, type MediaTenant } from '@/lib/storage';
 import { urlsUsedElsewhere } from '@/lib/eventMediaRetention';
 import { deliverPurgeNotice } from '@/lib/eventMediaNotice';
@@ -11,7 +11,8 @@ import { ATTACHED_PREFIX } from '@/lib/proofAfter';
 // Item hunt and Boss Rush media retention: the same 90 days and reminders as an event's proofs
 // (lib/eventMediaRetention, rules in lib/eventMediaRetentionRules), for a 'hunt' weekly competition.
 //
-// What goes: drop screenshots (hunt_drops.screenshot_url). What stays: every drop row, who, what,
+// What goes: drop screenshots (hunt_drops.screenshot_url) and a Boss Rush's death screenshots
+// (rush_death_shots.screenshot_url). What stays: every drop row, who, what,
 // when, its points and the standings. A purged URL becomes EXPIRED_PROOF_URL, which says so.
 //
 // A file is deleted only when it is in the clan's own storage folder (plugin uploads and member
@@ -37,16 +38,23 @@ const withForce = <T extends { endDate: string }>(r: T): T & { forceEndedAt: nul
  * lib/huntDropPosts huntProofUpload). A manual proof's URL is whatever the member typed, so it is only
  * ever blanked, never deleted: it could name any file.
  */
-export async function huntMediaUrls(competitionId: number): Promise<{ id: number; url: string; stored: boolean }[]> {
+export async function huntMediaUrls(competitionId: number): Promise<{ id: number; url: string; stored: boolean; death?: true }[]> {
   // clan-scope: global -- one competition's own rows, by id; the caller settled which.
   const rows = await db
     .select({ id: huntDrops.id, url: huntDrops.screenshotUrl, proofKey: huntDrops.proofKey })
     .from(huntDrops)
     .where(and(eq(huntDrops.competitionId, competitionId), isNotNull(huntDrops.screenshotUrl)));
-  // TODO(rush_death_shots): once migration 0296 adds rush_death_shots.screenshot_url, include its rows here and in purgeHuntMedia.
-  return rows
-    .filter((r): r is typeof r & { url: string } => !!r.url && r.url !== EXPIRED_PROOF_URL)
-    .map((r) => ({ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX) }));
+  // A rush's death screenshots: only ever written by the server, under the death's own key.
+  // clan-scope: global -- one competition's own rows, by id; the caller settled which.
+  const deaths = await db
+    .select({ id: rushDeathShots.id, url: rushDeathShots.screenshotUrl, proofKey: rushDeathShots.proofKey })
+    .from(rushDeathShots)
+    .where(and(eq(rushDeathShots.competitionId, competitionId), isNotNull(rushDeathShots.screenshotUrl)));
+  const live = <T extends { url: string | null }>(r: T): r is T & { url: string } => !!r.url && r.url !== EXPIRED_PROOF_URL;
+  return [
+    ...rows.filter(live).map((r) => ({ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX) })),
+    ...deaths.filter(live).map((r) => ({ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX), death: true as const })),
+  ];
 }
 
 /** Hunts with a reminder due now. */
@@ -125,7 +133,10 @@ export async function purgeHuntMedia(competitionId: number, opts: { dryRun?: boo
   const result = { competitionId, name: comp.title, files: media.length, dryRun: !!opts.dryRun };
   if (opts.dryRun) return result;
   await db.transaction(async (tx) => {
-    if (media.length) await tx.update(huntDrops).set({ screenshotUrl: EXPIRED_PROOF_URL }).where(inArray(huntDrops.id, media.map((m) => m.id)));
+    const drops = media.filter((m) => !m.death).map((m) => m.id);
+    const deaths = media.filter((m) => m.death).map((m) => m.id);
+    if (drops.length) await tx.update(huntDrops).set({ screenshotUrl: EXPIRED_PROOF_URL }).where(inArray(huntDrops.id, drops));
+    if (deaths.length) await tx.update(rushDeathShots).set({ screenshotUrl: EXPIRED_PROOF_URL }).where(inArray(rushDeathShots.id, deaths));
     await tx.update(weeklyCompetitions).set({ mediaPurgedAt: new Date().toISOString() }).where(eq(weeklyCompetitions.id, competitionId));
   });
   const tenant: MediaTenant | null = comp.slug ? { slug: comp.slug, kind: comp.kind } : null;

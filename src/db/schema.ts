@@ -1922,6 +1922,27 @@ export const weeklyParticipants = pgTable('weekly_participants', {
 ]);
 
 /**
+ * Boss Rush: a counted death's screenshot, for the player and staff to look back on (a dispute, a
+ * laugh). One row per death the rush took points for; the plugin uploads the frame under proof_key
+ * (POST /api/plugin/facts/proof). Pictures go 90 days after the rush ends, like a bingo's.
+ */
+export const rushDeathShots = pgTable('rush_death_shots', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  participantId: integer('participant_id').notNull().references(() => weeklyParticipants.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  occurredAt: text('occurred_at').notNull(),
+  /** What killed them, when the plugin knew. */
+  source: text('source'),
+  proofKey: text('proof_key'),
+  screenshotUrl: text('screenshot_url'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  index('rush_death_shots_comp_idx').on(table.competitionId, table.participantId),
+  uniqueIndex('rush_death_shots_proof_key_unique').on(table.proofKey).where(sql`proof_key is not null`),
+]);
+
+/**
  * A drop in an item hunt (lib/itemHunt, lib/itemHuntDb): the hunt's whole scoreboard.
  *
  * Two ways in. A PLUGIN report (origin 'plugin') is counted at once; it is the same report the

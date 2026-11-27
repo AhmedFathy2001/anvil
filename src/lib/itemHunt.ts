@@ -70,6 +70,8 @@ export interface HuntItem {
   bounty?: number[];
   /** v2: the row is a pet. It counts from wherever it came, one at a time, like a v1 pet hunt's. */
   pet?: true;
+  /** Boss Rush: only each player's first one scores (a kit you can claim once), whatever `repeat` says. */
+  once?: true;
   /**
    * v2: "Closest to it", the stat that shows progress toward this row (kills at its boss, XP in its
    * skill). null = nothing shown for it. Absent on every v1 config, which has the one stat below.
@@ -436,7 +438,7 @@ function rushFromBody(body: Record<string, unknown>, opts: { lenient?: boolean }
       ? []
       : [...new Map((Array.isArray(it.sources) ? it.sources : []).filter((x): x is string => typeof x === 'string' && !!x.trim()).map((x) => [norm(x), x.trim().slice(0, 80)])).values()].slice(0, MAX_HUNT_SOURCES);
     const pts = typeof it.points === 'number' && Number.isFinite(it.points) ? Math.round(it.points) : 1;
-    items.push({ id, name, sources, count: 'drops', points: Math.min(MAX_ITEM_POINTS, Math.max(0, pts)), ...(pet ? { pet: true as const } : {}), stat: null });
+    items.push({ id, name, sources, count: 'drops', points: Math.min(MAX_ITEM_POINTS, Math.max(0, pts)), ...(pet ? { pet: true as const } : {}), ...(it.once === true ? { once: true as const } : {}), stat: null });
   }
   return {
     ok: true,
@@ -690,6 +692,8 @@ export interface HuntReport {
   /** 'death' only: the monsters within a few tiles when it happened (the plugin's look around), so a
    *  death to a boss's minion or mechanic counts at that boss (Blood reavers at Nex). */
   near?: string[] | null;
+  /** Where it happened (lib/momentPlace): a rush skips an Entry Mode chest it does not run. */
+  place?: { raid: string | null; raidMode: string | null } | null;
   kc?: number | null;
   occurredAt: string;
   dedupKey: string;
@@ -1015,11 +1019,18 @@ export function dropScore(config: HuntConfig, drop: Pick<HuntDrop, 'itemId' | 'q
   return n * (config.items.find((it) => it.id === drop.itemId)?.points ?? 1);
 }
 
-/** A points hunt that scores each item once: a player's drops less the repeats, oldest kept. */
+/**
+ * A points hunt that scores each item once: a player's drops less the repeats, oldest kept. A rush
+ * can also mark single rows "counts once" (a kit claimed once) while the rest score every time.
+ */
 function scoringDrops(config: HuntConfig, mine: HuntDrop[]): HuntDrop[] {
-  if ((config.rule !== 'points' && config.rule !== 'rush') || config.repeat !== 'first') return mine;
+  if (config.rule !== 'points' && config.rule !== 'rush') return mine;
+  const all = config.repeat === 'first';
+  const once = new Set(config.rule === 'rush' ? config.items.filter((it) => it.once).map((it) => it.id) : []);
+  if (!all && once.size === 0) return mine;
   const seen = new Set<number | string>();
   return mine.filter((d) => {
+    if (!all && (d.itemId == null || !once.has(d.itemId))) return true;
     const k = d.itemId ?? d.itemName ?? '';
     if (seen.has(k)) return false;
     seen.add(k);

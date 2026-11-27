@@ -79,6 +79,8 @@ export interface HuntPanelItem {
   name: string;
   /** Its points, on a "most points" hunt. */
   pts?: number;
+  /** Boss Rush: only each player's first one scores. */
+  once?: true;
   /** The first counted drop of it: who, and when. */
   got?: { rsn: string; at: string };
   /** How many counted drops of it in all, when more than one. */
@@ -98,8 +100,10 @@ async function huntPanelItems(w: { id: number; type: string; hunt?: string | nul
   if (w.type !== 'hunt') return {};
   const config = parseHunt(w.hunt);
   if (!config) return {};
-  const rows: { id: number; name: string; points?: number; bounty?: number[] }[] =
-    config.target === 'pets' && config.v !== 2 ? huntPets(config) : config.items.map((it) => ({ id: it.id, name: it.name, points: it.points, bounty: it.bounty }));
+  const rows: { id: number; name: string; points?: number; bounty?: number[]; once?: true }[] =
+    config.target === 'pets' && config.v !== 2 ? huntPets(config) : config.items.map((it) => ({ id: it.id, name: it.name, points: it.points, bounty: it.bounty, once: it.once }));
+  // A rush lists its priced drops first, so the cap below never cuts one that scores.
+  if (config.rule === 'rush') rows.sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
   if (!rows.length) return {};
   // clan-scope: this competition only -- its id came from the clan's own schedule above.
   const drops = await db
@@ -114,6 +118,7 @@ async function huntPanelItems(w: { id: number; type: string; hunt?: string | nul
         id: r.id,
         name: r.name,
         ...((config.rule === 'points' || config.rule === 'rush') && r.points ? { pts: r.points } : {}),
+        ...(r.once ? { once: true as const } : {}),
         ...(mine[0] ? { got: { rsn: mine[0].rsn, at: mine[0].at } } : {}),
         ...(mine.length > 1 ? { n: mine.length } : {}),
         // The first players to get it, once each, as many as the bounty pays (lib/itemHunt huntBountyClaims).

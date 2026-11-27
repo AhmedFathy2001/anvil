@@ -18,6 +18,7 @@ import {
   rushSynergy,
   rushTotal,
   targetsFromInput,
+  rushTakesRaidMode,
 } from '@/lib/bossRushRules';
 import { type HuntDrop, defaultHuntTitle, huntFromInput, huntPanelLine, isRush, matchHuntReport, rankHunt, rushBossKeys, rushTargets, serializeHunt, parseHunt } from '@/lib/itemHunt';
 
@@ -153,6 +154,28 @@ test('duplicates: every drop scores, or only each player\'s first of an item', (
   const e = [{ rsn: 'Bob', statGain: 0, rush: { kc: 0, deaths: 0 } }];
   assert.equal(rankHunt(rush(), e, drops, window)[0].count, 20);
   assert.equal(rankHunt(rush({ repeat: 'first' }), e, drops, window)[0].count, 10);
+});
+
+test('a row can count once (a kit) while the others score every time', () => {
+  const drops = [drop('Bob', 22006, T0 + 1000), drop('Bob', 22006, T0 + 2000), drop('Bob', 12922, T0 + 3000), drop('Bob', 12922, T0 + 4000)];
+  const e = [{ rsn: 'Bob', statGain: 0, rush: { kc: 0, deaths: 0 } }];
+  const c = rush({
+    items: [
+      { id: 22006, name: 'Skeletal visage', sources: ['Vorkath'], points: 10, once: true },
+      { id: 12922, name: 'Tanzanite fang', sources: ['Zulrah'], points: 5 },
+    ],
+  });
+  assert.equal(c.items.find((it) => it.id === 22006)?.once, true);
+  assert.equal(c.items.find((it) => it.id === 12922)?.once, undefined);
+  assert.equal(rankHunt(c, e, drops, window)[0].count, 10 + 5 + 5);
+});
+
+test('an Entry Mode chest scores only when that Entry Mode is a target', () => {
+  assert.equal(rushTakesRaidMode(['Theatre of Blood'], 'tob', 'entry'), false);
+  assert.equal(rushTakesRaidMode(['Theatre of Blood', 'Theatre of Blood: Entry Mode'], 'tob', 'entry'), true);
+  assert.equal(rushTakesRaidMode(['Theatre of Blood'], 'tob', 'hard'), true);
+  assert.equal(rushTakesRaidMode(['Theatre of Blood'], null, null), true);
+  assert.equal(rushTakesRaidMode(['Tombs of Amascut'], 'toa', 'entry'), false);
 });
 
 test('a tie on points goes to the one with more kills', () => {
