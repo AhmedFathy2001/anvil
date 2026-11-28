@@ -117,6 +117,7 @@ export async function finalHiscoresRead(
               hunt: comp.type === 'hunt',
               // The split per boss too: a rush checks its plugin kills target by target (lib/bossRushRules).
               parts: 'snapshot' in res && res.snapshot ? effectiveMetricParts(res.snapshot, stat.type, stat.metric, {}) ?? undefined : undefined,
+              hiscoresParts: 'snapshot' in res && res.snapshot ? effectiveMetricParts(res.snapshot, stat.type, stat.metric, {}) : null,
               type: stat.type,
               metric: stat.metric,
               value: res.value,

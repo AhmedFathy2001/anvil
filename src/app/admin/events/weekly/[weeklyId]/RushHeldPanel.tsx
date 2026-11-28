@@ -16,7 +16,7 @@ export default async function RushHeldPanel({ comp }: { comp: typeof weeklyCompe
         Kills waiting on the hiscores
       </h2>
       <p className="mb-3 text-xs text-text-muted">
-        The plugin reported more kills than the hiscores show. The extra is held, not scored, until the hiscores catch up. A gap that never closes is worth a look.
+        The plugin reported more kills than the hiscores show, or the hiscores cannot confirm them yet (the player is not listed at that boss). The extra is held, not scored, until the hiscores catch up; anything still held when the rush ends never scores. A gap that never closes is worth a look.
       </p>
       <ul className="space-y-2 text-sm">
         {held.map((p) => (

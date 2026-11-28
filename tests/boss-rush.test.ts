@@ -323,9 +323,12 @@ test('"plugin only" kills ahead of the hiscores are held, target by target', () 
     { chambersOfXeric: 100, vorkath: 0 },
     { chambersOfXeric: 103, vorkath: 0 },
   );
-  // CoX: 5 reported, 3 on the hiscores -> 3 score, 2 held. Vorkath: not ranked yet -> as reported.
-  // Tormented Demons: not on the hiscores -> as reported.
-  assert.equal(r.scored, 3 + 3 + 40);
-  assert.equal(r.held, 2);
-  assert.deepEqual(r.rows, [{ target: 'Chambers of Xeric', plugin: 5, hiscores: 3 }]);
+  // CoX: 5 reported, 3 on the hiscores -> 3 score, 2 held. Vorkath: not listed -> unverifiable, all held.
+  // Tormented Demons: not on the hiscores at all -> as reported (their proof is screenshots).
+  assert.equal(r.scored, 3 + 0 + 40);
+  assert.equal(r.held, 2 + 3);
+  assert.deepEqual(r.rows, [{ target: 'Chambers of Xeric', plugin: 5, hiscores: 3 }, { target: 'Vorkath', plugin: 3, hiscores: 0 }]);
+  // No start reading (or no hiscores reading yet): nothing at a hiscores target is assumed.
+  assert.equal(rushHiscoresCheck({ 'Chambers of Xeric': 4 }, keyOf, null, { chambersOfXeric: 500 }).held, 4);
+  assert.equal(rushHiscoresCheck({ 'Chambers of Xeric': 4 }, keyOf, { chambersOfXeric: 100 }, null).held, 4);
 });

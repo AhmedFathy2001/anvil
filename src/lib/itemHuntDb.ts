@@ -155,7 +155,7 @@ async function rushCounts(config: HuntConfig, competitionId: number): Promise<Ru
   if (!isRush(config)) return null;
   // clan-scope: global -- one competition's seats by its id; the caller settled the owning clan.
   const rows = await db
-    .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsnNormalized, kc: weeklyParticipants.rushKc, baseParts: weeklyParticipants.baselineParts, curParts: weeklyParticipants.currentParts, byTarget: weeklyParticipants.rushSeen, deaths: weeklyParticipants.rushDeaths, raids: weeklyParticipants.rushRaids, adjust: weeklyParticipants.rushAdjust, optedOut: weeklyParticipants.optedOut, gains: weeklyParticipants.valueLog })
+    .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsnNormalized, kc: weeklyParticipants.rushKc, baseParts: weeklyParticipants.baselineParts, hiscoresParts: weeklyParticipants.hiscoresParts, byTarget: weeklyParticipants.rushSeen, deaths: weeklyParticipants.rushDeaths, raids: weeklyParticipants.rushRaids, adjust: weeklyParticipants.rushAdjust, optedOut: weeklyParticipants.optedOut, gains: weeklyParticipants.valueLog })
     .from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, competitionId));
   // clan-scope: global -- the same competition's own counted deaths, for when each happened.
@@ -183,7 +183,7 @@ async function rushCounts(config: HuntConfig, competitionId: number): Promise<Ru
   const offOf = (by: Record<string, number> | null) => Object.entries(by ?? {}).reduce((n, [t, v]) => n + (off.has(t.toLowerCase()) && typeof v === 'number' ? v : 0), 0);
   // "Plugin only": each target's kills checked against its hiscores gain (lib/bossRushRules rushHiscoresCheck).
   const checked = (r: (typeof rows)[number]) =>
-    config.rush.kcSource === 'plugin' ? rushHiscoresCheck(r.byTarget, bossKeyForName, r.baseParts, r.curParts) : { scored: r.kc, held: 0, rows: [] };
+    config.rush.kcSource === 'plugin' ? rushHiscoresCheck(r.byTarget, bossKeyForName, r.baseParts, r.hiscoresParts) : { scored: r.kc, held: 0, rows: [] };
   return new Map(
     rows.map((r) => [
       huntRsnKey(r.rsn),

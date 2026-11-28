@@ -1674,6 +1674,13 @@
       "when": 1795842730552,
       "tag": "0302_value_log",
       "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1795848887449,
+      "tag": "0303_hiscores_parts",
+      "breakpoints": true
     }
   ]
 }
