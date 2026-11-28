@@ -13,6 +13,7 @@ import type { HuntView } from '@/lib/itemHuntView';
 import { itemIconUrl } from '@/lib/tileIcons';
 import type { WeeklyPrizes } from '@/lib/weeklyPrizes';
 import WeeklyPrizeEditor from './WeeklyPrizeEditor';
+import type { WeeklyWinner } from '@/lib/coffer';
 
 /** A drop staff have something to decide about, with what they need to decide it. */
 export interface HuntAttention {
@@ -58,7 +59,7 @@ export default function HuntAdminClient({
   entrants: { id: number; rsn: string }[];
   /** The top of the standings in words, for the "End now" confirm. */
   asItStands: string[];
-  prizes: { initial: WeeklyPrizes; cofferAvailable: number; held: boolean; settledAt: string | null; canEdit: boolean; hasCoffer: boolean; hcw?: boolean };
+  prizes: { initial: WeeklyPrizes; cofferAvailable: number; held: boolean; settledAt: string | null; canEdit: boolean; hasCoffer: boolean; hcw?: boolean; winners: WeeklyWinner[] };
   /** The hunt has finished and its prizes are waiting on unconfirmed drops. */
   prizesWaiting: boolean;
 }) {
@@ -225,6 +226,7 @@ export default function HuntAdminClient({
           canEdit={prizes.canEdit}
           hasCoffer={prizes.hasCoffer}
           hcw={prizes.hcw}
+          winners={prizes.winners}
         />
         {prizes.initial.places.length > 0 && (
           <p className="mt-2 text-xs text-text-muted">
