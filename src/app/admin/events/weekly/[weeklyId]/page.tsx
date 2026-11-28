@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { displayImageUrl } from '@/lib/displayImageServer';
 import { requireClan } from '@/lib/clanContext';
 import { getWeeklyCounts, getWeeklyRow, getWeeklyStandings } from '@/lib/weeklyWorkspace';
 import { weeklyStage } from '@/lib/weeklyStage';
@@ -82,7 +83,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
         stated: number(d.kc, d.xp, d.statSkill),
         site,
         mismatch,
-        screenshotUrl: d.screenshotUrl,
+        screenshotUrl: displayImageUrl(d.screenshotUrl),
         note: d.note,
       });
     };

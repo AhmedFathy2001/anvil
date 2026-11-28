@@ -17,6 +17,7 @@ import { idParam } from '@/lib/routeIds';
 
 import GoingButton from './GoingButton';
 import SignupPanel from './SignupPanel';
+import { displayImageUrl } from '@/lib/displayImageServer';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +76,7 @@ export default async function ClanEventPage({ params }: { params: Promise<{ id: 
         <div className="flex min-w-0 flex-[999_1_320px] items-center gap-4">
           {ev.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={ev.imageUrl} alt="" className="h-[72px] w-[72px] shrink-0 rounded-2xl border-2 border-gold object-cover" />
+            <img src={displayImageUrl(ev.imageUrl)} alt="" className="h-[72px] w-[72px] shrink-0 rounded-2xl border-2 border-gold object-cover" />
           )}
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-widest text-text-muted">

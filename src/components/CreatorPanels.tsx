@@ -2,6 +2,7 @@ import type { TextSegment } from '@/lib/spacePage/rules';
 import type { ShownPanel } from '@/lib/spacePage/store';
 
 import ReportButton from './ReportButton';
+import { displayImageUrl } from '@/lib/displayImageServer';
 
 /**
  * Plain text with line breaks, its allowed https links as links (lib/spacePage/rules linkify, checked
@@ -66,11 +67,11 @@ export default function CreatorPanels({
                   <a href={p.linkUrl} target="_blank" rel="noopener noreferrer nofollow ugc" className="block">
                     {/* Our own media host only (lib/spacePage isSpaceMediaUrl). */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.imageUrl} alt="" loading="lazy" className="block h-auto w-full" />
+                    <img src={displayImageUrl(p.imageUrl)} alt="" loading="lazy" className="block h-auto w-full" />
                   </a>
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.imageUrl} alt="" loading="lazy" className="block h-auto w-full" />
+                  <img src={displayImageUrl(p.imageUrl)} alt="" loading="lazy" className="block h-auto w-full" />
                 ))}
               <div className="flex flex-1 flex-col p-4">
                 <h3 className="text-[15px] font-semibold text-foreground">{p.title}</h3>
