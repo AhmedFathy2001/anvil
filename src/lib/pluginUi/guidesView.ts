@@ -299,7 +299,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
         ? SLOTS.map((slot) => {
             const n = slotNote(slot);
             const id = slot === 'quiver' ? s.quiver ?? null : s.gear[slot] ?? null;
-            const fallback = n?.kind === 'fallback' ? `you'll use ${names[n.use!] ?? 'a fallback'}` : n && (n.kind === 'owned' || n.kind === 'upgrade') ? `${n.kind === 'upgrade' ? 'upgrade · ' : ''}${swapNote(n, names)}` : null;
+            const fallback = n?.kind === 'fallback' ? `you'll use ${names[n.use!] ?? 'a fallback'}` : n && (n.kind === 'owned' || n.kind === 'upgrade') ? `${n.kind === 'upgrade' ? 'upgrade: ' : ''}${swapNote(n, names)}` : null;
             return { slot, id, fallback, missing: n?.kind === 'missing' };
           })
         : [],
