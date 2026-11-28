@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { clans, huntDrops, rushDeathShots, weeklyCompetitions } from '@/db/schema';
+import { clans, huntDrops, rushDeathShots, rushKillShots, weeklyCompetitions } from '@/db/schema';
 import { del, isClanMediaUrl, isManagedMediaUrl, type MediaTenant } from '@/lib/storage';
 import { urlsUsedElsewhere } from '@/lib/eventMediaRetention';
 import { deliverPurgeNotice } from '@/lib/eventMediaNotice';
@@ -38,7 +38,7 @@ const withForce = <T extends { endDate: string }>(r: T): T & { forceEndedAt: nul
  * lib/huntDropPosts huntProofUpload). A manual proof's URL is whatever the member typed, so it is only
  * ever blanked, never deleted: it could name any file.
  */
-export async function huntMediaUrls(competitionId: number): Promise<{ id: number; url: string; stored: boolean; death?: true }[]> {
+export async function huntMediaUrls(competitionId: number): Promise<{ id: number; url: string; stored: boolean; death?: true; kill?: true }[]> {
   // clan-scope: global -- one competition's own rows, by id; the caller settled which.
   const rows = await db
     .select({ id: huntDrops.id, url: huntDrops.screenshotUrl, clean: huntDrops.cleanScreenshotUrl, proofKey: huntDrops.proofKey })
@@ -50,6 +50,12 @@ export async function huntMediaUrls(competitionId: number): Promise<{ id: number
     .select({ id: rushDeathShots.id, url: rushDeathShots.screenshotUrl, clean: rushDeathShots.cleanScreenshotUrl, proofKey: rushDeathShots.proofKey })
     .from(rushDeathShots)
     .where(and(eq(rushDeathShots.competitionId, competitionId), isNotNull(rushDeathShots.screenshotUrl)));
+  // A rush's kill proofs (targets the hiscores do not keep): server-written too.
+  // clan-scope: global -- one competition's own rows, by id; the caller settled which.
+  const kills = await db
+    .select({ id: rushKillShots.id, url: rushKillShots.screenshotUrl, clean: rushKillShots.cleanScreenshotUrl, proofKey: rushKillShots.proofKey })
+    .from(rushKillShots)
+    .where(and(eq(rushKillShots.competitionId, competitionId), isNotNull(rushKillShots.screenshotUrl)));
   const live = <T extends { url: string | null }>(r: T): r is T & { url: string } => !!r.url && r.url !== EXPIRED_PROOF_URL;
   // The unstamped frame kept beside a stamped one (lib/huntStamp) goes with it; only the server writes it.
   const cleanOf = <T extends { id: number; clean: string | null; proofKey: string | null }>(r: T) =>
@@ -57,6 +63,7 @@ export async function huntMediaUrls(competitionId: number): Promise<{ id: number
   return [
     ...rows.filter(live).flatMap((r) => [{ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX) }, ...cleanOf(r)]),
     ...deaths.filter(live).flatMap((r) => [{ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX), death: true as const }, ...cleanOf(r).map((c) => ({ ...c, death: true as const }))]),
+    ...kills.filter(live).flatMap((r) => [{ id: r.id, url: r.url, stored: !!r.proofKey?.startsWith(ATTACHED_PREFIX), kill: true as const }, ...cleanOf(r).map((c) => ({ ...c, kill: true as const }))]),
   ];
 }
 
@@ -136,7 +143,9 @@ export async function purgeHuntMedia(competitionId: number, opts: { dryRun?: boo
   const result = { competitionId, name: comp.title, files: media.length, dryRun: !!opts.dryRun };
   if (opts.dryRun) return result;
   await db.transaction(async (tx) => {
-    const drops = [...new Set(media.filter((m) => !m.death).map((m) => m.id))];
+    const drops = [...new Set(media.filter((m) => !m.death && !m.kill).map((m) => m.id))];
+    const kills = [...new Set(media.filter((m) => m.kill).map((m) => m.id))];
+    if (kills.length) await tx.update(rushKillShots).set({ screenshotUrl: EXPIRED_PROOF_URL, cleanScreenshotUrl: null }).where(inArray(rushKillShots.id, kills));
     const deaths = [...new Set(media.filter((m) => m.death).map((m) => m.id))];
     if (drops.length) await tx.update(huntDrops).set({ screenshotUrl: EXPIRED_PROOF_URL, cleanScreenshotUrl: null }).where(inArray(huntDrops.id, drops));
     if (deaths.length) await tx.update(rushDeathShots).set({ screenshotUrl: EXPIRED_PROOF_URL, cleanScreenshotUrl: null }).where(inArray(rushDeathShots.id, deaths));

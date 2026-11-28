@@ -27,3 +27,10 @@ test('no middle dots anywhere on a stamp', () => {
   assert.ok(![m.title, m.detail, ...m.meta, m.footer].some((s) => s.includes('·')));
   assert.equal(utcWords(at), '2026-11-28 01:02:03');
 });
+
+test('a rush kill proof says which kill at which target', () => {
+  const m = huntStampModel({ kind: 'kill', competition: 'Demon Rush', rush: true, rsn: 'Ann', source: 'Tormented Demon', killNumber: 25, recordedAt: 0, stampedAt: 0, id: 9, sha256: null, split: null });
+  assert.equal(m.title, 'BOSS RUSH KILL');
+  assert.equal(m.detail, 'Tormented Demon kill 25');
+  assert.match(m.footer, /^Kill proof #9/);
+});

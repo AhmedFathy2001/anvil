@@ -355,3 +355,14 @@ export function rushRuleLines(rules: RushRules): RushRuleRow[] {
 export function rarityWords(n: number): string {
   return `1/${Math.round(n).toLocaleString('en-US')}`;
 }
+
+/** Kills the hiscores cannot vouch for: a screenshot of the 1st at a target and of every this-many-th after. */
+export const RUSH_KILL_PROOF_EVERY = 25;
+
+/** The kill number in (before, after] that wants a screenshot (1, 25, 50…), the latest if several; else null. */
+export function rushKillProofAt(before: number, after: number): number | null {
+  if (after <= before) return null;
+  const step = Math.floor(after / RUSH_KILL_PROOF_EVERY) * RUSH_KILL_PROOF_EVERY;
+  if (step > before && step > 0) return step;
+  return before < 1 && after >= 1 ? 1 : null;
+}

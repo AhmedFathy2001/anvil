@@ -1681,6 +1681,13 @@
       "when": 1795848887449,
       "tag": "0303_hiscores_parts",
       "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1795850030570,
+      "tag": "0304_rush_kill_shots",
+      "breakpoints": true
     }
   ]
 }
