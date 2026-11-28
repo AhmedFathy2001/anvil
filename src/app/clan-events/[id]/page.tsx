@@ -17,7 +17,7 @@ import { idParam } from '@/lib/routeIds';
 
 import GoingButton from './GoingButton';
 import SignupPanel from './SignupPanel';
-import { displayImageUrl } from '@/lib/displayImage';
+import { displayImageUrl } from '@/lib/displayImageServer';
 
 export const dynamic = 'force-dynamic';
 

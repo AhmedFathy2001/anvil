@@ -13,7 +13,6 @@ import { clanFetch } from '@/lib/clanFetch';
 import { SIGNUP_TEMPLATES, surveyTemplateById } from '@/lib/surveyTemplates';
 import { bossIconForStatKey, skillIconUrl } from '@/lib/tileIcons';
 import { CheckboxBox } from '@/components/Checkbox';
-import { displayImageUrl } from '@/lib/displayImage';
 
 interface Ev {
   id: number;
@@ -435,7 +434,7 @@ export default function ClanEventsClient({ prefillDay = null }: { prefillDay?: s
           <div className="flex items-center gap-2">
             {form.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={displayImageUrl(form.imageUrl)} alt="" className="h-10 w-10 rounded border border-card-border object-cover" />
+              <img src={form.imageUrl} alt="" className="h-10 w-10 rounded border border-card-border object-cover" />
             )}
             <label className="inline-flex cursor-pointer items-center rounded border border-card-border px-3 py-1.5 text-xs text-text-muted hover:border-gold/45 hover:text-foreground">
               <input

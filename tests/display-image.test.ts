@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { discordAttachment, discordAttachmentKey, discordExpiry, discordLinkStale, displayImageUrl } from '@/lib/displayImage';
+import { discordAttachment, discordAttachmentKey, discordExpiry, discordLinkStale, proxiedImageUrl } from '@/lib/displayImage';
+import { displayImageUrl, imageSigValid } from '@/lib/displayImageServer';
 
 const LINK = 'https://cdn.discordapp.com/attachments/1327520062655037482/1576025403762671863/anvil-drop.png?ex=6b0b6b89&is=6b0a1a09&hm=05d9';
 
@@ -27,8 +28,23 @@ test('expiry comes from ex= (hex seconds); unsigned links never go stale', () =>
   assert.equal(discordAttachmentKey(url), 'cdn.discordapp.com/attachments/1327520062655037482/1576025403762671863/anvil-drop.png');
 });
 
-test('the display helper routes only Discord attachments through the refresher', () => {
-  assert.equal(displayImageUrl(LINK), `/api/discord-image?u=${encodeURIComponent(LINK)}`);
+test('the display helper routes only Discord attachments through the refresher, signed', () => {
+  assert.equal(proxiedImageUrl(LINK, () => 'SIG'), `/api/discord-image?u=${encodeURIComponent(LINK)}&sig=SIG`);
   assert.equal(displayImageUrl('https://i.imgur.com/x.png'), 'https://i.imgur.com/x.png');
   assert.equal(displayImageUrl(null), null);
+  const out = new URL(displayImageUrl(LINK) as string, 'https://anvilosrs.com');
+  const sig = out.searchParams.get('sig');
+  const link = discordAttachment(out.searchParams.get('u'))!;
+  assert.equal(imageSigValid(link, sig), true);
+  // The signature covers the attachment, not the expiring query: a re-signed link still verifies.
+  assert.equal(imageSigValid(discordAttachment(LINK.replace('ex=6b0b6b89', 'ex=7b0b6b89'))!, sig), true);
+});
+
+test('only links we signed are refreshed: another attachment, a forged or missing sig, are not', () => {
+  const sig = new URL(displayImageUrl(LINK) as string, 'https://x').searchParams.get('sig');
+  const other = discordAttachment('https://cdn.discordapp.com/attachments/1/2/secret.png?ex=1')!;
+  assert.equal(imageSigValid(other, sig), false);
+  assert.equal(imageSigValid(discordAttachment(LINK)!, null), false);
+  assert.equal(imageSigValid(discordAttachment(LINK)!, 'x'.repeat(43)), false);
+  assert.equal(imageSigValid(discordAttachment(LINK)!, 'x'.repeat(500)), false);
 });

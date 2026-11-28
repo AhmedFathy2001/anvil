@@ -19,7 +19,6 @@ import type { HuntView, HuntViewDrop, HuntViewRow } from '@/lib/itemHuntView';
 import { itemIconUrl } from '@/lib/tileIcons';
 import { EntrantTags } from './GameTags';
 import { CountsOnChip } from './CompetitionHero';
-import { displayImageUrl } from '@/lib/displayImage';
 
 /**
  * An item hunt's own page: who has the drop, when they got it and at what kill count, and how many
@@ -61,7 +60,7 @@ function DropLine({ drop, showItem }: { drop: HuntViewDrop; showItem: boolean })
       </span>
       {drop.awaiting && <span className="rounded-full border border-amber-400/50 px-1.5 py-px text-[10px] text-amber-300">awaiting staff confirmation</span>}
       {drop.screenshotUrl && (
-        <a href={displayImageUrl(drop.screenshotUrl)} target="_blank" rel="noreferrer" className="underline hover:text-gold">
+        <a href={drop.screenshotUrl} target="_blank" rel="noreferrer" className="underline hover:text-gold">
           screenshot
         </a>
       )}
@@ -209,7 +208,7 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
                 <LocalTime date={d.at} format="short" />
                 {d.source && <>, {d.source}</>}
                 {d.url ? (
-                  <>, <a href={displayImageUrl(d.url)} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
+                  <>, <a href={d.url} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
                 ) : (
                   <>, no screenshot</>
                 )}

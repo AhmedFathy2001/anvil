@@ -2,7 +2,7 @@ import type { TextSegment } from '@/lib/spacePage/rules';
 import type { ShownPanel } from '@/lib/spacePage/store';
 
 import ReportButton from './ReportButton';
-import { displayImageUrl } from '@/lib/displayImage';
+import { displayImageUrl } from '@/lib/displayImageServer';
 
 /**
  * Plain text with line breaks, its allowed https links as links (lib/spacePage/rules linkify, checked

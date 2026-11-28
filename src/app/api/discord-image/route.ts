@@ -3,13 +3,14 @@ import { NextResponse } from 'next/server';
 import { getClientIp } from '@/lib/clientIp';
 import { sharedBotToken } from '@/lib/discord-roles';
 import { discordAttachment, discordAttachmentKey, discordExpiry, discordLinkStale, DISCORD_LINK_GRACE_MS } from '@/lib/displayImage';
+import { imageSigValid } from '@/lib/displayImageServer';
 import { log } from '@/lib/logger';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// GET /api/discord-image?u=<a Discord attachment link>
+// GET /api/discord-image?u=<a Discord attachment link>&sig=<our signature of it>
 //
 // Sends the browser on to a working copy of a pasted Discord attachment link (lib/displayImage): the
 // link itself while its signature is good, else one Discord re-signs on request
@@ -38,6 +39,10 @@ export async function GET(request: Request) {
   const now = Date.now();
   if (!discordLinkStale(link, now)) return go(link.toString());
 
+  // Only links this site handed out (lib/displayImageServer): anything else goes on as it came.
+  const params = new URL(request.url).searchParams;
+  if (!imageSigValid(link, params.get('sig'))) return go(link.toString(), 60);
+
   const key = discordAttachmentKey(link);
   const hit = cache.get(key);
   if (hit && hit.until > now) return go(hit.url);
@@ -45,7 +50,7 @@ export async function GET(request: Request) {
   const token = sharedBotToken();
   if (!token) return go(link.toString(), 60);
   if (!(await rateLimitByKey('discord-image', getClientIp(request), PER_VIEWER)).ok) return go(link.toString(), 60);
-  if (!(await rateLimitByKey('discord-image', 'all', GLOBAL)).ok) return go(link.toString(), 60);
+  if (!(await rateLimitByKey('discord-image-all', 'all', GLOBAL)).ok) return go(link.toString(), 60);
 
   try {
     const res = await fetch('https://discord.com/api/v10/attachments/refresh-urls', {

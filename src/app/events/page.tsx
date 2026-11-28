@@ -32,7 +32,7 @@ import HubRecord from './HubRecord';
 import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
 import LocalTime from '@/components/LocalTime';
-import { displayImageUrl } from '@/lib/displayImage';
+import { displayImageUrl } from '@/lib/displayImageServer';
 
 export const dynamic = 'force-dynamic';
 

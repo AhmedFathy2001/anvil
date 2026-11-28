@@ -15,7 +15,7 @@ import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 import { BoostedBadge, boostedClanNameStyle } from '@/components/ClanBoost';
 import { boostNameClass, boostPerks } from '@/lib/clanBoostRules';
-import { displayImageUrl } from '@/lib/displayImage';
+import { displayImageUrl } from '@/lib/displayImageServer';
 
 /**
  * The home page, in the pieces it's made of.

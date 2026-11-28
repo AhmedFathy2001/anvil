@@ -42,7 +42,6 @@ import { comboSentence, comboWeightOf, isComboTile, parseComboRule } from '@/lib
 import { partProgressText, type ComboView } from '@/lib/comboProgress';
 import { ProofExtrasEditor, ProofExtrasList, StartShotDraft } from './ProofExtras';
 import type { ProofAttachmentInput } from '@/lib/proofAttachments';
-import { displayImageUrl } from '@/lib/displayImage';
 
 // mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
 function clockToSeconds(value: string): number | null {
@@ -1338,7 +1337,7 @@ export default function TileDetailModal({
                           aria-label="View the screenshot"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={displayImageUrl(sub.imageUrl)} alt="" className="w-10 h-10 object-cover" />
+                          <img src={sub.imageUrl} alt="" className="w-10 h-10 object-cover" />
                         </button>
                       )}
                       <span className="text-foreground">
@@ -1504,7 +1503,7 @@ export default function TileDetailModal({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={displayImageUrl(s.imageUrl)}
+                            src={s.imageUrl}
                             alt="Proof"
                             className="w-full max-h-40 object-cover rounded border border-card-border"
                           />
@@ -1621,7 +1620,7 @@ export default function TileDetailModal({
                                 className="rounded border border-card-border overflow-hidden hover:border-gold/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold transition-colors"
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={displayImageUrl(shot.imageUrl)} alt="" className="w-14 h-14 object-cover" />
+                                <img src={shot.imageUrl} alt="" className="w-14 h-14 object-cover" />
                               </button>
                             ))}
                           </div>
@@ -1818,7 +1817,7 @@ export default function TileDetailModal({
                           {imageUrls.filter(Boolean).map((url, i) => (
                             <div key={i} className="relative">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={displayImageUrl(url)} alt={`Drop ${i + 1}`} className="w-full aspect-square object-cover rounded border border-card-border" />
+                              <img src={url} alt={`Drop ${i + 1}`} className="w-full aspect-square object-cover rounded border border-card-border" />
                               <button
                                 type="button"
                                 onClick={() => {

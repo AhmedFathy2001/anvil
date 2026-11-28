@@ -2,7 +2,6 @@ import React from 'react';
 
 import YouTubeEmbed from '@/components/guides/YouTubeEmbed';
 import { parseYouTube } from '@/lib/youtube';
-import { displayImageUrl } from '@/lib/displayImage';
 
 /**
  * A guide's Discord markdown, rendered for the site.
@@ -409,10 +408,10 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
               Image not shown{im.host ? ` (${im.host} isn't an allowed image host)` : ''}
             </div>
           ) : (
-          <a key={`${key}-${i}`} href={displayImageUrl(im.src)} target="_blank" rel="noopener noreferrer nofollow ugc" className="block">
+          <a key={`${key}-${i}`} href={im.src} target="_blank" rel="noopener noreferrer nofollow ugc" className="block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={displayImageUrl(im.src)}
+              src={im.src}
               alt={im.alt}
               referrerPolicy="no-referrer"
               loading="lazy"

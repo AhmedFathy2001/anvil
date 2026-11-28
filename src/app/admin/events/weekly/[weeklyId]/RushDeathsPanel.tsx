@@ -1,6 +1,6 @@
 import LocalTime from '@/components/LocalTime';
 import { rushDeathShotsOf, rushKillProofsOf } from '@/lib/itemHuntDb';
-import { displayImageUrl } from '@/lib/displayImage';
+import { displayImageUrl } from '@/lib/displayImageServer';
 
 /**
  * Staff: every death a Boss Rush took points for, by entrant, each with its screenshot (the plugin

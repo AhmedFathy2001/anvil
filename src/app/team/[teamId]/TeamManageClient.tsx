@@ -6,7 +6,6 @@ import { clanFetch } from '@/lib/clanFetch';
 import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingStatsLine';
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import { useDialog } from '@/components/Confirm';
-import { displayImageUrl } from '@/lib/displayImage';
 
 // The manager's half of a team page: who's on it, what their proof looks like, whose fee is still
 // owed, and the links that put people on it. Shown to the captain and to anyone holding a staff seat
@@ -548,10 +547,10 @@ export default function TeamManageClient({ teamId, eventEnded = false }: { teamI
                     className="flex items-center gap-3 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
                   >
                     {p.imageUrl ? (
-                      <a href={displayImageUrl(p.imageUrl)} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                      <a href={p.imageUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={displayImageUrl(p.imageUrl)}
+                          src={p.imageUrl}
                           alt=""
                           width={44}
                           height={44}

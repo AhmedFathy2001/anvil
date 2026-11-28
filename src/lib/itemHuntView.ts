@@ -2,6 +2,7 @@
 //
 // Server only: the source choices for a manual proof come from the drop dataset (lib/itemObtain).
 
+import { displayImageUrl } from '@/lib/displayImageServer';
 import { gainParts } from '@/lib/weeklyMetric';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { rushRulesWords } from '@/lib/bossRushRules';
@@ -203,7 +204,7 @@ export function buildHuntView(
     due: r.due,
     held: r.held,
     completeAt: r.completeAt,
-    ...(mine.has(r.rsn) && deathShots.has(r.rsn) ? { deathShots: deathShots.get(r.rsn) } : {}),
+    ...(mine.has(r.rsn) && deathShots.has(r.rsn) ? { deathShots: deathShots.get(r.rsn)!.map((d) => ({ ...d, url: displayImageUrl(d.url) })) } : {}),
     heldIds: [...new Set(r.drops.map((d) => d.itemId).filter((id): id is number => id != null && targetIds.has(id)))],
     drops: r.drops.map((d, i) => ({
       score: config.rule !== 'points' && config.rule !== 'rush' ? null : d.itemId != null && claimed.has(d.itemId) && claimed.get(d.itemId) !== d.id ? 0 : (config.repeat === 'first' || (config.rule === 'rush' && !!config.items.find((it) => it.id === d.itemId)?.once)) && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
@@ -218,7 +219,8 @@ export function buildHuntView(
       manual: d.origin === 'manual',
       confirmed: d.confirmed,
       awaiting: awaitingIds.has(d.id),
-      screenshotUrl: d.screenshotUrl,
+      // A pasted Discord link expires; shown through the signed refresher (lib/displayImageServer).
+      screenshotUrl: displayImageUrl(d.screenshotUrl),
     })),
   }));
   const rsnOf = new Map(standings.participants.map((p) => [p.rsn.replace(/\s+/g, ' ').trim().toLowerCase(), p.rsn]));

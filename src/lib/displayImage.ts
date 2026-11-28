@@ -4,7 +4,12 @@
 // /api/discord-image, which hands back the link itself while it is good and a freshly signed one from
 // Discord once it has expired (app/api/discord-image/route.ts). Stored data is never rewritten.
 //
-// Pure: the route, the components and the tests read it.
+// ONLY LINKS WE HANDED OUT. Re-signing is done with our bot, so an open endpoint would let anyone have
+// our bot re-sign any attachment (one from a server the bot is in, say). Each proxied link therefore
+// carries `sig`, an HMAC of its host and path under a server-only key (lib/displayImageServer), and
+// the route refreshes nothing without a valid one.
+//
+// Pure: the route, the server helper and the tests read it.
 
 const HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net']);
 
@@ -44,7 +49,13 @@ export function discordAttachmentKey(url: URL): string {
   return `${url.hostname.toLowerCase()}${url.pathname}`;
 }
 
-/** What to put in an <img src> (or a link) for an image a member gave us: Discord attachments via the refresher. */
-export function displayImageUrl<T extends string | null | undefined>(raw: T): T | string {
-  return discordAttachment(raw) ? `/api/discord-image?u=${encodeURIComponent(raw as string)}` : raw;
+/** What `sig` covers: the attachment itself (host and path), not its expiring query. */
+export function imageSigPayload(url: URL): string {
+  return `discord-image:${discordAttachmentKey(url)}`;
+}
+
+/** The proxied link for a Discord attachment, with its signature; anything else as it is. */
+export function proxiedImageUrl<T extends string | null | undefined>(raw: T, sign: (payload: string) => string): T | string {
+  const url = discordAttachment(raw);
+  return url ? `/api/discord-image?u=${encodeURIComponent(raw as string)}&sig=${sign(imageSigPayload(url))}` : raw;
 }
