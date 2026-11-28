@@ -1,3 +1,4 @@
+import { momentLabel } from '@/lib/petName';
 import { withoutPetDoubles } from '@/lib/momentDupes';
 import { normalizeHex } from '@/lib/artPalette';
 import { bannedRosterNames } from '@/lib/clanInsider';
@@ -197,7 +198,7 @@ export async function loadClanCard(clan: {
     // Pets and drops only — a death is a moment, not a highlight.
     highlights: highlightMoments.map((m) => ({
       rsn: m.rsn,
-      label: m.itemName ?? m.source ?? m.kind,
+      label: momentLabel(m),
       itemId: m.itemId ?? (m.itemName ? idByName.get(m.itemName.toLowerCase()) ?? null : null),
       kind: m.kind,
       at: m.occurredAt,

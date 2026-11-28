@@ -23,6 +23,7 @@ import { clamp, code, EMBED_COLOR, LIMIT, type DiscordEmbed, type DiscordEmbedFi
 import { FUN_DEATH_MESSAGES } from './constants';
 import { deathCause, foughtBoss, FOUGHT_SOURCE_KIND, shownKiller } from './deathSource';
 import { NOTIFY_DEFAULTS } from './notifyPrefs';
+import { isGenericPetName } from './genericPetName';
 import { absoluteAssetUrl, discordAssetUrl } from './seo';
 import { itemIconUrl as itemIconPath, skillIconUrl as skillIconPath, wikiImageUrl } from './tileIcons';
 
@@ -766,7 +767,8 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
       return {
         kind,
         facts: {
-          rsn: rsnOf(o), name: optStr(o, 'name'), itemId: optInt(o, 'itemId'), duplicate: flag(o, 'duplicate'),
+          // A generic name ("pet") is no name: the post reads "Pet drop!" rather than "🐾 pet".
+          rsn: rsnOf(o), name: isGenericPetName(optStr(o, 'name')) ? null : optStr(o, 'name'), itemId: optInt(o, 'itemId'), duplicate: flag(o, 'duplicate'),
           source: optStr(o, 'source'), skill: optStr(o, 'skill', 32), kc: optInt(o, 'kc'),
           dropRate: optRate(o, 'dropRate'),
         },

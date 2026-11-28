@@ -4,7 +4,8 @@ import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { pluginParticipantScope, resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
-import { activeScopesFor, recordModeMoments, recordSeatMoments } from '@/lib/momentsStore';
+import { activeScopesFor, recordModeMoments, recordSeatMoments, settleUnnamedPets } from '@/lib/momentsStore';
+import { unnamedPetFills, type PetSighting } from '@/lib/petName';
 import { achievementDedupKey, BOARD_COPY_KINDS, caTierRank, diaryTier, type Observation } from '@/lib/moments';
 import { stripChatTags } from '@/lib/chatTags';
 import { labQuarantine } from '@/lib/lab';
@@ -124,6 +125,20 @@ async function feedFrom(character: { userId: number; accountId: number; rsn: str
   }
 }
 
+/** A raw report as lib/petName reads it, to name a pet the plugin sent unnamed. */
+function rawSighting(raw: unknown, now: number): PetSighting {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const at = typeof r.at === 'string' ? Date.parse(r.at) : NaN;
+  return {
+    kind: str(r.kind, 12) ?? '',
+    itemName: str(r.itemName),
+    source: str(r.source),
+    sourceKind: str(r.sourceKind, 16),
+    kc: int(r.kc, MAX_KC),
+    at: Number.isFinite(at) ? at : now,
+  };
+}
+
 /** The drops (by id) and live log unlocks (by name) in a push, for head-to-head races. */
 function h2hDropsFrom(raws: unknown[], now: number): ReportedDrop[] {
   const out: ReportedDrop[] = [];
@@ -200,7 +215,12 @@ export async function POST(request: Request) {
 
   // Other players' in-game chat reads every report first (lib/chatFeed) — the board, the clan and the
   // competition rules below decide only what is STORED. Off the request's path: nobody waits on it.
-  if (!mode) void feedFrom(character, pushed as unknown[]);
+  // An unnamed pet (the duplicate line names none) takes its name from the kill's loot in the same
+  // push (lib/petName), so other players' chat says "got a pet: Skotos" rather than nothing.
+  if (!mode) {
+    const fills = unnamedPetFills(pushed.map((r) => rawSighting(r, Date.now())));
+    void feedFrom(character, fills.size ? pushed.map((r, i) => (fills.has(i) ? { ...(r as object), ...fills.get(i) } : r)) : (pushed as unknown[]));
+  }
   if (!member) return NextResponse.json({ ok: true, stored: 0, matched: 0, scoped: false });
 
   const now = Date.now();
@@ -270,6 +290,17 @@ export async function POST(request: Request) {
     ...(hunted?.proofs.length ? { huntProofs: hunted.proofs } : {}),
     ...(hunted?.deathProofs.length ? { deathProofs: hunted.deathProofs } : {}),
   };
+  // A pet the plugin sent unnamed is named off the kill's loot, in this push or a stored one, and this
+  // push's loot names a pet stored unnamed a moment ago (lib/petName). After the hunts on purpose: a
+  // name worked out here is feed colour, never a hunt's credit. Never fails the push.
+  if (observations.some((o) => o.kind === 'pet' || o.kind === 'drop')) {
+    const fills = unnamedPetFills(observations.map((o) => ({ ...o, at: Date.parse(o.occurredAt) })));
+    for (const [i, fill] of fills) Object.assign(observations[i], fill);
+    await settleUnnamedPets(member.clanMemberId, observations).catch((err) => {
+      log.warn('moments.pet-name-failed', { clanId: clan.id }, err);
+      return 0;
+    });
+  }
   // Lab boards left out: one would win the pick and stamp a real moment with the lab board, in the real
   // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
   const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false, practice: false }));

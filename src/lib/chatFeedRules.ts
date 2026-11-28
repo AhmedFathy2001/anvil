@@ -13,6 +13,7 @@
 //
 // The plugin holds one switch (feed on or off); every finer choice lives here, on the site.
 
+import { isGenericPetName } from '@/lib/genericPetName';
 import { stripChatTags } from '@/lib/chatTags';
 
 export const CA_TIERS = ['easy', 'medium', 'hard', 'elite', 'master', 'grandmaster'] as const;
@@ -316,7 +317,7 @@ export function feedItemFromMoment(raw: Record<string, unknown>, who: string): F
       return { kind: 'drop', who, valueGp: value, text: `received ${qty > 1 ? `${qty.toLocaleString('en-US')} x ` : ''}${name} (${gp(value)})${from(str(raw.source))}` };
     }
     case 'pet':
-      return { kind: 'pet', who, text: `got a pet${name ? `: ${name}` : '!'}${from(str(raw.source))}` };
+      return { kind: 'pet', who, text: `got a pet${name && !isGenericPetName(name) ? `: ${name}` : '!'}${from(str(raw.source))}` };
     case 'clog':
       return name ? { kind: 'clog', who, text: `new collection log slot: ${name}` } : null;
     case 'ca': {

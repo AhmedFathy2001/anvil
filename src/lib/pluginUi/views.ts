@@ -1,3 +1,4 @@
+import { momentLabel } from '@/lib/petName';
 import { tripEnabled } from '@/lib/serverInfo';
 import type { PanelHighlights } from './highlightsUi';
 import { spendLifeline, teamEasePayload } from '@/lib/raceEaseDb';
@@ -983,7 +984,7 @@ async function momentsView(request: Request, a: Args, note?: string): Promise<Vi
   const items: FeedItem[] = shown.map((m) => ({
     id: m.id,
     rsn: m.rsn,
-    label: m.itemName ?? m.source ?? m.kind,
+    label: momentLabel(m),
     itemId: m.itemId,
     kind: m.kind,
     at: m.occurredAt,
