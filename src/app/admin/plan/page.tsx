@@ -77,7 +77,8 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
   const canPay = isOwner || (!!session && (await canPayForPlan(clan.id, session.userId)));
   const payerRef = canPay && session ? await ensureSupporterRef(session.userId) : null;
   const viewerIsStaff = !!session && (await isPlatformStaff(session.userId));
-  const ref = paying ? null : await ensureClanCheckoutRef(clan.id);
+  // The clan's checkout ref: for buying, and on a paying clan for someone allowed to take payment over.
+  const ref = paying && !canPay ? null : await ensureClanCheckoutRef(clan.id);
   // ONE TRIAL (lib/buyOffer): a clan that has had its trial from Anvil, a Gumroad trial or a
   // membership is only ever sent to the pay-now product, charged that day. Every clan made since
   // automatic trials began has had one, so "Start free trial" is for older clans that never did.
@@ -239,6 +240,30 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
               </p>
             )}
             <p className="mt-3 text-[12.5px] leading-relaxed text-text-muted">Moving to another tier: {SECOND_MEMBERSHIP_WARNING}</p>
+            {/* Payment is on Gumroad, not here: anyone allowed to pay can take it over with a membership of their
+                own (the payer left, stopped, or another person holds the card now). The new sale becomes the
+                clan's membership and names them as the payer; the old one is flagged to cancel (lib/extraMemberships). */}
+            {canPay && session && payerView.payer?.userId !== session.userId && !fund && offers.length > 0 && (
+              <div className="mt-4 flex flex-col gap-2 border-t border-card-border pt-4">
+                <p className="text-[14px] font-semibold">Pay for it yourself instead</p>
+                <p className="text-[12.5px] leading-relaxed text-text-muted">
+                  Starts a new membership on your own Gumroad account, and you become the payer.{' '}
+                  {payerView.payer
+                    ? `${payerView.payer.name}'s membership keeps charging until they cancel it on Gumroad, so ask them to once yours is running.`
+                    : 'The current membership keeps charging until whoever holds it cancels it on Gumroad.'}
+                </p>
+                {offers.map((o) => {
+                  const wording = buyWording(o.buttons, {
+                    tierName: fits!.name,
+                    charge: chargeText(fits!.priceUsd ?? 0, o.interval),
+                    verb: o.interval === 'yearly' ? `Take over with ${fits!.name}, yearly` : `Take over with ${fits!.name}`,
+                  });
+                  return wording ? (
+                    <BuyButtons key={o.interval} wording={wording} caption={offers.length > 1 ? (o.interval === 'yearly' ? 'Yearly' : 'Monthly') : null} staffNote={null} />
+                  ) : null;
+                })}
+              </div>
+            )}
           </section>
         ) : (
           fits && (
