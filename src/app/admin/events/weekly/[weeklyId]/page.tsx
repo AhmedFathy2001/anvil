@@ -3,7 +3,7 @@ import { requireClan } from '@/lib/clanContext';
 import { getWeeklyCounts, getWeeklyRow, getWeeklyStandings } from '@/lib/weeklyWorkspace';
 import { weeklyStage } from '@/lib/weeklyStage';
 import { verifyFeeCollector } from '@/lib/auth';
-import { getCofferBalance, clanHasCoffer, getWeeklyPool } from '@/lib/coffer';
+import { getCofferBalance, clanHasCoffer, getWeeklyPool, weeklyWinners } from '@/lib/coffer';
 import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
 import WeeklyHomeClient from './WeeklyHomeClient';
 import HuntAdminClient, { type HuntAttention } from './HuntAdminClient';
@@ -46,6 +46,8 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
   // one found a page with nothing on it and no word about why. An empty coffer is a sentence to say,
   // not a control to withhold.
   const prizes = parseWeeklyPrizes(comp.prizes);
+  // Once it has finished and settled: who won what, and whether it has been sent (the coffer's own rows).
+  const winners = comp.prizesSettledAt ? await weeklyWinners(clan.id, comp.id) : [];
 
   // An item hunt has its own home: the drops staff have to decide about, "Add a drop", "End now and
   // post results", and the standings by its rule (lib/itemHuntDb). Not a table of gains.
@@ -101,7 +103,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
         attention={attention}
         entrants={hunt.participants.map((p) => ({ id: p.id, rsn: p.rsn })).sort((a, b) => a.rsn.localeCompare(b.rsn))}
         asItStands={asItStands}
-        prizes={{ initial: prizes, cofferAvailable: balance.available + held, held: held > 0, settledAt: comp.prizesSettledAt, canEdit: Boolean(feeCollector), hasCoffer, hcw: comp.prizeCurrency === 'hcw' }}
+        prizes={{ initial: prizes, cofferAvailable: balance.available + held, held: held > 0, settledAt: comp.prizesSettledAt, canEdit: Boolean(feeCollector), hasCoffer, hcw: comp.prizeCurrency === 'hcw', winners }}
         prizesWaiting={comp.status === 'completed' && !comp.prizesSettledAt && prizeHolds.length > 0}
       />
       <HuntMediaNote comp={comp} now={renderedAt} />
@@ -132,6 +134,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
         settledAt: comp.prizesSettledAt,
         canEdit: Boolean(feeCollector),
         hasCoffer,
+        winners,
       }}
     />
   );

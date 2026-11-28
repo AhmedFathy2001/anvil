@@ -11,6 +11,7 @@ import { weeklyGain, weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import WeeklyPrizeEditor from './WeeklyPrizeEditor';
+import type { WeeklyWinner } from '@/lib/coffer';
 import { totalPrizeGp, type WeeklyPrizes } from '@/lib/weeklyPrizes';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { useDialog } from '@/components/Confirm';
@@ -28,6 +29,8 @@ interface PrizeContext {
   canEdit: boolean;
   /** False when the clan has never moved gp — the card says so rather than hiding. */
   hasCoffer: boolean;
+  /** Once settled: each prize as the coffer holds it. */
+  winners: WeeklyWinner[];
 }
 
 interface Comp {
@@ -278,6 +281,7 @@ export default function WeeklyHomeClient({
         canEdit={prizes.canEdit}
         hasCoffer={prizes.hasCoffer}
         hcw={prizes.hcw}
+        winners={prizes.winners}
       />
 
       <section className="border border-card-border rounded-xl bg-card-bg p-5">

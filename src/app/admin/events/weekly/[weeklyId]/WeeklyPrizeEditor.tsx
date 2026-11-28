@@ -7,6 +7,7 @@ import { formatGp } from '@/lib/adminEventsFormat';
 import WeeklyPrizeLadder from '@/components/WeeklyPrizeLadder';
 import GuideLink from '@/components/GuideLink';
 import { totalPrizeGp, type WeeklyPrizes } from '@/lib/weeklyPrizes';
+import type { WeeklyWinner } from '@/lib/coffer';
 import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { valuesEqual } from '@/lib/unsavedChanges';
 
@@ -26,7 +27,10 @@ export default function WeeklyPrizeEditor({
   canEdit,
   hasCoffer,
   hcw = false,
+  winners = [],
 }: {
+  /** Once settled: who won what, as the coffer holds it, with a "Sent it" for each still owed. */
+  winners?: WeeklyWinner[];
   /** Paid in Hardcore Worlds gp: the balance shown is that pot's. */
   hcw?: boolean;
   competitionId: number;
@@ -109,16 +113,13 @@ export default function WeeklyPrizeEditor({
       </p>
 
       {settledAt && (
-        <div className="mb-4 space-y-2">
-          <p className="text-xs text-accent-green-light">
-            Prizes are set aside for the winners on the coffer page. A treasurer marks each one paid there
-            once it is sent in game.
-          </p>
+        <div className="mb-4 space-y-3">
+          <WinnersList winners={winners} canPay={canEdit} hcw={hcw} />
           {canEdit && <PrizeRedo competitionId={competitionId} />}
         </div>
       )}
 
-      <WeeklyPrizeLadder
+      {!settledAt && <WeeklyPrizeLadder
         value={prizes}
         onChange={setPrizes}
         cofferAvailable={available}
@@ -126,7 +127,7 @@ export default function WeeklyPrizeEditor({
         hold={hold}
         onHoldChange={setHold}
         disabled={locked}
-      />
+      />}
 
       {!locked && (
         <div className="mt-4 flex items-center gap-3 flex-wrap">
@@ -236,6 +237,67 @@ function PrizeRedo({ competitionId }: { competitionId: number }) {
       {message && (
         <p className={`mt-2 ${message.type === 'error' ? 'text-red-400' : 'text-accent-green-light'}`}>{message.text}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * A finished competition's results as they pay: each place, who, how much, and whether it has been
+ * sent. "Sent it" marks one paid on the coffer, once the gp has gone over in game.
+ */
+function WinnersList({ winners, canPay, hcw }: { winners: WeeklyWinner[]; canPay: boolean; hcw: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function pay(entryId: number) {
+    setBusy(entryId);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/admin/coffer/${entryId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'pay' }) });
+      if (!res.ok) setError(((await res.json().catch(() => ({}))) as { error?: string }).error || 'Could not mark it paid.');
+      else router.refresh();
+    } catch {
+      setError('Could not mark it paid.');
+    } finally {
+      setBusy(null);
+    }
+  }
+  if (winners.length === 0) {
+    return <p className="text-sm text-text-muted">Finished. Nobody placed for a prize, so nothing was taken from the coffer.</p>;
+  }
+  const owed = winners.filter((w) => w.status !== 'paid').reduce((n, w) => n + w.gp, 0);
+  return (
+    <div>
+      <p className="mb-2 text-sm font-semibold">Results</p>
+      <ul className="divide-y divide-card-border rounded-lg border border-card-border">
+        {winners.map((w) => (
+          <li key={w.entryId} className="flex items-center gap-3 px-3 py-2">
+            <span className="w-8 shrink-0 font-mono text-sm text-gold">{w.place ? `#${w.place}` : ''}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{w.rsn ?? 'A winner'}</span>
+            <span className="shrink-0 text-sm text-gold-light">{formatGp(w.gp)}{hcw ? ' HCW gp' : ''}</span>
+            {w.status === 'paid' ? (
+              <span className="shrink-0 rounded-full border border-accent-green-light/40 px-2 py-0.5 text-xs text-accent-green-light">Sent</span>
+            ) : canPay ? (
+              <button
+                type="button"
+                disabled={busy === w.entryId}
+                onClick={() => pay(w.entryId)}
+                className="shrink-0 rounded-lg border border-gold bg-gold/20 px-2.5 py-1 text-xs font-semibold text-gold hover:bg-gold/30 disabled:opacity-50"
+              >
+                {busy === w.entryId ? 'Saving…' : 'Sent it'}
+              </button>
+            ) : (
+              <span className="shrink-0 text-xs text-text-muted">Held for them</span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 text-xs text-text-muted">
+        {owed > 0
+          ? `${formatGp(owed)} is held in the coffer for these winners. Send each one in game, then press Sent it.`
+          : 'Every prize has been sent.'}
+      </p>
+      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
     </div>
   );
 }

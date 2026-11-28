@@ -780,3 +780,25 @@ export async function clanHasCoffer(clanId: number): Promise<boolean> {
     .limit(1);
   return row.length > 0;
 }
+
+/** One prize a finished competition reserved: who, which place, how much, and whether it was sent. */
+export interface WeeklyWinner {
+  entryId: number;
+  place: number | null;
+  rsn: string | null;
+  gp: number;
+  status: 'reserved' | 'paid' | 'planned' | 'unfunded';
+}
+
+/** A finished competition's prizes as the coffer holds them, best place first (cancelled ones left out). */
+export async function weeklyWinners(clanId: number, competitionId: number): Promise<WeeklyWinner[]> {
+  // clan-scope: this clan -- its own ledger rows for one of its competitions.
+  const rows = await db
+    .select({ id: cofferEntries.id, place: cofferEntries.place, rsn: cofferEntries.rsn, amount: cofferEntries.amount, status: cofferEntries.status })
+    .from(cofferEntries)
+    .where(and(eq(cofferEntries.clanId, clanId), eq(cofferEntries.weeklyCompetitionId, competitionId), eq(cofferEntries.kind, 'award')));
+  return rows
+    .filter((r) => r.status === 'reserved' || r.status === 'paid' || r.status === 'planned' || r.status === 'unfunded')
+    .map((r) => ({ entryId: r.id, place: r.place, rsn: r.rsn, gp: Math.abs(r.amount), status: r.status as WeeklyWinner['status'] }))
+    .sort((a, b) => (a.place ?? 99) - (b.place ?? 99));
+}
