@@ -9,6 +9,7 @@ import { db } from '@/db';
 import { events, teams, tiles } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
 import { sendEventBingoWebhook } from '@/lib/discord';
+import { eventLink } from '@/lib/eventLinks';
 import { isEventOver } from '@/lib/eventLock';
 import { parseEventRules } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
@@ -71,6 +72,7 @@ export async function processRaceEasing(now: number = Date.now()): Promise<numbe
           embeds: [
             {
               title: `${event.name}: ${which} just got easier`,
+              ...eventLink(event.id),
               description:
                 'An easier option is now open there. Finish the tile as written or do the easier option instead; either one finishes the tile, and what your team already did still counts. Open the tile on the board or in the plugin to see it.',
               color: 0xd4a017,

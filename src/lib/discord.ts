@@ -18,6 +18,7 @@ import {
 import { eventHookTargets } from '@/lib/eventWebhooks';
 import { EVENT_POST_KINDS, type EventPostKind } from '@/lib/eventWebhookKinds';
 import { clanMarkUrl, eventMarkUrl } from '@/lib/clanMarkUrl';
+import { clanPageUrl, eventAuthor, eventPageUrl, eventTileUrl, siteBaseUrl } from '@/lib/eventLinks';
 import { log } from '@/lib/logger';
 // The lab and friends hosts (lib/friendEventRules) never post: lib/friendEventsSql isHiddenHost.
 import { isHiddenHost } from '@/lib/friendEventsSql';
@@ -823,7 +824,8 @@ export async function notifyWeeklyHuntDrop(post: HuntDropPost, existingMessageId
   if (await feedOff(post.clanId, 'weekly')) return { status: 'skipped' };
   const destination = await resolveWebhookDestination(post.clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!destination) return { status: 'skipped' };
-  return upsertWebhookMessage(destination, { embeds: [await withClanCrest(post.clanId, huntDropEmbed(post))] }, post.clanId, existingMessageId);
+  const embed = { ...huntDropEmbed(post), ...(await competitionLink(post.clanId, post.competitionId)) };
+  return upsertWebhookMessage(destination, { embeds: [await withClanCrest(post.clanId, embed)] }, post.clanId, existingMessageId);
 }
 
 /** Take an item hunt drop's post down (the drop was turned down after it went out). */
@@ -968,18 +970,7 @@ export async function sendTestWebhook(webhookUrl: string): Promise<boolean> {
   }
 }
 
-// The author line every board post opens with: "<event>" or "<event> · <team>", linking to the
-// event page when the site URL is known. It carries the context that used to sit in three inline
-// Event/Tile/Team fields, which frees the title to say what actually happened.
-function eventAuthor(
-  eventId: number | null | undefined,
-  eventName: string,
-  teamName?: string | null,
-): Pick<DiscordEmbed, 'author'> {
-  const name = teamName ? `${eventName} · ${teamName}` : eventName;
-  const url = eventId != null ? eventLeaderboardUrl(eventId) : null;
-  return { author: { name: clamp(name, LIMIT.author), ...(url ? { url } : {}) } };
-}
+// The author line every board post opens with, and the event link on its title: lib/eventLinks eventAuthor.
 
 // Thumbnail for a tile-driven post — the tile's own item/skill/boss sprite, the same image the
 // board renders. Absent for tiles with no derivable icon (e.g. manual tiles).
@@ -1732,17 +1723,8 @@ async function memberPingRoleId(clanId: number): Promise<string | null> {
   return (await getSettingUrl(clanId, MEMBER_ROLE_KEY)) || null;
 }
 
-// Public site origin, derived from the OAuth redirect URI (cron has no request context to read a
-// host header from). Used to build deep links into the app for Discord posts. Null if unconfigured.
-export function siteBaseUrl(): string | null {
-  const uri = process.env.DISCORD_REDIRECT_URI;
-  if (!uri) return null;
-  try {
-    return new URL(uri).origin;
-  } catch {
-    return null;
-  }
-}
+// Public site origin (lib/eventLinks, the pure half); re-exported, since every caller looks for it here.
+export { siteBaseUrl };
 
 // The clan's crest image, as an author-line icon for the lifecycle announcements — the clan's mark on
 // its own big posts, alongside the Anvil mark in the footer. Keyed by SLUG because these posts are
@@ -1775,11 +1757,8 @@ async function withClanCrest(clanId: number, embed: DiscordEmbed, eventId?: numb
   return embed;
 }
 
-// Live standings page for an event — the public board doubles as the leaderboard.
-function eventLeaderboardUrl(eventId: number): string | null {
-  const base = siteBaseUrl();
-  return base ? `${base}/events/${eventId}` : null;
-}
+// Live standings page for an event — the public board doubles as the leaderboard (lib/eventLinks).
+const eventLeaderboardUrl = eventPageUrl;
 
 /** A tile as the notifiers receive it: icon facts, plus the id when the caller has the row. */
 type LinkedTile = IconableTile & { id?: number | null };
@@ -1791,8 +1770,7 @@ function isPartTile(tile: LinkedTile | null | undefined): boolean {
 
 // A tile post links to that tile opened on the board (the event page reads ?tile=), not just the board.
 function tileBoardUrl(eventId: number, tile: LinkedTile | null | undefined): string | null {
-  const url = eventLeaderboardUrl(eventId);
-  return url && tile?.id ? `${url}?tile=${tile.id}` : url;
+  return eventTileUrl(eventId, tile?.id);
 }
 
 // The "go look at the board" call to action, as a trailing description line rather than the old
@@ -1848,7 +1826,7 @@ export async function notifyEventStartHeld(params: EventStartHeldNotifyParams): 
   const { eventName, scheduledStart, blockers } = params;
 
   const embed: DiscordEmbed = {
-    author: { name: eventName },
+    ...eventAuthor(params.eventId, eventName),
     title: '⏸️ Start held',
     description:
       `**${eventName}** was due to start ${discordTime(scheduledStart)} but isn't ready to go live:\n` +
@@ -2297,9 +2275,24 @@ function weeklyGroupField(type: string, g: WeeklyGroupPost, label: string) {
   return field(label, lines.join('\n') || 'No teams yet', false);
 }
 
+/**
+ * A competition's page, as the title link on its posts: under the channel's OWN clan, which is the
+ * host or a clan that raced in it (the weekly page serves both, lib/weeklyScope competitionForClan).
+ * Competitions are an in-game clan's: a space or friends host has no weekly page, so no link.
+ */
+async function competitionLink(clanId: number, competitionId: number | null | undefined): Promise<Pick<DiscordEmbed, 'url'>> {
+  if (competitionId == null || !siteBaseUrl()) return {};
+  const clan = await db.query.clans.findFirst({ columns: { slug: true, kind: true }, where: eq(clans.id, clanId) });
+  if (!clan || (clan.kind && clan.kind !== 'clan')) return {};
+  const url = clanPageUrl(clan, `/weekly/${competitionId}`);
+  return url ? { url } : {};
+}
+
 interface WeeklyStartParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
+  /** The competition, for the title link to its page. */
+  competitionId?: number | null;
   /** A role to ping with it (the host clan's own server only); null = no ping. */
   pingRoleId?: string | null;
   type: string;   // 'skill' | 'boss'
@@ -2338,6 +2331,7 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
     ...weeklyThumbnail(type, metric, hunt),
     // Just the admin-set title — no raw metric key (e.g. "lunarChests").
     title: clamp(`${emoji} ${title}`, LIMIT.title),
+    ...(await competitionLink(params.clanId, params.competitionId)),
     // No sign-up step to advertise: the clan roster IS the entry list, so everyone synced from the
     // in-game clan is already racing. Saying "enroll with the plugin" sent people looking for a
     // button that doesn't exist. What the plugin actually does is track your gains live.
@@ -2386,6 +2380,7 @@ function weeklyAmount(type: string, n: number, hunt: boolean | WeeklyHuntPost | 
  */
 export async function notifyWeeklyDaily(params: {
   clanId: number;
+  competitionId?: number | null;
   type: string;
   title: string;
   metric: string;
@@ -2416,6 +2411,7 @@ export async function notifyWeeklyDaily(params: {
     author: { name: `${hunt ? hunt.kind : weeklyKind(type)} · day ${params.dayNumber}` },
     ...weeklyThumbnail(type, metric, hunt),
     title: clamp(`📅 ${title}`, LIMIT.title),
+    ...(await competitionLink(params.clanId, params.competitionId)),
     description: said.join(' '),
     color: EMBED_COLOR.gold,
     fields: [
@@ -2429,6 +2425,7 @@ export async function notifyWeeklyDaily(params: {
 /** Halfway through a competition: the standings so far (groups for teams and clan-vs-clan, players for solo). */
 export async function notifyWeeklyHalfway(params: {
   clanId: number;
+  competitionId?: number | null;
   type: string;
   title: string;
   metric: string;
@@ -2446,6 +2443,7 @@ export async function notifyWeeklyHalfway(params: {
       author: { name: `${params.hunt ? params.hunt.kind : weeklyKind(type)} · halfway` },
       ...weeklyThumbnail(type, metric, params.hunt),
       title: clamp(`⏳ ${title}`, LIMIT.title),
+      ...(await competitionLink(params.clanId, params.competitionId)),
       description: top
         ? `Halfway there — **${top.rsn}** leads. Ends ${discordTime(endDate, 'R')}.`
         : `Halfway there and nobody is on the board yet. Ends ${discordTime(endDate, 'R')}.`,
@@ -2459,6 +2457,7 @@ export async function notifyWeeklyHalfway(params: {
     author: { name: `${weeklyKind(type)} · halfway` },
     ...weeklyThumbnail(type, metric),
     title: clamp(`⏳ ${title}`, LIMIT.title),
+    ...(await competitionLink(params.clanId, params.competitionId)),
     description: leader && leader.total > 0
       ? `Halfway there — **${leader.name}** leads. Ends ${discordTime(endDate, 'R')}.`
       : `Halfway there and it's still level. Ends ${discordTime(endDate, 'R')}.`,
@@ -2471,6 +2470,8 @@ export async function notifyWeeklyHalfway(params: {
 interface WeeklyResultsParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
+  /** The competition, for the title link to its page. */
+  competitionId?: number | null;
   /** A role to ping with it (the host clan's own server only); null = no ping. */
   pingRoleId?: string | null;
   type: string;
@@ -2522,6 +2523,7 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
     author: { name: `${kind} · results` },
     ...weeklyThumbnail(type, metric, hunt),
     title: clamp(`🏁 ${title}`, LIMIT.title),
+    ...(await competitionLink(params.clanId, params.competitionId)),
     description: hunt
       ? `**${hunt.line}**\n` +
         (winner

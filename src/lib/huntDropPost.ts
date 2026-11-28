@@ -30,6 +30,8 @@ export function huntProofOpen(row: { status: string; createdAtMs: number | null 
 
 export interface HuntDropPost {
   clanId: number;
+  /** The hunt (a weekly competition), for the title link to its page. */
+  competitionId?: number | null;
   /** The hunt's title, as its start and results posts show it. */
   title: string;
   /** 'Item hunt' or 'Pet hunt'. */

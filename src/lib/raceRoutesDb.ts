@@ -14,6 +14,7 @@ import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { notifyTileCompletion, notifyTeamWin, sendEventBingoWebhook } from '@/lib/discord';
+import { eventLink } from '@/lib/eventLinks';
 
 /**
  * The win check on a BRANCHING tile race (lib/raceRoutes): the first team to finish an end tile wins
@@ -391,7 +392,7 @@ export async function applyLiveRouteEdit(args: {
       }
       const correction = () =>
         sendEventBingoWebhook(event.clanId, event.id, {
-          embeds: [{ title: 'Rolled back by an admin', description: `The race route for **${event.name}** changed. ${t.teamName}: ${lines} no longer count${t.tiles.length === 1 ? 's' : ''}.`, color: 0x7a5f18 }],
+          embeds: [{ title: 'Rolled back by an admin', ...eventLink(event.id), description: `The race route for **${event.name}** changed. ${t.teamName}: ${lines} no longer count${t.tiles.length === 1 ? 's' : ''}.`, color: 0x7a5f18 }],
         }, { post: 'tileComplete', teamId: t.teamId, tileIds: t.tiles.map((x) => x.id) }).catch(() => false);
       if (discord === 'correct') void correction();
       else if (discord === 'edit' || discord === 'delete') {
