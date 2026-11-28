@@ -1695,6 +1695,13 @@
       "when": 1795851416696,
       "tag": "0305_final_read_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1795869836485,
+      "tag": "0306_discord_avatar_checked",
+      "breakpoints": true
     }
   ]
 }
