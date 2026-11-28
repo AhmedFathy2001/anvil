@@ -171,9 +171,9 @@ export function eventPageWords(
 export const WEEKLY_VERB: Record<WeeklyKind, string> = { skill: 'training', boss: 'bossing', efficiency: 'playing', hunt: 'hunting' };
 
 /**
- *   "Lynx Titan leads with +4.82M xp · 38 members training · 3d 2h left"
- *   "Finished · Lynx Titan won with 212 kc · 1,284 kills across 41 members"
- *   "Starts in 2d · 38 members signed up"
+ *   "Lynx Titan leads with +4.82M xp, 38 members training, 3d 2h left"
+ *   "Finished, Lynx Titan won with 212 kc, 1,284 kills across 41 members"
+ *   "Starts in 2d, 38 members signed up"
  *
  * `board` is the leaderboard already sorted, gainers only.
  */
@@ -189,7 +189,7 @@ export function weeklyLinkDescription(
     const until = timeLeft(comp.startDate, now);
     return [until ? `Starts in ${until}` : 'Coming up', enrolled ? `${plural(enrolled, 'member')} signed up` : null]
       .filter(Boolean)
-      .join(' · ');
+      .join(', ');
   }
   if (comp.status === 'completed') {
     const total = board.reduce((s, e) => s + e.gained, 0);
@@ -199,7 +199,7 @@ export function weeklyLinkDescription(
       board.length ? `${weeklyTotal(kind, total, comp.points)} across ${plural(board.length, 'member')}` : null,
     ]
       .filter(Boolean)
-      .join(' · ');
+      .join(', ');
   }
   const left = timeLeft(comp.endDate, now);
   return [
@@ -208,7 +208,7 @@ export function weeklyLinkDescription(
     left ? `${left} left` : null,
   ]
     .filter(Boolean)
-    .join(' · ');
+    .join(', ');
 }
 
 // ── Member ─────────────────────────────────────────────────────────────────────────────────────

@@ -115,7 +115,7 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
 
   return weeklyCard({
     kind,
-    eyebrow: `${hunt ? huntKindWord(hunt) : KIND_LABEL[kind]} · ${stage === 'completed' ? 'Finished' : name}`,
+    eyebrow: `${hunt ? huntKindWord(hunt) : KIND_LABEL[kind]}, ${stage === 'completed' ? 'Finished' : name}`,
     stage,
     title,
     subtitle,

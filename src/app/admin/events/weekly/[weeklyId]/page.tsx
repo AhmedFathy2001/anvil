@@ -10,7 +10,8 @@ import HuntAdminClient, { type HuntAttention } from './HuntAdminClient';
 import HuntMediaNote from './HuntMediaNote';
 import { huntPrizeBoard, huntStandings } from '@/lib/itemHuntDb';
 import { buildHuntView } from '@/lib/itemHuntView';
-import { huntStat } from '@/lib/itemHunt';
+import { huntScoresPoints, huntStat } from '@/lib/itemHunt';
+import { weeklyGain } from '@/lib/weeklyLabels';
 import { SKILL_LABELS } from '@/lib/constants';
 import { idParam } from '@/lib/routeIds';
 import { parsePrizeCurrency } from '@/lib/competitionGame';
@@ -90,7 +91,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
     const asItStands = view.rows
       .filter((r) => r.count > 0)
       .slice(0, 3)
-      .map((r) => `${r.rank}. ${r.rsn} (${r.count} ${r.count === 1 ? 'drop' : 'drops'})`);
+      .map((r) => `${r.rank}. ${r.rsn} (${weeklyGain('hunt', r.count, view.rule === 'rush' || view.rule === 'points')})`);
     const renderedAt = new Date().getTime();
     return (
       <>
@@ -115,6 +116,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
         id: comp.id,
         title: comp.title,
         type: comp.type,
+        points: huntScoresPoints(comp.hunt),
         metric: comp.metric,
         startDate: comp.startDate,
         endDate: comp.endDate,

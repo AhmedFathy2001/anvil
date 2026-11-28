@@ -21,11 +21,14 @@ export function weeklyStatValue(type: string, value: number | null): string {
   return type === 'efficiency' ? formatEfficiencyHours(value) : value.toLocaleString();
 }
 
-/** A gain, with its unit — '4.1m xp', '412 kills', '12.4 hrs'. */
-export function weeklyGain(type: string, gained: number): string {
+/**
+ * A gain, with its unit — '4.1m xp', '412 kills', '12.4 hrs'. `points`: a hunt scored in points (a
+ * Boss Rush, a points hunt), whose board number is points, never drops (lib/itemHunt huntScoresPoints).
+ */
+export function weeklyGain(type: string, gained: number, points = false): string {
   if (type === 'efficiency') return `${formatEfficiencyHours(gained)} hrs`;
-  // An item hunt's board counts drops (lib/itemHuntDb competitionBoard).
-  if (type === 'hunt') return `${gained.toLocaleString()} ${gained === 1 ? 'drop' : 'drops'}`;
+  // An item hunt's board counts drops, or points when it scores them (lib/itemHuntDb competitionBoard).
+  if (type === 'hunt') return points ? `${gained.toLocaleString()} ${gained === 1 ? 'point' : 'points'}` : `${gained.toLocaleString()} ${gained === 1 ? 'drop' : 'drops'}`;
   if (type === 'boss') return `${gained.toLocaleString()} kills`;
   if (gained >= 1_000_000) return `${(gained / 1_000_000).toFixed(1).replace(/\.0$/, '')}m xp`;
   if (gained >= 1_000) return `${Math.round(gained / 1_000)}k xp`;

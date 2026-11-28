@@ -121,11 +121,11 @@ export default function HuntAdminClient({
       <div className="-mt-2 flex flex-wrap items-center justify-between gap-3">
         <p className="min-w-0 text-sm text-text-muted">
           <span className="font-medium text-foreground/90">{view.kindWord}:</span> {view.line}
-          {!ended && <> · ends {view.endingWords}</>}
+          {!ended && <>, ends {view.endingWords}</>}
         </p>
         <div className="flex flex-wrap gap-2">
           <ClanLink href={`${base}/settings`} className="min-h-11 rounded-lg border border-card-border bg-card-bg px-3 py-2 text-sm text-text-muted transition-colors hover:border-gold/40 hover:text-gold">
-            Settings <span className="text-text-dim">· how it ends, who confirms</span>
+            Settings <span className="text-text-dim">(how it ends, who confirms)</span>
           </ClanLink>
           {view.status === 'active' && (
             <button type="button" onClick={endNow} disabled={busy === 'end'} className="min-h-11 rounded-lg border border-red-400/40 px-3 py-2 text-sm text-red-300 transition-colors hover:bg-red-400/10 disabled:opacity-50">
@@ -146,7 +146,7 @@ export default function HuntAdminClient({
         <section className="rounded-xl border border-amber-400/40 bg-amber-400/[0.06] p-4 sm:p-5">
           <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
             <span className="h-5 w-1 rounded-full bg-amber-400" />
-            Needs you <span className="text-sm font-normal text-text-muted">· {attention.length}</span>
+            Needs you <span className="text-sm font-normal text-text-muted">({attention.length})</span>
           </h2>
           <p className="mb-3 text-xs text-text-muted">A plugin report is the player&rsquo;s client speaking. Confirm what you believe; reject what you do not.</p>
           <ul className="space-y-3">
@@ -156,18 +156,18 @@ export default function HuntAdminClient({
                   <ThingIcon src={a.itemId != null ? itemIconUrl(a.itemId) : null} alt="" size={28} />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold">
-                      {a.rsn} <span className="font-normal text-text-muted">·</span> {a.itemName}
+                      {a.rsn}<span className="font-normal text-text-muted">:</span> {a.itemName}
                     </p>
                     <p className="text-xs text-text-muted">
                       <LocalTime date={a.occurredAt} format="short" />
-                      {a.source ? ` · from ${a.source}` : ' · no source given'} · {WHY[a.why]}
+                      {a.source ? `, from ${a.source}` : ', no source given'}, {WHY[a.why]}
                     </p>
                     {a.reason && <p className="mt-1 text-xs text-amber-300">{a.reason}</p>}
                     {(a.stated || a.site) && (
                       <p className={`mt-1 text-xs ${a.mismatch ? 'text-amber-300' : 'text-text-muted'}`}>
                         {a.stated ? `Says ${a.stated}` : 'No number given'}
-                        {a.site ? ` · the site read ${a.site} then` : ' · the site has no reading to compare'}
-                        {a.mismatch && ' · these do not agree'}
+                        {a.site ? `, the site read ${a.site} then` : ', the site has no reading to compare'}
+                        {a.mismatch && ', these do not agree'}
                       </p>
                     )}
                     {a.note && <p className="mt-1 text-xs italic text-text-muted">&ldquo;{a.note}&rdquo;</p>}

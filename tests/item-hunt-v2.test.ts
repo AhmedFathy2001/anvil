@@ -257,7 +257,7 @@ test('"all of them": the first to hold every row wins and ends it; the rest rank
     ['c', 0, 0, null],
   ]);
   const line = huntPanelLine(c, rows[1], null);
-  assert.equal(line.figure, '8 pts · 2/3');
+  assert.equal(line.figure, '8 pts, 2/3');
 });
 
 test('how due reads: tenths under 10%, never a flat 0% for a few kills of a rare pet', () => {

@@ -44,11 +44,11 @@ test('a screenshot can be added for a while after the drop, never to a turned-do
 
 test('the post says who got what, from where, at what kc, and where it leaves them', () => {
   const e = huntDropEmbed(post());
-  assert.equal(e.author?.name, 'Item hunt · new drop');
+  assert.equal(e.author?.name, 'Item hunt: new drop');
   assert.equal(e.title, '🎁 Zulrah fang hunt');
   assert.equal(e.description, '**Minyol** got **Tanzanite fang** from **Zulrah** at 512 kc.');
   assert.deepEqual(e.fields?.map((f) => [f.name, f.value]), [
-    ['Standing', '🥇 1st · 2 drops'],
+    ['Standing', '🥇 1st, 2 drops'],
     ['Counted from', 'plugin'],
     ['Ends', `<t:${Date.parse('2026-12-01T20:00:00.000Z') / 1000}:R>`],
   ]);
@@ -60,7 +60,7 @@ test('the same post carries the screenshot once it lands, and a points hunt coun
   assert.deepEqual(huntDropEmbed(post({ imageUrl: 'https://cdn.example/a.webp' })).image, { url: 'https://cdn.example/a.webp' });
   const e = huntDropEmbed(post({ rule: 'points', count: 1, place: 4, source: null, stat: null, quantity: 3 }));
   assert.equal(e.description, '**Minyol** got **Tanzanite fang ×3**.');
-  assert.equal(e.fields?.[0].value, '4th · 1 point');
+  assert.equal(e.fields?.[0].value, '4th, 1 point');
 });
 
 test('"first to get it": a player with a drop is done, in their place', () => {
@@ -68,7 +68,7 @@ test('"first to get it": a player with a drop is done, in their place', () => {
   assert.equal(placeWords(2), '2nd');
   assert.equal(placeWords(13), '13th');
   assert.equal(placeWords(22), '22nd');
-  assert.equal(firstDoneWords(1), 'Done · 1st');
+  assert.equal(firstDoneWords(1), 'Done, 1st');
   assert.match(firstRuleWords(4), /Any one of the 4 targets counts/);
   assert.match(firstRuleWords(4), /the next to get any of them takes the next place/);
   assert.doesNotMatch(firstRuleWords(1), /targets/);
@@ -78,7 +78,7 @@ test('"first to get it": a player with a drop is done, in their place', () => {
     items: [1, 2, 3, 4].map((id) => ({ id, name: `Pet ${id}`, sources: [], count: 'drops', pet: true, stat: null })),
   } as HuntConfig;
   const done = huntPanelLine(config, { count: 1, held: 1, due: 0.2, drops: [], rank: 2 }, [{ id: 3, name: 'Pet 3', label: 'The Leviathan', unit: 'kc', gain: 3, due: 0.001, rate: 2500 } as never]);
-  assert.deepEqual(done, { figure: 'Done · 2nd', sub: null }, 'no "1 of 4", no progress toward the rest');
+  assert.deepEqual(done, { figure: 'Done, 2nd', sub: null }, 'no "1 of 4", no progress toward the rest');
   const hunting = huntPanelLine(config, { count: 0, held: 0, due: 0.4, drops: [], rank: 3 }, null);
   assert.equal(hunting.figure, '40% due', 'still hunting: the due figure stays');
 });

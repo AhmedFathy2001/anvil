@@ -569,7 +569,7 @@ export function huntLine(config: HuntConfig | null, metric: string): string {
   return `${targets}, ${huntRuleWords(config)}`;
 }
 
-/** "Item hunt: Tumeken's shadow from Tombs of Amascut · first to get it" */
+/** "Item hunt: Tumeken's shadow from Tombs of Amascut, first to get it" */
 export function huntTitleLine(config: HuntConfig | null, metric: string): string {
   return `${huntKindWord(config)}: ${huntLine(config, metric)}`;
 }
@@ -981,7 +981,7 @@ export function rowProgressWords(p: Pick<HuntRowProgress, 'label' | 'unit' | 'ga
 
 /**
  * The plugin panel's two texts for one player of a v2 hunt (the mock's side panel): on the right
- * "8 pts · 2/3" for a player with drops, "61% due" for one without; under the name, their progress
+ * "8 pts, 2/3" for a player with drops, "61% due" for one without; under the name, their progress
  * on the rows they are still missing.
  */
 export function huntPanelLine(
@@ -999,10 +999,10 @@ export function huntPanelLine(
   if (config.rule === 'first' && row.count > 0 && row.rank != null) return { figure: firstDoneWords(row.rank), sub: null };
   const total = huntRows(config).length;
   const unit = config.rule === 'points' ? 'pts' : row.count === 1 ? 'drop' : 'drops';
-  const figure = row.count > 0 ? `${row.count.toLocaleString('en-US')} ${config.rule === 'first' ? (row.count === 1 ? 'drop' : 'drops') : unit}${total > 1 ? ` · ${row.held}/${total}` : ''}` : row.due != null ? (row.due > 0 ? `${dueWords(row.due)} due` : 'no kc yet') : null;
+  const figure = row.count > 0 ? `${row.count.toLocaleString('en-US')} ${config.rule === 'first' ? (row.count === 1 ? 'drop' : 'drops') : unit}${total > 1 ? `, ${row.held}/${total}` : ''}` : row.due != null ? (row.due > 0 ? `${dueWords(row.due)} due` : 'no kc yet') : null;
   const have = new Set(row.drops.map((d) => d.itemId));
   const words = (progress ?? []).filter((p) => !have.has(p.id) && (p.gain ?? 0) > 0).map(rowProgressWords).filter((w): w is string => !!w);
-  return { figure, sub: words.length > 0 ? words.slice(0, 2).join(' · ') : null };
+  return { figure, sub: words.length > 0 ? words.slice(0, 2).join(', ') : null };
 }
 
 /**
@@ -1333,10 +1333,10 @@ export function placeWords(place: number): string {
 
 /**
  * A "first to get it" player with a drop: finished, in the place their first counting drop gave them
- * (rankHunt orders them by firstAt). "Done · 1st".
+ * (rankHunt orders them by firstAt). "Done, 1st".
  */
 export function firstDoneWords(rank: number): string {
-  return `Done · ${placeWords(rank)}`;
+  return `Done, ${placeWords(rank)}`;
 }
 
 /**

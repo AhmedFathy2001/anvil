@@ -343,14 +343,14 @@ export async function eventCard(d: EventCardData): Promise<Response> {
 
 export interface WeeklyCardData {
   kind: 'skill' | 'boss' | 'efficiency' | 'hunt';
-  /** "Skill of the Week · The AFK Spot". */
+  /** "Skill of the Week, The AFK Spot". */
   eyebrow: string;
   stage: 'upcoming' | 'active' | 'completed';
   /** The metric, as English: "Woodcutting", "Vorkath". */
   title: string;
   /** The clan's own name for it, when it says more than the metric does. */
   subtitle: string | null;
-  /** "38 members chopping · 3 days left". */
+  /** "38 members chopping, 3 days left". */
   line: string;
   /** The skill icon (pixel art) or the boss's picture. */
   art: Pic;
@@ -446,7 +446,7 @@ export async function weeklyCard(d: WeeklyCardData): Promise<Response> {
       ) : null}
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', fontSize: 20, letterSpacing: 3, textTransform: 'uppercase', color: C.gold }}>Winner</div>
-        <div style={{ display: 'flex', fontSize: 34, fontWeight: 700, marginTop: 4 }}>{`${clip(d.winner.rsn, 14)} · ${d.winner.gain}`}</div>
+        <div style={{ display: 'flex', fontSize: 34, fontWeight: 700, marginTop: 4 }}>{`${clip(d.winner.rsn, 14)}, ${d.winner.gain}`}</div>
         {d.winner.highlight ? (
           <div style={{ display: 'flex', fontSize: 20, color: C.muted, marginTop: 4 }}>{clip(d.winner.highlight, 48)}</div>
         ) : null}

@@ -80,13 +80,13 @@ test('a weekly reads as a race while it runs and a result once it ends', () => {
   const live = { type: 'skill', status: 'active', startDate: '2026-10-10', endDate: '2026-10-15T00:00:00Z' };
   assert.equal(
     weeklyLinkDescription(live, 38, [{ rsn: 'Lynx Titan', gained: 4_820_113 }, { rsn: 'Zezima', gained: 1 }], NOW),
-    'Lynx Titan leads with +4.82M xp · 2 members training · 2d 12h left',
+    'Lynx Titan leads with +4.82M xp, 2 members training, 2d 12h left',
   );
-  assert.equal(weeklyLinkDescription(live, 38, [], NOW), 'Nobody on the board yet · 38 members training · 2d 12h left');
+  assert.equal(weeklyLinkDescription(live, 38, [], NOW), 'Nobody on the board yet, 38 members training, 2d 12h left');
   const done = { type: 'boss', status: 'completed', startDate: '2026-10-01', endDate: '2026-10-08' };
   assert.equal(
     weeklyLinkDescription(done, 41, [{ rsn: 'Lynx Titan', gained: 212 }, { rsn: 'B', gained: 100 }], NOW),
-    'Finished · Lynx Titan won with 212 kc · 312 kills across 2 members',
+    'Finished, Lynx Titan won with 212 kc, 312 kills across 2 members',
   );
 });
 
