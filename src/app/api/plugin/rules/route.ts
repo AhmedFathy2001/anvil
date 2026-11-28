@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
 async function rushRulesForCaller(request: Request) {
   const member = await resolvePluginMember(request);
-  return member ? rushKillRules(member.clanId, member.clanMemberId) : {};
+  return member ? rushKillRules(member.clanId, member.clanMemberId, Date.now(), request.headers.get('X-Account-Hash')?.trim() || null) : {};
 }
 
 // A signed-in plugin with or without a live board (a hunt runs without one). The character is the

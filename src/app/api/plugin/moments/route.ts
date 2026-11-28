@@ -279,7 +279,7 @@ export async function POST(request: Request) {
   // targets whatever the feed's floors below would keep. From the main game, or from the mode a hunt
   // counts (lib/competitionGame); a character in a hunt is the only one it does anything for. Never
   // fails the push.
-  const hunted = await recordHuntReports(member, clan.id, observations, new Date(now), mode?.key ?? null).catch((err) => {
+  const hunted = await recordHuntReports({ ...member, accountHash: request.headers.get('X-Account-Hash')?.trim() || null }, clan.id, observations, new Date(now), mode?.key ?? null).catch((err) => {
     log.warn('hunt.record-failed', { clanId: clan.id }, err);
     return null;
   });

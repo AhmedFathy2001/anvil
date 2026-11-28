@@ -250,6 +250,37 @@ export async function competitionBoard(
 
 // ── Plugin reports ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Every roster row in this clan that is this character: its own, and any whose account carries the
+ * Jagex account hash the plugin sent. A rename leaves the old row (where a running rush's entry is)
+ * beside a new, hash-less one under the new name until the roster merges them, which can take a day,
+ * and the plugin reports as the new one. Matching the hash means a mid-event rename never loses a
+ * drop, a death or a kill (it did: 2026-11-28, a fang and a death). Only rows the same person owns.
+ */
+async function sameCharacterMemberIds(clanMemberId: number, accountHash: string | null | undefined): Promise<number[]> {
+  if (!accountHash) return [clanMemberId];
+  // clan-scope: this clan -- the caller's own roster row, then rows in its clan on that hash.
+  const [me] = await db.select({ clanId: clanRoster.clanId, playerId: clanRoster.playerId }).from(clanRoster).where(eq(clanRoster.id, clanMemberId)).limit(1);
+  // Only the reporter's OWN rows: the hash is the client's word, and someone else's hash must never
+  // land a death (or a drop) on their entry.
+  if (!me || me.playerId == null) return [clanMemberId];
+  const rows = await db
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.clanId, me.clanId), eq(clanRoster.playerId, me.playerId), eq(clanRoster.accountHash, accountHash)));
+  return [clanMemberId, ...rows.map((r) => r.id).filter((id) => id !== clanMemberId)];
+}
+
+/** Of a character's rows' seats, the one for each competition: their own row's first, else the other's. */
+function seatPerCompetition<T extends { competitionId: number; clanMemberId: number | null }>(seats: T[], ids: number[]): T[] {
+  const best = new Map<number, T>();
+  for (const s of seats) {
+    const cur = best.get(s.competitionId);
+    if (!cur || ids.indexOf(s.clanMemberId ?? -1) < ids.indexOf(cur.clanMemberId ?? -1)) best.set(s.competitionId, s);
+  }
+  return [...best.values()];
+}
+
 /** The running hunts in a clan, with their rules. */
 async function activeHunts(clanId: number, nowMs: number): Promise<{ comp: Competition; config: HuntConfig }[]> {
   // Running by its dates, not by the stored status: the lifecycle cron flips 'upcoming' to 'active'
@@ -348,7 +379,8 @@ const HUNT_DROP_LIMIT = { limit: 30, windowMs: 10 * 60_000 };
  *   - inserts are rate limited per character.
  */
 export async function recordHuntReports(
-  member: { clanMemberId: number; rsn: string },
+  /** `accountHash`: the Jagex account hash the plugin sent (X-Account-Hash), to find a renamed character's entry. */
+  member: { clanMemberId: number; rsn: string; accountHash?: string | null },
   clanId: number,
   reports: HuntReport[],
   now: Date = new Date(),
@@ -360,19 +392,22 @@ export async function recordHuntReports(
   // Only the hunts that count this world: the main game, or the mode a hunt is set to (lib/competitionGame).
   const hunts = (await activeHunts(clanId, now.getTime())).filter((h) => countsWorld(h.comp.countsOn, modeKey));
   if (hunts.length === 0) return none;
-  // clan-scope: this clan -- the member's own seat in this clan's running hunts.
-  const seats = await db
+  // clan-scope: this clan -- the member's own seat in this clan's running hunts (through any of its
+  // rows here on the same account hash: a renamed character's entry is on its old row until the roster merges them).
+  const ids = await sameCharacterMemberIds(member.clanMemberId, member.accountHash);
+  const seatRows = await db
     .select()
     .from(weeklyParticipants)
     .where(
       and(
         inArray(weeklyParticipants.competitionId, hunts.map((h) => h.comp.id)),
-        eq(weeklyParticipants.clanMemberId, member.clanMemberId),
+        inArray(weeklyParticipants.clanMemberId, ids),
         eq(weeklyParticipants.optedOut, false),
         // A Hardcore Worlds character that died mid-hunt keeps what it found and finds nothing more.
         isNull(weeklyParticipants.stoppedAt),
       ),
     );
+  const seats = seatPerCompetition(seatRows, ids);
   let stored = 0;
   const proofs: HuntProofKey[] = [];
   const deathProofs: string[] = [];
@@ -568,7 +603,7 @@ const RUSH_KILL_LIMIT = { limit: 240, windowMs: 10 * 60_000 };
  * group target are noted with the time for Clan Synergy (lib/bossRushRules rushSynergy).
  */
 export async function creditRushKills(
-  member: { clanMemberId: number },
+  member: { clanMemberId: number; accountHash?: string | null },
   owner: FactOwner | null,
   clanId: number,
   facts: RushKillFact[],
@@ -582,18 +617,22 @@ export async function creditRushKills(
   // Only the rushes that count this world: the main game, or the mode a rush is set to (lib/competitionGame).
   const rushes = (await activeHunts(clanId, now.getTime())).filter((h) => isRush(h.config) && countsWorld(h.comp.countsOn, modeKey));
   if (rushes.length === 0) return done;
-  // clan-scope: this clan -- the member's own seats in this clan's running rushes.
-  const seats = await db
-    .select({ id: weeklyParticipants.id, competitionId: weeklyParticipants.competitionId })
-    .from(weeklyParticipants)
-    .where(
-      and(
-        inArray(weeklyParticipants.competitionId, rushes.map((h) => h.comp.id)),
-        eq(weeklyParticipants.clanMemberId, member.clanMemberId),
-        eq(weeklyParticipants.optedOut, false),
-        isNull(weeklyParticipants.stoppedAt),
+  // clan-scope: this clan -- the member's own seats in this clan's running rushes (any row on its account hash).
+  const ids = await sameCharacterMemberIds(member.clanMemberId, member.accountHash);
+  const seats = seatPerCompetition(
+    await db
+      .select({ id: weeklyParticipants.id, competitionId: weeklyParticipants.competitionId, clanMemberId: weeklyParticipants.clanMemberId })
+      .from(weeklyParticipants)
+      .where(
+        and(
+          inArray(weeklyParticipants.competitionId, rushes.map((h) => h.comp.id)),
+          inArray(weeklyParticipants.clanMemberId, ids),
+          eq(weeklyParticipants.optedOut, false),
+          isNull(weeklyParticipants.stoppedAt),
+        ),
       ),
-    );
+    ids,
+  );
   const hit = new Set<number>();
   for (const { comp, config } of rushes) {
     const seat = seats.find((s) => s.competitionId === comp.id);
@@ -643,7 +682,7 @@ export async function creditRushKills(
 }
 
 /** The kill rules a character's plugin is handed for the rushes they are in (api/plugin/rules): every name of every target, counted quietly. */
-export async function rushKillRules(clanId: number, clanMemberId: number | null, nowMs: number = Date.now()): Promise<Record<string, KillRule[]>> {
+export async function rushKillRules(clanId: number, clanMemberId: number | null, nowMs: number = Date.now(), accountHash: string | null = null): Promise<Record<string, KillRule[]>> {
   const out: Record<string, KillRule[]> = {};
   if (clanMemberId == null) return out;
   const rushes = (await activeHunts(clanId, nowMs)).filter((h) => isRush(h.config));
@@ -652,7 +691,7 @@ export async function rushKillRules(clanId: number, clanMemberId: number | null,
   const seats = await db
     .select({ competitionId: weeklyParticipants.competitionId })
     .from(weeklyParticipants)
-    .where(and(inArray(weeklyParticipants.competitionId, rushes.map((h) => h.comp.id)), eq(weeklyParticipants.clanMemberId, clanMemberId), eq(weeklyParticipants.optedOut, false)));
+    .where(and(inArray(weeklyParticipants.competitionId, rushes.map((h) => h.comp.id)), inArray(weeklyParticipants.clanMemberId, await sameCharacterMemberIds(clanMemberId, accountHash)), eq(weeklyParticipants.optedOut, false)));
   const entered = new Set(seats.map((s) => s.competitionId));
   for (const { comp, config } of rushes) {
     if (!entered.has(comp.id)) continue;
@@ -665,8 +704,8 @@ export async function rushKillRules(clanId: number, clanMemberId: number | null,
 }
 
 /** Is this character entered in a running rush here? The plugin then reports kills without a board. */
-export async function inRunningRush(clanId: number, clanMemberId: number | null, nowMs: number = Date.now()): Promise<boolean> {
-  return Object.keys(await rushKillRules(clanId, clanMemberId, nowMs)).length > 0;
+export async function inRunningRush(clanId: number, clanMemberId: number | null, nowMs: number = Date.now(), accountHash: string | null = null): Promise<boolean> {
+  return Object.keys(await rushKillRules(clanId, clanMemberId, nowMs, accountHash)).length > 0;
 }
 
 /**
