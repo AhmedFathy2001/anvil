@@ -113,6 +113,7 @@ export async function announceCompetitionStart(comp: Comp): Promise<void> {
     try {
       await notifyWeeklyStart({
         clanId: t.clanId,
+        competitionId: comp.id,
         type: comp.type,
         title: comp.title,
         metric: comp.metric,
@@ -140,6 +141,7 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
     try {
       await notifyWeeklyResults({
         clanId: t.clanId,
+        competitionId: comp.id,
         type: comp.type,
         title: comp.title,
         metric: comp.metric,
@@ -184,6 +186,7 @@ export async function announceHalfwayIfDue(comp: Comp, nowMs = Date.now(), board
       if (!switchOn(await getSetting(t.clanId, WEEKLY_HALFWAY_KEY))) continue;
       await notifyWeeklyHalfway({
         clanId: t.clanId,
+        competitionId: comp.id,
         type: comp.type,
         title: comp.title,
         metric: comp.metric,
@@ -224,6 +227,7 @@ export async function announceCompetitionDay(
       if (!switchOn(await getSetting(t.clanId, WEEKLY_DAILY_KEY))) continue;
       sent = (await notifyWeeklyDaily({
         clanId: t.clanId,
+        competitionId: comp.id,
         type: comp.type,
         title: comp.title,
         metric: comp.metric,

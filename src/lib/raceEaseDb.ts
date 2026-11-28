@@ -29,6 +29,7 @@ import { raceGraph, teamRoute, type RaceGraph } from '@/lib/raceRoutes';
 import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { log } from '@/lib/logger';
+import { eventLink } from '@/lib/eventLinks';
 
 export interface EaseEvent {
   id: number;
@@ -326,6 +327,7 @@ async function announceLifeline(event: EaseEvent, teamId: number, tileId: number
       embeds: [
         {
           title: `${team.name} used a lifeline${where}`,
+          ...eventLink(full.id),
           description: `That tile now has an easier option for them. ${left} of ${total} ${total === 1 ? 'lifeline' : 'lifelines'} left.`,
           color: teamColorToDecimal(team.color),
         },

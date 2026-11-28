@@ -61,6 +61,7 @@ async function postFor(comp: Competition, row: HuntDropRow): Promise<HuntDropPos
   const { config, drop } = standing;
   return {
     clanId: comp.clanId,
+    competitionId: comp.id,
     title: comp.title || defaultHuntTitle(config),
     kind: huntKindWord(config),
     rule: config.rule,
