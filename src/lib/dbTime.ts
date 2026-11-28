@@ -62,3 +62,9 @@ export function daysSince(value: string | null | undefined, now: number): number
 export function dayKey(now: number, daysAgo = 0): string {
   return new Date(now - daysAgo * 86_400_000).toISOString().slice(0, 10);
 }
+
+/** A time as the database's own default writes it ('YYYY-MM-DD HH:MM:SS', UTC): for columns that default to that shape. */
+export function dbStampOf(value: string): string {
+  const ms = parseStamp(value);
+  return ms == null ? value : new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
+}

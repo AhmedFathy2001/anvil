@@ -657,6 +657,11 @@ export const events = pgTable('events', {
   endDate: text('end_date'),
   startNotified: integer('start_notified').default(0),
   endNotified: integer('end_notified').default(0),
+  /** When every player had a hiscores read after the end and its stat tiles were credited (lib/statsSweep):
+   *  the end post waits for it, or for 2 hours past the end (lib/eventLifecycle). */
+  finalReadsAt: text('final_reads_at'),
+  /** When the players' plugin readings were captured as at the end (event_participants.end_live). */
+  endLiveAt: text('end_live_at'),
   // Set once when the "start held" warning is posted (scheduled start reached while the event
   // wasn't startable — draft mid-way / no teams assigned; see lib/eventReadiness). The lifecycle
   // cron keeps nudging startDate forward while blocked, but warns exactly once. Cleared whenever
@@ -1192,6 +1197,10 @@ export const completions = pgTable('completions', {
   // decay). NULL = no modifier applied; standings fall back to the tile's live weight, which
   // keeps legacy events (and admin mid-event point re-tuning) exactly as they were.
   awardedPoints: integer('awarded_points'),
+  // Credited by a hiscores read AFTER the event ended (lib/statsSweep settling pass): how long after the
+  // end that read was taken, ms. NULL for every completion made while the event ran. completed_at stays
+  // the real time; standings still count it as inside the event. For staff to audit late credits.
+  finalReadLagMs: integer('final_read_lag_ms'),
 }, (table) => [
   uniqueIndex('team_tile_unique').on(table.teamId, table.tileId),
   index('completions_tile_id_idx').on(table.tileId),
@@ -1273,6 +1282,11 @@ export const eventParticipants = pgTable('event_participants', {
   playerToken: text('player_token'),
   cachedStats: text('cached_stats'),
   lastStatsFetch: text('last_stats_fetch'),
+  /** When this player was read from the hiscores AFTER the event ended (the settling pass), ISO. */
+  finalReadAt: text('final_read_at'),
+  /** The plugin's live readings as they stood at the end (lib/finalReadGate liveAtEnd), JSON, captured
+   *  within a minute of it by the lifecycle tick: what a late final read gives way to. */
+  endLive: text('end_live'),
   // Real-time boss KC pushed by the plugin, as a flat JSON map of hiscores boss key -> absolute
   // count ({"zulrah":1250}). Separate from cachedStats so the hourly hiscores cron never clobbers
   // it; reads take max(cachedStats, pluginStats) per key, and the cron prunes an entry once
@@ -1734,6 +1748,9 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
    * a second set of awards — this is the flag that makes it idempotent.
    */
   prizesSettledAt: text('prizes_settled_at'),
+  /** When the results were posted. Null on a finished competition still waiting on its final reads
+   *  (lib/weeklyFinish settleFinished): results wait until every entrant is read after the end, or 2 hours. */
+  resultsPostedAt: text('results_posted_at'),
   /**
    * How the competition is scored (lib/competitionTeams):
    *  - 'solo'  — everyone for themselves, the original SOTW/BOTW;
@@ -1917,6 +1934,8 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   valueLog: jsonb('value_log').$type<[number, number][]>(),
   /** The per-boss split as the HISCORES alone show it (no plugin live overlay): what a rush checks plugin kills against. */
   hiscoresParts: jsonb('hiscores_parts').$type<Record<string, number>>(),
+  /** When this entrant was read from the hiscores AFTER the competition ended (lib/weeklyFinalRead). */
+  finalReadAt: text('final_read_at'),
   // Each raid the plugin saw them finish during the rush, [[key, atMs], ...]: Clan Synergy (lib/bossRushRules rushSynergy).
   rushRaids: jsonb('rush_raids').$type<[string, number][]>(),
 }, (table) => [

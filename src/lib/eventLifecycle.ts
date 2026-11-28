@@ -1,8 +1,11 @@
+import { eventReadsDone, liveAtEnd } from '@/lib/finalReadGate';
+import { parseStatKeyTimes } from '@/lib/liveStats';
+import { parsePluginStats } from '@/lib/pluginStats';
 import { isBranchingRoute, roadBlockers, routeEntries } from '@/lib/raceRoutes';
 import { placementOf } from '@/lib/teamPlacement';
 import { notifyBoardPeople } from '@/lib/pushNotify';
 import { db } from '@/db';
-import { events, teams, tiles, completions, eventParticipants } from '@/db/schema';
+import { clanRoster, events, teams, tiles, completions, eventParticipants } from '@/db/schema';
 import { eventBoardTiles } from '@/lib/comboSql';
 import { notPractice } from '@/lib/practiceScope';
 import { eq, and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
@@ -345,7 +348,16 @@ export async function processEventLifecycleNotifications(): Promise<void> {
 
   // Events whose end time has passed but haven't been announced yet.
   for (const event of allEvents) {
+    // Within a minute of the end (this runs every minute): each player's plugin readings as they stood
+    // then, for a late final read to give way to (lib/statsSweep settling, lib/finalReadGate).
+    if (event.endDate && event.endDate < now && !event.endNotified && !event.endLiveAt) {
+      await captureEndLive(event.id, Date.parse(event.endDate)).catch((err) => log.warn('event-lifecycle.end-live-failed', { eventId: event.id }, err));
+    }
     if (event.endDate && event.endDate < now && !event.endNotified) {
+      // Results wait for every player's hiscores read after the end, credited (lib/statsSweep stamps
+      // finalReadsAt), so a last-minute XP or KC tile is on the board before it is announced; plugin
+      // or not, the same read. Up to FINAL_READ_WAIT_MS past the end, then it goes out as it stands.
+      if (!event.finalReadsAt && !eventReadsDone(await hasAutoStatTiles(event.id), Date.parse(event.endDate), Date.now())) continue;
       const flipped = await db
         .update(events)
         .set({ endNotified: 1 })
@@ -509,4 +521,33 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await sweepAnvilSupporterRoles(nowMs).catch((err) => log.warn('event-lifecycle.anvil-roles-sweep-failed', { err: String(err) }));
   // Clan boost levels: hourly, so a drop below a level starts its grace week on time (lib/clanBoosts).
   await reconcileClanBoostLevels(nowMs).catch((err) => log.warn('event-lifecycle.boost-reconcile-failed', { err: String(err) }));
+}
+
+/** Does this board have stat tiles the sweep credits (so its end waits on a final read)? */
+async function hasAutoStatTiles(eventId: number): Promise<boolean> {
+  // clan-scope: global -- one event's own tiles, by its id.
+  const rows = await db.select({ id: tiles.id, trackedStat: tiles.trackedStat, statType: tiles.statType, statGoal: tiles.statGoal, off: tiles.autoTrackDisabled }).from(tiles).where(eq(tiles.eventId, eventId));
+  return rows.some((t) => t.trackedStat && t.statType && t.statGoal && !t.off);
+}
+
+/** Store each player's plugin readings as at the end (event_participants.end_live), once per event. */
+async function captureEndLive(eventId: number, endMs: number): Promise<void> {
+  // clan-scope: global -- one event's own players, by its id.
+  const players = await db
+    .select({ id: eventParticipants.id, clanMemberId: eventParticipants.clanMemberId })
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, eventId));
+  const ids = players.map((p) => p.clanMemberId).filter((id): id is number => id != null);
+  if (ids.length) {
+    // clan-scope: global -- the seats of this event's own players, by id.
+    const seats = await db.select({ id: clanRoster.id, live: clanRoster.liveStats, times: clanRoster.liveStatKeyTimes }).from(clanRoster).where(inArray(clanRoster.id, ids));
+    const bySeat = new Map(seats.map((s) => [s.id, s]));
+    for (const p of players) {
+      const seat = p.clanMemberId != null ? bySeat.get(p.clanMemberId) : undefined;
+      if (!seat?.live) continue;
+      const { atEnd } = liveAtEnd(parsePluginStats(seat.live), parseStatKeyTimes(seat.times), endMs);
+      if (Object.keys(atEnd).length) await db.update(eventParticipants).set({ endLive: JSON.stringify(atEnd) }).where(eq(eventParticipants.id, p.id));
+    }
+  }
+  await db.update(events).set({ endLiveAt: new Date().toISOString() }).where(and(eq(events.id, eventId), isNull(events.endLiveAt)));
 }

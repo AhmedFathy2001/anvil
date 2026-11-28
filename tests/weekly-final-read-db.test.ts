@@ -81,6 +81,11 @@ test('a late logout is read before the standings; the sweep guards still hold', 
   const out = await R.finalHiscoresRead(comp, fake as never);
   assert.equal(out.read, 4);
   assert.equal(out.updated, 1);
+  // Everyone was read after the end: nothing holds the results, and a second pass reads nobody again.
+  assert.equal(out.remaining, 0);
+  const again = await R.finalHiscoresRead(comp, fake as never);
+  assert.equal(again.read, 0);
+  assert.equal(again.remaining, 0);
   assert.deepEqual(await values(comp.id), {
     Early: [5, 200],
     Late: [2, 235], // the kills after the last sweep count
@@ -110,6 +115,9 @@ test('a spent budget leaves the rest at their last value and still returns', asy
   assert.equal(out.read, 0);
   assert.equal(out.skipped, 4);
   assert.equal((await values(comp.id)).Late[1], 190);
+  // Nobody read yet: the results keep waiting (lib/weeklyFinish), and the next tick reads them.
+  assert.equal(out.remaining, 4);
+  assert.equal(out.unread.length, 4);
 });
 
 test('redo moves reserved prizes to the corrected standings, and is refused once one is paid', async () => {

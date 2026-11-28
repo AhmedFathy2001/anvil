@@ -57,7 +57,8 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
     const prev = await db.query.weeklyCompetitions.findFirst({
       where: and(eq(weeklyCompetitions.id, id), eq(weeklyCompetitions.clanId, row.clanId)),
     });
-    if (!prev || prev.status !== 'completed') continue;
+    // Its results first: a successor never opens while the old week is still waiting on final reads.
+    if (!prev || prev.status !== 'completed' || !prev.resultsPostedAt) continue;
 
     // CLAIM THE SUCCESSOR SLOT FIRST, in the database, so two overlapping cron ticks cannot both
     // make one (and hold the prize pool twice). The marker used to be written after the insert,

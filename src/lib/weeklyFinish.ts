@@ -6,7 +6,7 @@
 // update of the status), so whichever arrives first posts and settles and every other one does
 // nothing. A double click, two overlapping ticks, or the Nth drop racing the button: one post.
 
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
@@ -16,6 +16,7 @@ import { log } from '@/lib/logger';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { settleWeeklyPrizes } from '@/lib/weeklyPrizeSettle';
 import { finalHiscoresRead } from '@/lib/weeklyFinalRead';
+import { finalReadsDone } from '@/lib/finalReadGate';
 
 type Comp = typeof weeklyCompetitions.$inferSelect;
 
@@ -57,17 +58,42 @@ export async function claimFinish(competitionId: number): Promise<Comp | null> {
 export async function finishCompetition(competitionId: number): Promise<boolean> {
   const comp = await claimFinish(competitionId);
   if (!comp) return false;
-  // One last hiscores read for everybody before anything is posted or paid: the sweep's last visit
-  // can be 15 minutes old, and players who logged out since then would otherwise lose their kills
-  // (lib/weeklyFinalRead). Claimed first, so the sweep has already stopped touching it.
-  await finalHiscoresRead(comp);
+  await settleFinished(comp);
+  return true;
+}
+
+/**
+ * Post a finished competition's results and settle its prizes, once every entrant has been read
+ * from the hiscores AFTER the end (lib/weeklyFinalRead), plugin or not: the sweep's last visit can
+ * be 15 minutes old, and somebody who logged out near the end would otherwise lose their last kills.
+ * Each call reads whoever is left, as the shared budget allows; until all are read the results wait
+ * and the next cron tick calls this again. After FINAL_READ_WAIT_MS (2 hours past the end) it
+ * settles with the last readings and logs who could not be read. Posts exactly once (its own stamp).
+ * Returns whether this call posted.
+ */
+export async function settleFinished(comp: Comp, nowMs: number = Date.now()): Promise<boolean> {
+  if (comp.resultsPostedAt) return false;
+  const read = await finalHiscoresRead(comp);
+  const endMs = Date.parse(comp.endDate);
+  if (!finalReadsDone(read.remaining, endMs, nowMs)) {
+    log.info('weekly.results-waiting', { competitionId: comp.id, remaining: read.remaining });
+    return false;
+  }
+  // clan-scope: global -- one competition by id; claimed so two ticks never post it twice.
+  const [mine] = await db
+    .update(weeklyCompetitions)
+    .set({ resultsPostedAt: new Date(nowMs).toISOString() })
+    .where(and(eq(weeklyCompetitions.id, comp.id), isNull(weeklyCompetitions.resultsPostedAt)))
+    .returning({ id: weeklyCompetitions.id });
+  if (!mine) return false;
+  if (read.remaining > 0) log.warn('weekly.results-settled-unread', { competitionId: comp.id, unread: read.unread.slice(0, 50) });
   try {
     await announceCompetitionResults(comp, await finalStandings(comp));
   } catch (err) {
-    log.warn('weekly.notify-results-fail', { competitionId }, err);
+    log.warn('weekly.notify-results-fail', { competitionId: comp.id }, err);
   }
   // After the results post, so the reserved prize is a consequence of a standing everybody has
   // already been shown rather than a number that appears first and is explained later.
-  await settleWeeklyPrizes(competitionId);
+  await settleWeeklyPrizes(comp.id);
   return true;
 }

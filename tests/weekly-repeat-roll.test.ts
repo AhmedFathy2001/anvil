@@ -38,7 +38,7 @@ test('a finished repeating week starts the next one in its rotation, once', asyn
     .values({
       clanId, type: 'skill', metric: 'agility', title: 'SOTW: Agility',
       startDate: new Date(now - 8 * DAY).toISOString(), endDate: new Date(now - DAY).toISOString(),
-      status: 'completed', includeGuests: 0,
+      status: 'completed', resultsPostedAt: '2026-01-01T00:00:00Z', includeGuests: 0,
     })
     .returning();
   await roll.setWeeklyRepeat(clanId, w1.id, { rotation: ['agility', 'slayer'] });
@@ -57,7 +57,7 @@ test('a finished repeating week starts the next one in its rotation, once', asyn
 
   // Switched off on the running week: when it ends, nothing follows.
   await roll.setWeeklyRepeat(clanId, w2.id, null);
-  await db.update(s.weeklyCompetitions).set({ status: 'completed' }).where(eq(s.weeklyCompetitions.id, w2.id));
+  await db.update(s.weeklyCompetitions).set({ status: 'completed', resultsPostedAt: '2026-01-01T00:00:00Z' }).where(eq(s.weeklyCompetitions.id, w2.id));
   assert.equal(await roll.rollWeeklySeries(now + 7 * DAY), 0);
 });
 
@@ -68,7 +68,7 @@ test('the next week keeps "selected people", and a boss set keeps its name', asy
     .values({
       clanId, type: 'boss', metric: 'vorkath,zulrah', title: 'BOTW: Vorkath + Zulrah',
       startDate: new Date(now - 8 * DAY).toISOString(), endDate: new Date(now - DAY).toISOString(),
-      status: 'completed', includeGuests: 0, hostEntrants: 'selected',
+      status: 'completed', resultsPostedAt: '2026-01-01T00:00:00Z', includeGuests: 0, hostEntrants: 'selected',
     })
     .returning();
   await roll.setWeeklyRepeat(clanId, w1.id, { rotation: null });
