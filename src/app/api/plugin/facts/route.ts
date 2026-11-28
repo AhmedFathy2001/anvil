@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     const member = await resolvePluginMember(request).catch(() => null);
     if (member) {
       const rushOwner = owner ?? { userId: member.userId, accountId: member.accountId };
-      const done = await creditRushKills(member, rushOwner, member.clanId, kills.map((k) => k.fact), new Date(), worldModeOf(request)?.key ?? null).catch((err) => {
+      const done = await creditRushKills({ ...member, accountHash: request.headers.get('X-Account-Hash')?.trim() || null }, rushOwner, member.clanId, kills.map((k) => k.fact), new Date(), worldModeOf(request)?.key ?? null).catch((err) => {
         console.warn('[plugin/facts] rush credit failed', err);
         return { credited: 0, factIndexes: [] as number[] };
       });

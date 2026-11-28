@@ -247,7 +247,7 @@ export async function GET(request: Request) {
       withOwnAlwaysItems(body as unknown as Record<string, unknown>, myPrefs.alwaysItems);
       // In a running Boss Rush: the plugin reports kills with no board live (its targets ride the
       // rule table, api/plugin/rules), which is what the rush counts (lib/itemHuntDb creditRushKills).
-      if (played && played.clanId === clan.id && (await inRunningRush(clan.id, played.clanMemberId).catch(() => false))) {
+      if (played && played.clanId === clan.id && (await inRunningRush(clan.id, played.clanMemberId, Date.now(), request.headers.get('X-Account-Hash')?.trim() || null).catch(() => false))) {
         (body as unknown as Record<string, unknown>).rush = true;
       }
       // No board live HERE, but the character may be on boards elsewhere: a multi-board plugin
