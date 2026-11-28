@@ -70,19 +70,23 @@ test('weekly gains speak the competition’s unit', () => {
   assert.equal(weeklyGain('skill', 4_820_113), '+4.82M xp');
   assert.equal(weeklyGain('boss', 212), '212 kc');
   assert.equal(weeklyGain('efficiency', 31_460), '+31.5h');
+  // A hunt counts drops; a Boss Rush or points hunt counts points (the share card said "14 drops" for 14 points).
+  assert.equal(weeklyGain('hunt', 2), '2 drops');
+  assert.equal(weeklyGain('hunt', 14, true), '14 pts');
+  assert.equal(weeklyGain('hunt', 1, true), '1 pt');
 });
 
 test('a weekly reads as a race while it runs and a result once it ends', () => {
   const live = { type: 'skill', status: 'active', startDate: '2026-10-10', endDate: '2026-10-15T00:00:00Z' };
   assert.equal(
     weeklyLinkDescription(live, 38, [{ rsn: 'Lynx Titan', gained: 4_820_113 }, { rsn: 'Zezima', gained: 1 }], NOW),
-    'Lynx Titan leads with +4.82M xp · 2 members training · 2d 12h left',
+    'Lynx Titan leads with +4.82M xp, 2 members training, 2d 12h left',
   );
-  assert.equal(weeklyLinkDescription(live, 38, [], NOW), 'Nobody on the board yet · 38 members training · 2d 12h left');
+  assert.equal(weeklyLinkDescription(live, 38, [], NOW), 'Nobody on the board yet, 38 members training, 2d 12h left');
   const done = { type: 'boss', status: 'completed', startDate: '2026-10-01', endDate: '2026-10-08' };
   assert.equal(
     weeklyLinkDescription(done, 41, [{ rsn: 'Lynx Titan', gained: 212 }, { rsn: 'B', gained: 100 }], NOW),
-    'Finished · Lynx Titan won with 212 kc · 312 kills across 2 members',
+    'Finished, Lynx Titan won with 212 kc, 312 kills across 2 members',
   );
 });
 

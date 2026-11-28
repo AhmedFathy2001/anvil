@@ -194,7 +194,7 @@ test('a counted plugin drop is posted once, with who, what, where, the kc and th
   assert.equal(sent.length, 1, 'one post');
   const embed = sent[0].body.embeds![0];
   assert.match(embed.description ?? '', /\*\*Alpha\*\* got \*\*Tanzanite fang\*\* from \*\*Zulrah\*\* at 512 kc\./);
-  assert.ok(embed.fields?.some((f) => f.name === 'Standing' && /1st · 1 drop/.test(f.value)));
+  assert.ok(embed.fields?.some((f) => f.name === 'Standing' && /1st, 1 drop/.test(f.value)));
   assert.equal(embed.image, undefined, 'no picture yet: the post never waits for one');
   const [row] = await rows(comp.id);
   assert.ok(row.postedAt);

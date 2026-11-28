@@ -34,6 +34,8 @@ interface Comp {
   id: number;
   title: string;
   type: string;
+  /** A hunt scored in points (Boss Rush, points hunt): its gains read as points. */
+  points?: boolean;
   metric: string;
   startDate: string;
   endDate: string;
@@ -258,7 +260,7 @@ export default function WeeklyHomeClient({
                   <div className="text-lg">{i === 1 ? '🥇' : i === 0 ? '🥈' : '🥉'}</div>
                   <div className="text-sm font-semibold mt-1 truncate">{row.rsn}</div>
                   <div className={`text-xs tabular-nums ${i === 1 ? 'text-gold' : 'text-text-muted'}`}>
-                    {weeklyGain(comp.type, row.gained)}
+                    {weeklyGain(comp.type, row.gained, comp.points)}
                   </div>
                 </div>
               ) : (
@@ -312,7 +314,7 @@ export default function WeeklyHomeClient({
                   )}
                 </span>
                 <span className={`tabular-nums text-xs ${i === 0 ? 'text-gold' : 'text-text-muted'}`}>
-                  {row.gained > 0 ? weeklyGain(comp.type, row.gained) : '—'}
+                  {row.gained > 0 ? weeklyGain(comp.type, row.gained, comp.points) : '—'}
                 </span>
               </div>
             ))}

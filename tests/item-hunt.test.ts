@@ -142,9 +142,9 @@ test('the stored rules read back as they were written', () => {
 // ── Words ────────────────────────────────────────────────────────────────────────────────────
 
 test('the title line names the item, its source and the rule', () => {
-  assert.equal(huntTitleLine(base(), ''), 'Item hunt: Uncut onyx from Zulrah · most by the end');
-  assert.equal(huntTitleLine(anySource({ rule: 'first' }), ''), 'Item hunt: Uncut onyx, any source · first to get it');
-  assert.equal(huntTitleLine(pets('all', { rule: 'most' }), ''), 'Pet hunt: Any pet · most by the end');
+  assert.equal(huntTitleLine(base(), ''), 'Item hunt: Uncut onyx from Zulrah, most by the end');
+  assert.equal(huntTitleLine(anySource({ rule: 'first' }), ''), 'Item hunt: Uncut onyx, any source, first to get it');
+  assert.equal(huntTitleLine(pets('all', { rule: 'most' }), ''), 'Pet hunt: Any pet, most by the end');
   assert.equal(huntTargetsLabel(pets('skilling')), 'Skilling pets');
   const two = base({ items: [
     { id: 1, name: 'Tanzanite fang', sources: ['Zulrah'], count: 'drops' },

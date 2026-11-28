@@ -66,7 +66,7 @@ export interface HuntViewRow {
   rank: number;
   rsn: string;
   count: number;
-  /** Boss Rush: "312 kc · +55 drops · 4 deaths", what the score is made of. */
+  /** Boss Rush: "312 kc, 9 drops (+55), 4 deaths", what the score is made of. */
   rushWords: string | null;
   isMe: boolean;
   /** Kills at the source (or XP) since the hunt started; null when the hunt shows neither. */
@@ -115,12 +115,12 @@ export interface HuntProofTarget {
 
 export interface HuntView {
   kindWord: string;
-  /** "Uncut onyx from Zulrah · most by the end" */
+  /** "Uncut onyx from Zulrah, most by the end" */
   line: string;
   rule: HuntRule;
   /** A points hunt: each item and what it scores, for the line under the title. */
   points: { name: string; points: number }[] | null;
-  /** Boss Rush: its scoring on one line ("1 kill = 1 pt · each death -1 · plugin kills only"). */
+  /** Boss Rush: its scoring on one line ("1 kill = 1 pt, each death -1, plugin kills only"). */
   rushRules: string | null;
   /** A points hunt: only each player's first drop of each item scores. */
   firstOfEach: boolean;
@@ -244,7 +244,8 @@ export function buildHuntView(
     me: rows.find((r) => r.isMe) ?? null,
     mine: rows.filter((r) => r.isMe),
     drops: standings.drops.length,
-    hunters: rows.filter((r) => r.count > 0).length,
+    // Players with a drop: a rush's count is points, which kills alone give ("4 players have one" for one player's 2 drops).
+    hunters: rows.filter((r) => r.drops.length > 0).length,
     awaiting: standings.awaiting.map((d) => ({ rsn: rsnOf.get(d.rsnKey) ?? d.rsnKey, itemName: d.itemName, occurredAt: d.occurredAt })),
     proof: { targets: proofTargets(config), statKind: manualStatKind(config), xpSkill: config.v === 2 ? null : config.xpSkill, pets: config.target === 'pets' },
     // standings.drops is already the counted drops inside the window.

@@ -16,6 +16,8 @@ import {
   rushRuleLines,
   rushRulesWords,
   rushSynergy,
+  rushTargetShort,
+  rushTargetsLine,
   rushTotal,
   targetsFromInput,
   rushTakesRaidMode,
@@ -25,7 +27,7 @@ import {
   rushKillProofAt,
   type RushEvent,
 } from '@/lib/bossRushRules';
-import { type HuntDrop, defaultHuntTitle, huntFromInput, huntPanelLine, isRush, matchHuntReport, rankHunt, rushBossKeys, rushTargets, serializeHunt, parseHunt } from '@/lib/itemHunt';
+import { type HuntDrop, defaultHuntTitle, huntFromInput, huntPanelLine, isRush, matchHuntReport, rankHunt, rushBossKeys, rushTallyWords, rushTargets, serializeHunt, parseHunt } from '@/lib/itemHunt';
 
 const T0 = Date.parse('2026-11-01T00:00:00Z');
 const window = { startMs: T0, endMs: T0 + 7 * 86_400_000 };
@@ -101,7 +103,7 @@ test('a rush needs a target; one stored with boss keys reads back as their names
 });
 
 test('the rules read out plainly', () => {
-  assert.equal(rushRulesWords(DEFAULT_RUSH), '1 kill = 1 pt · each death -1 · plugin kills only · Clan Synergy +1 pt a kill done together');
+  assert.equal(rushRulesWords(DEFAULT_RUSH), '1 kill = 1 pt, each death -1, plugin kills only, Clan Synergy +1 pt a kill done together');
   const rows = rushRuleLines({ ...DEFAULT_RUSH, targets: ['Tombs of Amascut', 'Nex'] });
   assert.deepEqual(rows.map((r) => `${r.k} ${r.v}`), ['Kill +1 pt', 'Death -1 pt', 'Together +1 pt', 'Drops listed below', 'Kills plugin only', 'Score never below 0']);
   assert.equal(rows[1].note, 'Puzzles and mechanics count too.');
@@ -143,10 +145,13 @@ test('standings: kills + drop points + synergy + staff - deaths, never below 0 u
   const drops = [drop('Bob', 22006, T0 + 1000), drop('Alice', 12922, T0 + 2000), drop('Alice', 21992, T0 + 3000), drop('Bob', 12922, T0 + 4000, 'review')];
   const rows = rankHunt(c, entrants, drops, window);
   assert.deepEqual(rows.map((r) => [r.rsn, r.count]), [['Bob', 110], ['Alice', 103], ['Cara', 0]]);
-  assert.deepEqual(rows[1].rush, { kc: 100, deaths: 4, bonus: 5, synergy: 2, adjust: 0, total: 103 });
+  assert.deepEqual(rows[1].rush, { kc: 100, deaths: 4, bonus: 5, synergy: 2, adjust: 0, total: 103, kcPts: 100, deathPts: 4, drops: 1, floor: 0 });
   assert.equal(huntPanelLine(c, rows[0], null).figure, '110 pts');
-  assert.equal(huntPanelLine(c, rows[0], null).sub, '90 kc, +10 drops, +10 by staff');
-  assert.equal(huntPanelLine(c, rows[1], null).sub, '100 kc, +5 drops, +2 synergy, 4 deaths');
+  // Drops read as drops with their points beside them, never "+10 drops" (that was points).
+  assert.equal(huntPanelLine(c, rows[0], null).sub, '90 kc, 1 drop (+10), +10 by staff');
+  assert.equal(huntPanelLine(c, rows[1], null).sub, '100 kc, 1 drop (+5), +2 synergy, 4 deaths');
+  // Cara's 9 deaths would take her to -8: the floor keeps her at 0, and the line says so.
+  assert.equal(rushTallyWords(rows[2].rush!), '1 kc, 9 deaths, +8 (never below 0)');
 
   const below = rush({}, { floorZero: false });
   assert.equal(rankHunt(below, entrants, [], window).find((r) => r.rsn === 'Cara')?.count, -8);
@@ -188,8 +193,25 @@ test('a tie on points goes to the one with more kills', () => {
   assert.deepEqual(rows.map((r) => r.rsn), ['A', 'B']);
 });
 
+test('rush targets as one short line, each once', () => {
+  const raids = ['Chambers of Xeric', 'Chambers of Xeric Challenge Mode', 'Theatre of Blood', 'Theatre of Blood: Hard Mode', 'Tombs of Amascut', 'Tombs of Amascut: Expert Mode', 'Theatre of Blood: Entry Mode'];
+  assert.equal(rushTargetShort('Chambers of Xeric Challenge Mode'), 'CoX: CM');
+  assert.equal(rushTargetShort('Vorkath'), 'Vorkath');
+  assert.equal(rushTargetsLine(raids, 200), 'CoX, CoX: CM, ToB, ToB: HM, ToA, ToA: Expert, ToB: Entry');
+  assert.equal(rushTargetsLine(raids), 'CoX, CoX: CM, ToB, ToB: HM, ToA and 2 more');
+  assert.ok(rushTargetsLine(raids).length <= 44);
+  assert.equal(rushTargetsLine(['Chambers of Xeric', 'CoX', 'Vorkath']), 'CoX, Vorkath');
+});
+
 test('rushTotal', () => {
-  assert.deepEqual(rushTotal({ ...DEFAULT_RUSH, kcPoints: 2, deathPoints: 5 }, 10, 3, 7), { kc: 10, deaths: 3, bonus: 7, synergy: 0, adjust: 0, total: 12 });
+  assert.deepEqual(rushTotal({ ...DEFAULT_RUSH, kcPoints: 2, deathPoints: 5 }, 10, 3, 7, 0, 0, undefined, 2), { kc: 10, deaths: 3, bonus: 7, synergy: 0, adjust: 0, total: 12, kcPts: 20, deathPts: 15, drops: 2, floor: 0 });
+  // Kills and deaths worth other than 1 show their points: the parts add up to the total.
+  assert.equal(rushTallyWords(rushTotal({ ...DEFAULT_RUSH, kcPoints: 2, deathPoints: 5 }, 10, 3, 7, 0, 0, undefined, 2)), '10 kc (+20), 2 drops (+7), 3 deaths (-15)');
+  assert.equal(rushTallyWords(rushTotal({ ...DEFAULT_RUSH, deathPoints: 0 }, 4, 2, 0)), '4 kc, 2 deaths (no cost)');
+  // The live event's Yakatak: 7 kills, two drops at +3, five deaths at -1 = 8.
+  const yak = rushTotal(DEFAULT_RUSH, 7, 5, 6, 0, 0, undefined, 2);
+  assert.equal(yak.total, 8);
+  assert.equal(rushTallyWords(yak), '7 kc, 2 drops (+6), 5 deaths');
   assert.equal(rushTotal(DEFAULT_RUSH, 10, 0, 0, 6).total, 16);
   assert.equal(rushTotal({ ...DEFAULT_RUSH, synergy: { ...DEFAULT_RUSH.synergy, on: false } }, 10, 0, 0, 6).total, 10);
   assert.equal(rushTotal(DEFAULT_RUSH, 0, 1, 0, 0, 10).total, 9);

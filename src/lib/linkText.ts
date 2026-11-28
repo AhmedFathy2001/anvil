@@ -21,19 +21,22 @@ export function weeklyKind(type: string): WeeklyKind {
   return type === 'boss' || type === 'efficiency' || type === 'hunt' ? type : 'skill';
 }
 
-/** One person's gain in the competition's own unit: "+4.82M xp", "212 kc", "+31.5h". */
-export function weeklyGain(kind: WeeklyKind, gained: number): string {
+/**
+ * One person's gain in the competition's own unit: "+4.82M xp", "212 kc", "+31.5h". `points`: a hunt
+ * scored in points (a Boss Rush, a points hunt), whose board number is points, never drops.
+ */
+export function weeklyGain(kind: WeeklyKind, gained: number, points = false): string {
   if (kind === 'boss') return `${gained.toLocaleString('en-US')} kc`;
-  // An item hunt's board counts drops (lib/itemHuntDb competitionBoard).
-  if (kind === 'hunt') return plural(gained, 'drop');
+  // An item hunt's board counts drops, or points when it scores them (lib/itemHuntDb competitionBoard).
+  if (kind === 'hunt') return points ? `${gained.toLocaleString('en-US')} ${gained === 1 ? 'pt' : 'pts'}` : plural(gained, 'drop');
   if (kind === 'efficiency') return `+${(gained / EFFICIENCY_SCALE).toFixed(1)}h`;
   return `+${compact(gained)} xp`;
 }
 
 /** The clan's combined gain: "1,284 kills", "58.9M xp", "412.0 hours". */
-export function weeklyTotal(kind: WeeklyKind, total: number): string {
+export function weeklyTotal(kind: WeeklyKind, total: number, points = false): string {
   if (kind === 'boss') return `${total.toLocaleString('en-US')} kills`;
-  if (kind === 'hunt') return plural(total, 'drop');
+  if (kind === 'hunt') return plural(total, points ? 'point' : 'drop');
   if (kind === 'efficiency') return `${(total / EFFICIENCY_SCALE).toFixed(1)} hours`;
   return `${compact(total)} xp`;
 }
@@ -168,14 +171,14 @@ export function eventPageWords(
 export const WEEKLY_VERB: Record<WeeklyKind, string> = { skill: 'training', boss: 'bossing', efficiency: 'playing', hunt: 'hunting' };
 
 /**
- *   "Lynx Titan leads with +4.82M xp · 38 members training · 3d 2h left"
- *   "Finished · Lynx Titan won with 212 kc · 1,284 kills across 41 members"
- *   "Starts in 2d · 38 members signed up"
+ *   "Lynx Titan leads with +4.82M xp, 38 members training, 3d 2h left"
+ *   "Finished, Lynx Titan won with 212 kc, 1,284 kills across 41 members"
+ *   "Starts in 2d, 38 members signed up"
  *
  * `board` is the leaderboard already sorted, gainers only.
  */
 export function weeklyLinkDescription(
-  comp: { type: string; status: string; startDate: string; endDate: string },
+  comp: { type: string; status: string; startDate: string; endDate: string; points?: boolean },
   enrolled: number,
   board: { rsn: string; gained: number }[],
   now = Date.now(),
@@ -186,26 +189,26 @@ export function weeklyLinkDescription(
     const until = timeLeft(comp.startDate, now);
     return [until ? `Starts in ${until}` : 'Coming up', enrolled ? `${plural(enrolled, 'member')} signed up` : null]
       .filter(Boolean)
-      .join(' · ');
+      .join(', ');
   }
   if (comp.status === 'completed') {
     const total = board.reduce((s, e) => s + e.gained, 0);
     return [
       'Finished',
-      top ? `${top.rsn} won with ${weeklyGain(kind, top.gained)}` : null,
-      board.length ? `${weeklyTotal(kind, total)} across ${plural(board.length, 'member')}` : null,
+      top ? `${top.rsn} won with ${weeklyGain(kind, top.gained, comp.points)}` : null,
+      board.length ? `${weeklyTotal(kind, total, comp.points)} across ${plural(board.length, 'member')}` : null,
     ]
       .filter(Boolean)
-      .join(' · ');
+      .join(', ');
   }
   const left = timeLeft(comp.endDate, now);
   return [
-    top ? `${top.rsn} leads with ${weeklyGain(kind, top.gained)}` : 'Nobody on the board yet',
+    top ? `${top.rsn} leads with ${weeklyGain(kind, top.gained, comp.points)}` : 'Nobody on the board yet',
     `${plural(board.length || enrolled, 'member')} ${WEEKLY_VERB[kind]}`,
     left ? `${left} left` : null,
   ]
     .filter(Boolean)
-    .join(' · ');
+    .join(', ');
 }
 
 // ── Member ─────────────────────────────────────────────────────────────────────────────────────

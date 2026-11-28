@@ -81,10 +81,10 @@ export function huntDropEmbed(p: HuntDropPost): DiscordEmbed {
   const item = `${p.itemName}${p.quantity > 1 ? ` ×${p.quantity.toLocaleString()}` : ''}`;
   const where = [p.source ? `from **${p.source}**` : null, p.stat].filter(Boolean).join(' ');
   const icon = p.itemId != null ? itemIconUrl(p.itemId) : p.huntIconUrl;
-  const standing = p.place != null ? `${medal(p.place)} ${placeWords(p.place)} · ${countWords(p.rule, p.count)}`.trim() : countWords(p.rule, p.count);
+  const standing = p.place != null ? `${medal(p.place)} ${placeWords(p.place)}, ${countWords(p.rule, p.count)}`.trim() : countWords(p.rule, p.count);
   const ends = relative(p.endDate);
   return {
-    author: { name: `${p.kind} · new drop` },
+    author: { name: `${p.kind}: new drop` },
     ...(icon ? { thumbnail: { url: discordAssetUrl(icon) } } : {}),
     title: clamp(`🎁 ${p.title}`, LIMIT.title),
     description: clamp(`**${p.rsn}** got **${item}**${where ? ` ${where}` : ''}.${p.bounty ? `\n💰 **${bountyClaimLine(p.bounty)}**` : ''}`, LIMIT.description),
