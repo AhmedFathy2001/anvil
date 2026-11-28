@@ -17,7 +17,7 @@ import { countsWorld } from '@/lib/competitionGame';
 import { log } from '@/lib/logger';
 import { applyWeeklyValue, fetchParticipantStat } from '@/lib/weekly';
 import { competitionStat, effectiveMetricParts } from '@/lib/weeklyMetric';
-import { liveBefore, takeLateRead } from '@/lib/finalReadGate';
+import { liveAtEnd, takeLateRead } from '@/lib/finalReadGate';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { metricKeys } from '@/lib/constants';
@@ -139,8 +139,11 @@ export async function finalHiscoresRead(
             const endMs = Date.parse(comp.endDate);
             const lagMs = Date.now() - endMs;
             const keys = metricKeys(stat.metric);
-            const preEnd = liveBefore(parsePluginStats(p.live), parseStatKeyTimes(p.liveKeyTimes), endMs);
-            if (!takeLateRead(lagMs, keys.some((k) => k in preEnd))) {
+            // The plugin push stops moving a competition at its end date (getActiveWeeklyMetrics), so
+            // currentValue already holds the pre-end standing; a key that rose after the end shows the
+            // late read carries play after it.
+            const at = liveAtEnd(parsePluginStats(p.live), parseStatKeyTimes(p.liveKeyTimes), endMs);
+            if (!takeLateRead(lagMs, keys.some((k) => k in at.atEnd), keys.some((k) => at.rose.includes(k)))) {
               log.info('weekly.final-read-late', { competitionId: comp.id, rsn: p.rsn, lagMs });
               await markRead(p.id);
               continue;

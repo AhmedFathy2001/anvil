@@ -15,7 +15,7 @@ import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
-import { FINAL_READ_WAIT_MS, liveBefore, takeLateRead } from '@/lib/finalReadGate';
+import { FINAL_READ_WAIT_MS, liveAtEnd, parseEndLive, takeLateRead } from '@/lib/finalReadGate';
 import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
 import { computeGain, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
 import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
@@ -684,8 +684,18 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
         // play after the end). Recorded either way, with when, for staff (event_participants.final_read_at).
         const endMs = Date.parse(b.ctx.settleAt);
         const lagMs = Date.parse(ts) - endMs;
-        const preEnd = liveBefore(liveMap, entry.liveKeyTimes, endMs);
-        const take = takeLateRead(lagMs, Object.keys(preEnd).length > 0);
+        // From the raw overlay as read before this tick reconciled or pruned it against the post-end
+        // snapshot; the capture taken at the end (lifecycle tick) wins when it exists.
+        const raw = liveAtEnd(entry.liveMap, entry.liveKeyTimes, endMs);
+        const captured = parseEndLive(b.player.endLive);
+        const preEnd = captured ?? raw.atEnd;
+        const take = takeLateRead(lagMs, Object.keys(preEnd).length > 0, raw.rose.length > 0);
+        // A late read set aside with no earlier reading to fall back on: never credit it. The player
+        // stays unread (listed when the 2-hour wait runs out) rather than score play after the end.
+        if (!take && !b.player.cachedStats) {
+          log.info('stats-cron.final-read-unusable', { eventId: b.ctx.event.id, playerId: b.player.id, lagMs });
+          continue;
+        }
         await db
           .update(eventParticipants)
           .set({ ...(take ? { cachedStats: snapshotJson } : {}), lastStatsFetch: ts, finalReadAt: ts })

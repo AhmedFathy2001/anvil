@@ -1,4 +1,4 @@
-import { liveBefore } from '@/lib/finalReadGate';
+import { liveBefore, parseEndLive } from '@/lib/finalReadGate';
 import { afterRaceCompletion } from '@/lib/raceRoutesDb';
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
@@ -66,6 +66,7 @@ export async function creditStatTilesForTeam(opts: {
       frozenStats: eventParticipants.frozenStats,
       lastStatsFetch: eventParticipants.lastStatsFetch,
       modeStats: eventParticipants.modeStats,
+      endLive: eventParticipants.endLive,
     })
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, teamId)));
@@ -98,6 +99,11 @@ export async function creditStatTilesForTeam(opts: {
   if (opts.finalReadEnd) {
     const endMs = Date.parse(opts.finalReadEnd);
     for (const [id, live] of teamLive) teamLive.set(id, liveBefore(live, keyTimesByMember.get(id), endMs));
+    // The readings captured at the end (lib/eventLifecycle) win: the overlay may have moved on since.
+    for (const p of teamPlayers) {
+      const captured = parseEndLive(p.endLive);
+      if (captured && p.clanMemberId != null) teamLive.set(p.clanMemberId, captured);
+    }
   }
   const freshAt = (p: (typeof teamPlayers)[number], keys: string[]): number => {
     if (p.frozenAt) return parseStamp(p.frozenAt) ?? 0;

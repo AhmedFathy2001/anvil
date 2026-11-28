@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FINAL_READ_WAIT_MS, LATE_READ_MS, eventReadsDone, finalReadsDone, liveBefore, takeLateRead } from '@/lib/finalReadGate';
+import { FINAL_READ_WAIT_MS, LATE_READ_MS, eventReadsDone, finalReadsDone, liveAtEnd, liveBefore, parseEndLive, takeLateRead } from '@/lib/finalReadGate';
 
 const END = Date.parse('2026-12-07T00:00:00Z');
 
@@ -29,4 +29,23 @@ test('a late read gives way to a pre-end plugin reading; a prompt one, or one wi
   assert.equal(takeLateRead(60_000, true), true);
   assert.equal(takeLateRead(LATE_READ_MS + 1, true), false);
   assert.equal(takeLateRead(LATE_READ_MS + 1, false), true);
+});
+
+test('a key that rose after the end is contaminated: unknown at the end, and it taints a late read', () => {
+  const live = { zulrah: 510, vorkath: 40, attack: 13_000_000 };
+  const times = { zulrah: '2026-12-06T23:50:00Z', vorkath: '2026-12-07T00:20:00Z' };
+  const at = liveAtEnd(live, times, END);
+  assert.deepEqual(at.atEnd, { zulrah: 510 });
+  assert.deepEqual(at.rose.sort(), ['attack', 'vorkath']);
+  // A late read with only a post-end rise (no pre-end value) is still not taken.
+  assert.equal(takeLateRead(LATE_READ_MS + 1, false, true), false);
+  assert.equal(takeLateRead(LATE_READ_MS + 1, false, false), true);
+  // A prompt read is taken either way.
+  assert.equal(takeLateRead(60_000, true, true), true);
+});
+
+test('the end capture reads back as numbers only', () => {
+  assert.deepEqual(parseEndLive('{"zulrah":510,"bad":"x"}'), { zulrah: 510 });
+  assert.equal(parseEndLive(null), null);
+  assert.equal(parseEndLive('not json'), null);
 });

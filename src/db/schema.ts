@@ -660,6 +660,8 @@ export const events = pgTable('events', {
   /** When every player had a hiscores read after the end and its stat tiles were credited (lib/statsSweep):
    *  the end post waits for it, or for 2 hours past the end (lib/eventLifecycle). */
   finalReadsAt: text('final_reads_at'),
+  /** When the players' plugin readings were captured as at the end (event_participants.end_live). */
+  endLiveAt: text('end_live_at'),
   // Set once when the "start held" warning is posted (scheduled start reached while the event
   // wasn't startable — draft mid-way / no teams assigned; see lib/eventReadiness). The lifecycle
   // cron keeps nudging startDate forward while blocked, but warns exactly once. Cleared whenever
@@ -1282,6 +1284,9 @@ export const eventParticipants = pgTable('event_participants', {
   lastStatsFetch: text('last_stats_fetch'),
   /** When this player was read from the hiscores AFTER the event ended (the settling pass), ISO. */
   finalReadAt: text('final_read_at'),
+  /** The plugin's live readings as they stood at the end (lib/finalReadGate liveAtEnd), JSON, captured
+   *  within a minute of it by the lifecycle tick: what a late final read gives way to. */
+  endLive: text('end_live'),
   // Real-time boss KC pushed by the plugin, as a flat JSON map of hiscores boss key -> absolute
   // count ({"zulrah":1250}). Separate from cachedStats so the hourly hiscores cron never clobbers
   // it; reads take max(cachedStats, pluginStats) per key, and the cron prunes an entry once
