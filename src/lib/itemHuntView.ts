@@ -244,7 +244,8 @@ export function buildHuntView(
     me: rows.find((r) => r.isMe) ?? null,
     mine: rows.filter((r) => r.isMe),
     drops: standings.drops.length,
-    hunters: rows.filter((r) => r.count > 0).length,
+    // Players with a drop: a rush's count is points, which kills alone give ("4 players have one" for one player's 2 drops).
+    hunters: rows.filter((r) => r.drops.length > 0).length,
     awaiting: standings.awaiting.map((d) => ({ rsn: rsnOf.get(d.rsnKey) ?? d.rsnKey, itemName: d.itemName, occurredAt: d.occurredAt })),
     proof: { targets: proofTargets(config), statKind: manualStatKind(config), xpSkill: config.v === 2 ? null : config.xpSkill, pets: config.target === 'pets' },
     // standings.drops is already the counted drops inside the window.

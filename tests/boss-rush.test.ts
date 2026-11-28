@@ -151,7 +151,7 @@ test('standings: kills + drop points + synergy + staff - deaths, never below 0 u
   assert.equal(huntPanelLine(c, rows[0], null).sub, '90 kc, 1 drop (+10), +10 by staff');
   assert.equal(huntPanelLine(c, rows[1], null).sub, '100 kc, 1 drop (+5), +2 synergy, 4 deaths');
   // Cara's 9 deaths would take her to -8: the floor keeps her at 0, and the line says so.
-  assert.equal(rushTallyWords(rows[2].rush!), '1 kc, 9 deaths, +8 as a score never goes below 0');
+  assert.equal(rushTallyWords(rows[2].rush!), '1 kc, 9 deaths, +8 (never below 0)');
 
   const below = rush({}, { floorZero: false });
   assert.equal(rankHunt(below, entrants, [], window).find((r) => r.rsn === 'Cara')?.count, -8);

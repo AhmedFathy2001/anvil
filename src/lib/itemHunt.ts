@@ -1022,7 +1022,7 @@ export function rushTallyWords(t: RushTally): string {
     const word = `${n(t.deaths)} ${t.deaths === 1 ? 'death' : 'deaths'}`;
     parts.push(deathPts === t.deaths ? word : deathPts === 0 ? `${word} (no cost)` : `${word} (-${n(deathPts)})`);
   }
-  if (t.floor) parts.push(`+${n(t.floor)} as a score never goes below 0`);
+  if (t.floor) parts.push(`+${n(t.floor)} (never below 0)`);
   if (t.held) parts.push(`${n(t.held)} kc waiting on the hiscores`);
   return parts.join(', ');
 }
