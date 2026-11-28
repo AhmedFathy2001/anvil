@@ -17,7 +17,6 @@ import { countsWorld } from '@/lib/competitionGame';
 import { log } from '@/lib/logger';
 import { applyWeeklyValue, fetchParticipantStat } from '@/lib/weekly';
 import { competitionStat, effectiveMetricParts } from '@/lib/weeklyMetric';
-import { isRush, parseHunt } from '@/lib/itemHunt';
 
 type Comp = typeof weeklyCompetitions.$inferSelect;
 
@@ -43,7 +42,13 @@ export interface FinalReadResult {
   read: number;
   updated: number;
   skipped: number;
+  /** Entrants still not read after the end (a transient failure, or the budget ran out). */
+  remaining: number;
+  /** Their names, for the "not read" note once the wait runs out. */
+  unread: string[];
 }
+
+export { FINAL_READ_WAIT_MS } from '@/lib/finalReadGate';
 
 /**
  * Read every participant's hiscores once and apply it. Never throws: a failed read leaves that
@@ -54,12 +59,12 @@ export async function finalHiscoresRead(
   /** Tests pass a fake; everything else reads Jagex. */
   fetchStat: typeof fetchParticipantStat = fetchParticipantStat,
 ): Promise<FinalReadResult> {
-  const out: FinalReadResult = { read: 0, updated: 0, skipped: 0 };
+  const out: FinalReadResult = { read: 0, updated: 0, skipped: 0, remaining: 0, unread: [] };
   // An item hunt with no stat beside its drops reads nothing; a mode-only competition is scored
   // off its own table (lib/weeklyModeScores), not the main game's.
   // An item hunt places by its drops, so the stat beside them can't move a result.
-  // A Boss Rush scores its kills, though: the last ones before the end count from this read.
-  if (comp.type === 'hunt' && !isRush(parseHunt(comp.hunt ?? null))) return out;
+  // An item hunt reads the stat it shows beside its drops (a Boss Rush scores its kills off it);
+  // one with no stat reads nothing (competitionStat is null).
   const stat = competitionStat(comp);
   if (!stat || !countsWorld(comp.countsOn, null)) return out;
   // A process where the cron never started a budget: give this one its own. A budget the cron
@@ -86,10 +91,19 @@ export async function finalHiscoresRead(
           eq(weeklyParticipants.optedOut, false),
           isNull(weeklyParticipants.hiscoresTable),
           isNull(weeklyParticipants.stoppedAt),
+          // Read once after the end; a retry next tick picks up only who is left.
+          isNull(weeklyParticipants.finalReadAt),
         ),
       );
 
     const pending = [...participants];
+    const left = new Map(participants.map((p) => [p.id, p.rsn]));
+    // Read AFTER the end only: a tick that lands before it (staff ending early sets the end to now)
+    // still counts, a read from before the end never does.
+    const markRead = (id: number) => {
+      left.delete(id);
+      return db.update(weeklyParticipants).set({ finalReadAt: new Date().toISOString() }).where(eq(weeklyParticipants.id, id));
+    };
     let lastDispatch = 0;
     const takeToken = async () => {
       const wait = Math.max(0, PER_REQUEST_GAP_MS - (Date.now() - lastDispatch));
@@ -111,6 +125,8 @@ export async function finalHiscoresRead(
           try {
             const res = await fetchStat(p.rsn, stat.type, stat.metric);
             out.read++;
+            // Not on the hiscores at all is an answer too; a timeout is not, and is tried again.
+            if (res.kind === 'unranked') await markRead(p.id);
             if (res.kind !== 'value') continue;
             const applied = await applyWeeklyValue({
               participantId: p.id,
@@ -130,15 +146,20 @@ export async function finalHiscoresRead(
               competitionStartIso: comp.startDate,
             });
             if (applied.outcome === 'updated') out.updated++;
+            await markRead(p.id);
           } catch (err) {
             log.warn('weekly.final-read-row-fail', { competitionId: comp.id, rsn: p.rsn }, err);
           }
         }
       }),
     );
+    out.remaining = left.size;
+    out.unread = [...left.values()];
   } catch (err) {
     log.warn('weekly.final-read-fail', { competitionId: comp.id }, err);
+    // Unknown how far it got: count it as not done, so the results keep waiting (up to the cap).
+    out.remaining = Math.max(out.remaining, 1);
   }
-  log.info('weekly.final-read', { competitionId: comp.id, ...out });
+  log.info('weekly.final-read', { competitionId: comp.id, read: out.read, updated: out.updated, skipped: out.skipped, remaining: out.remaining });
   return out;
 }

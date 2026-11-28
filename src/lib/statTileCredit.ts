@@ -1,3 +1,4 @@
+import { dbStampOf } from '@/lib/dbTime';
 import { afterRaceCompletion } from '@/lib/raceRoutesDb';
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
@@ -46,6 +47,8 @@ export async function creditStatTilesForTeam(opts: {
   clip?: boolean;
   /** Told about each tile this call completed (the sweep keeps its own tally). */
   onCompleted?: (tile: StatTile) => void;
+  /** A read after the event ended: a completion is dated at the end (ISO), not now. */
+  at?: string;
 }): Promise<string[]> {
   const { eventId, teamId, statTiles } = opts;
   const completed: string[] = [];
@@ -206,6 +209,7 @@ export async function creditStatTilesForTeam(opts: {
         creditPlayerId: individualFinisher?.id ?? null,
         statContributions: JSON.stringify(buildContributionSnapshot(tile.statGoal!, splitRows)),
         awardedPoints: gate?.awardedPoints ?? null,
+        ...(opts.at ? { completedAt: dbStampOf(opts.at) } : {}),
       })
       .onConflictDoNothing()
       .returning({ id: completions.id });

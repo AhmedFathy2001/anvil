@@ -1,3 +1,4 @@
+import { eventReadsDone } from '@/lib/finalReadGate';
 import { isBranchingRoute, roadBlockers, routeEntries } from '@/lib/raceRoutes';
 import { placementOf } from '@/lib/teamPlacement';
 import { notifyBoardPeople } from '@/lib/pushNotify';
@@ -346,6 +347,10 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   // Events whose end time has passed but haven't been announced yet.
   for (const event of allEvents) {
     if (event.endDate && event.endDate < now && !event.endNotified) {
+      // Results wait for every player's hiscores read after the end, credited (lib/statsSweep stamps
+      // finalReadsAt), so a last-minute XP or KC tile is on the board before it is announced; plugin
+      // or not, the same read. Up to FINAL_READ_WAIT_MS past the end, then it goes out as it stands.
+      if (!event.finalReadsAt && !eventReadsDone(await hasAutoStatTiles(event.id), Date.parse(event.endDate), Date.now())) continue;
       const flipped = await db
         .update(events)
         .set({ endNotified: 1 })
@@ -509,4 +514,11 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await sweepAnvilSupporterRoles(nowMs).catch((err) => log.warn('event-lifecycle.anvil-roles-sweep-failed', { err: String(err) }));
   // Clan boost levels: hourly, so a drop below a level starts its grace week on time (lib/clanBoosts).
   await reconcileClanBoostLevels(nowMs).catch((err) => log.warn('event-lifecycle.boost-reconcile-failed', { err: String(err) }));
+}
+
+/** Does this board have stat tiles the sweep credits (so its end waits on a final read)? */
+async function hasAutoStatTiles(eventId: number): Promise<boolean> {
+  // clan-scope: global -- one event's own tiles, by its id.
+  const rows = await db.select({ id: tiles.id, trackedStat: tiles.trackedStat, statType: tiles.statType, statGoal: tiles.statGoal, off: tiles.autoTrackDisabled }).from(tiles).where(eq(tiles.eventId, eventId));
+  return rows.some((t) => t.trackedStat && t.statType && t.statGoal && !t.off);
 }

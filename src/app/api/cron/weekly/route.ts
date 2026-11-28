@@ -1,7 +1,7 @@
 import { weeklyBoard } from '@/lib/rankMoves';
 import { NextResponse } from 'next/server';
 import { settleWeeklyPrizes } from '@/lib/weeklyPrizeSettle';
-import { finishCompetition } from '@/lib/weeklyFinish';
+import { finishCompetition, settleFinished } from '@/lib/weeklyFinish';
 import { startFinalReadBudget } from '@/lib/weeklyFinalRead';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
@@ -98,8 +98,19 @@ export async function GET(request: Request) {
   // Anything that finished while nobody was settling — a competition completed before prizes
   // existed, or a tick that died between the status flip and the payout. Cheap: the stamp means
   // each one is looked at once, ever.
+  // Finished but still waiting on after-the-end reads (lib/weeklyFinish settleFinished): read who is
+  // left and post once everyone is in, or the 2-hour wait is over. Claimed this tick above or earlier.
   for (const comp of allComps) {
-    if (comp.status === 'completed' && !comp.prizesSettledAt) {
+    if (comp.status === 'completed' && !comp.resultsPostedAt) {
+      // Re-read: finishing above may have just posted it.
+      // clan-scope: global -- one competition by id, from the list this tick walks.
+      const fresh = await db.query.weeklyCompetitions.findFirst({ where: eq(weeklyCompetitions.id, comp.id) });
+      if (fresh && !fresh.resultsPostedAt) await settleFinished(fresh);
+    }
+  }
+  for (const comp of allComps) {
+    // Never before the results are posted: a prize follows a standing everybody has been shown.
+    if (comp.status === 'completed' && !comp.prizesSettledAt && comp.resultsPostedAt) {
       await settleWeeklyPrizes(comp.id);
     }
   }

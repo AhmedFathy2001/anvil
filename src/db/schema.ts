@@ -657,6 +657,9 @@ export const events = pgTable('events', {
   endDate: text('end_date'),
   startNotified: integer('start_notified').default(0),
   endNotified: integer('end_notified').default(0),
+  /** When every player had a hiscores read after the end and its stat tiles were credited (lib/statsSweep):
+   *  the end post waits for it, or for 2 hours past the end (lib/eventLifecycle). */
+  finalReadsAt: text('final_reads_at'),
   // Set once when the "start held" warning is posted (scheduled start reached while the event
   // wasn't startable — draft mid-way / no teams assigned; see lib/eventReadiness). The lifecycle
   // cron keeps nudging startDate forward while blocked, but warns exactly once. Cleared whenever
@@ -1734,6 +1737,9 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
    * a second set of awards — this is the flag that makes it idempotent.
    */
   prizesSettledAt: text('prizes_settled_at'),
+  /** When the results were posted. Null on a finished competition still waiting on its final reads
+   *  (lib/weeklyFinish settleFinished): results wait until every entrant is read after the end, or 2 hours. */
+  resultsPostedAt: text('results_posted_at'),
   /**
    * How the competition is scored (lib/competitionTeams):
    *  - 'solo'  — everyone for themselves, the original SOTW/BOTW;
@@ -1917,6 +1923,8 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   valueLog: jsonb('value_log').$type<[number, number][]>(),
   /** The per-boss split as the HISCORES alone show it (no plugin live overlay): what a rush checks plugin kills against. */
   hiscoresParts: jsonb('hiscores_parts').$type<Record<string, number>>(),
+  /** When this entrant was read from the hiscores AFTER the competition ended (lib/weeklyFinalRead). */
+  finalReadAt: text('final_read_at'),
   // Each raid the plugin saw them finish during the rush, [[key, atMs], ...]: Clan Synergy (lib/bossRushRules rushSynergy).
   rushRaids: jsonb('rush_raids').$type<[string, number][]>(),
 }, (table) => [

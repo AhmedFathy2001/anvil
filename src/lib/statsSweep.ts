@@ -15,6 +15,8 @@ import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
+import { FINAL_READ_WAIT_MS } from '@/lib/finalReadGate';
+import { dbStampOf } from '@/lib/dbTime';
 import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
 import { computeGain, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
 import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
@@ -88,6 +90,8 @@ interface EventCtx {
   // completions and froze a split without the members it hadn't fetched.
   touchedTeams: Set<number>;
   hasStatTiles: boolean;
+  /** An event past its end and not yet settled: its post-end reads credit stat tiles as of this end. */
+  settleAt?: string;
   result: {
     eventId: number;
     eventName: string;
@@ -217,9 +221,13 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
     if (e.endDate && e.endDate < now) return false;
     return true;
   });
+  // Ended, end post not out yet: every player gets one hiscores read after the end before the results
+  // (lib/eventLifecycle waits on finalReadsAt), up to FINAL_READ_WAIT_MS. Plugin or not, the same read.
+  const settling = allEvents.filter((e) => !!e.endDate && e.endDate < now && !e.endNotified && !e.finalReadsAt && Date.now() - Date.parse(e.endDate) < FINAL_READ_WAIT_MS);
 
   const ctxList: EventCtx[] = [];
-  for (const event of activeEvents) {
+  for (const event of [...activeEvents, ...settling]) {
+    const settleAt = activeEvents.includes(event) ? undefined : event.endDate!;
     const eventPlayers = await db.query.eventParticipants.findMany({ where: eq(eventParticipants.eventId, event.id) });
     // A race's stat tiles count from when they opened for each team (lib/raceRoutesDb): make sure
     // every open one has its baseline before this sweep reads the tiles. Cheap once they're taken.
@@ -243,6 +251,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       completionSet: new Set(existingCompletions.map((c) => `${c.teamId}-${c.tileId}`)),
       touchedTeams: new Set(),
       hasStatTiles,
+      ...(settleAt ? { settleAt } : {}),
       result: { eventId: event.id, eventName: event.name, playersChecked: 0, playersSnapshotted: 0, tilesCompleted: [], errors: [] },
     };
     ctxList.push(ctx);
@@ -252,6 +261,14 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       // Benched players are pinned to frozenStats — don't re-fetch them (that would unfreeze the gain).
       // Their locked contribution still counts: lib/statTileCredit reads it off frozenStats.
       if (player.frozenAt) continue;
+      // Settling: one read after the end each, nothing else (no new baselines).
+      if (settleAt) {
+        if (!hasStatTiles || (player.lastStatsFetch && Date.parse(player.lastStatsFetch) >= Date.parse(settleAt))) continue;
+        const entry = claim(ensureEntry(player.clanMemberId, player.name));
+        entry.bingo.push({ ctx, player, needsSnapshot: false });
+        entry.staleKey = olderOf(entry.staleKey, player.lastStatsFetch);
+        continue;
+      }
       // Recapture when there's no baseline yet OR the one we have was taken before the event started
       // (an early admin pull, a moved-up start) — that keeps a pre-event baseline from counting the
       // gains between its capture and the whistle. See lib/statTracking#needsBaselineRecapture.
@@ -807,6 +824,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
                 buildContributionSnapshot(tile.statGoal!, [{ playerId: f.player.id, gained }]),
               ),
               awardedPoints: gate.awardedPoints,
+              // A read after the end credits what the hiscores showed by then, as of the end.
+              ...(ctx.settleAt ? { completedAt: dbStampOf(ctx.settleAt) } : {}),
             })
             .onConflictDoNothing()
             .returning({ id: completions.id });
@@ -863,6 +882,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           eventId: ctx.event.id,
           teamId,
           statTiles: open,
+          ...(ctx.settleAt ? { at: ctx.settleAt } : {}),
           onCompleted: (tile) => {
             ctx.completionSet.add(`${teamId}-${tile.id}`);
             ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: '(team total)' });
@@ -886,6 +906,16 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
         }
       }
     }
+  }
+
+  // A settling event whose players have all been read after the end (and credited, just above):
+  // stamp it, and the end post goes out (lib/eventLifecycle).
+  for (const ctx of ctxList) {
+    if (!ctx.settleAt) continue;
+    // clan-scope: global -- one event's own players, by its id.
+    const players = await db.query.eventParticipants.findMany({ where: eq(eventParticipants.eventId, ctx.event.id) });
+    const unread = ctx.hasStatTiles ? players.filter((p) => p.teamId && !p.frozenAt && !(p.lastStatsFetch && Date.parse(p.lastStatsFetch) >= Date.parse(ctx.settleAt!))).length : 0;
+    if (unread === 0) await db.update(events).set({ finalReadsAt: new Date().toISOString() }).where(and(eq(events.id, ctx.event.id), isNull(events.finalReadsAt)));
   }
 
   // Apply unranked flips in one statement (don't churn status_last_checked mid-loop).
