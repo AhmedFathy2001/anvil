@@ -6,6 +6,7 @@
 // mechanics, not taken from any calculator.
 
 import type { GearItem, Monster } from './engine';
+import { REQ_SKILLS, parseLevelUpTable, requirementsByItem, type ReqSkill, type TableEntry } from './requirements';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- raw wiki rows
 
@@ -53,6 +54,40 @@ const PREFERRED_VARIANT = /undamaged|#charged|#active|#normal|#new|#full|#100$|#
 // Items the engine models an effect for — kept even when their raw bonuses are all zero.
 const EFFECT_ITEMS = /salve amulet|slayer helmet|black mask|void|crystal (helm|body|legs)|obsidian|berserker necklace|inquisitor|elite void/i;
 
+
+/** One page's wikitext. */
+async function pageText(page: string): Promise<string> {
+  const body = new URLSearchParams({ action: 'parse', format: 'json', page, prop: 'wikitext', redirects: '1' });
+  const res = await fetch(WIKI_API, { method: 'POST', headers: { 'User-Agent': USER_AGENT, 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+  if (!res.ok) throw new Error(`parse ${page} HTTP ${res.status}`);
+  const json = await res.json();
+  if (json.error) throw new Error(`parse ${page}: ${json.error.info ?? json.error.code}`);
+  return json.parse?.wikitext?.['*'] ?? '';
+}
+
+/**
+ * Every item's wear/wield requirements, from each combat skill's "Level up table" page (no wiki
+ * bucket holds them). Sets `rq` (levels) and `rqq` (quests) on the items, in place.
+ */
+export async function attachRequirements(items: GearItem[], progress?: (msg: string) => void): Promise<number> {
+  const entries: TableEntry[] = [];
+  for (const skill of REQ_SKILLS) {
+    const label = (skill[0].toUpperCase() + skill.slice(1)) as Capitalize<ReqSkill>;
+    entries.push(...parseLevelUpTable(skill, await pageText(`${label}/Level_up_table`)));
+    progress?.(`requirements: ${skill}, ${entries.length} lines`);
+    await sleep(150);
+  }
+  const found = requirementsByItem(items, entries);
+  for (const it of items) {
+    delete it.rq;
+    delete it.rqq;
+    const r = found.get(it.id);
+    if (!r) continue;
+    it.rq = r.rq;
+    if (r.rqq.length) it.rqq = r.rqq;
+  }
+  return found.size;
+}
 
 export async function fetchGearDataset(progress?: (msg: string) => void): Promise<{ items: GearItem[]; monsters: Monster[] }> {
   const bonusRows = await fetchAll(
@@ -143,6 +178,7 @@ export async function fetchGearDataset(progress?: (msg: string) => void): Promis
     });
   }
   items.sort((a, b) => a.n.localeCompare(b.n));
+  await attachRequirements(items, progress);
 
   const monsters: Monster[] = [];
   for (const r of monsterRows) {

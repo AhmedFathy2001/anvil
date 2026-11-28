@@ -1,5 +1,6 @@
 'use client';
 
+import { caName } from '@/lib/loadout/caRules';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clanFetch } from '@/lib/clanFetch';
@@ -314,6 +315,7 @@ export default function GuidePage(p: GuidePageProps) {
                   {x.setup.pick && <span className="text-gold" aria-label="Curator pick">★</span>}
                   <span>{x.setup.name}</span>
                   {x.setup.tag && <span className="rounded bg-white/5 px-1.5 text-[11px] font-normal text-text-muted">{x.setup.tag}</span>}
+                  {x.setup.ca != null && caName(x.setup.ca) && <span className="rounded bg-[#3a2a14] px-1.5 text-[11px] font-normal text-[#ffb54d]">CA: {caName(x.setup.ca)}</span>}
                   {!x.fit.ok && <span className="text-[11px] font-normal">· {x.fit.reason}</span>}
                 </button>
               );

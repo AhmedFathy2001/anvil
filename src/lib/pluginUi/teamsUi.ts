@@ -29,7 +29,7 @@ const load = (s: Partial<TeamsState> & { event: number }, q = ''): Action => ({
 
 /** "#2 · 12 tiles · 8 members" — what is known; the rank and score wait for the reveal. */
 export function teamLine(t: RosterTeamOut): string {
-  return [t.rank != null ? `#${t.rank}` : null, t.score, plural(t.members, 'member')].filter(Boolean).join(' · ');
+  return [t.rank != null ? `#${t.rank}` : null, t.score, plural(t.members, 'member')].filter(Boolean).join(', ');
 }
 
 /**
@@ -76,7 +76,7 @@ export function rosterUi(data: RosterPage | null, s: TeamsState, missingShots: s
       if (yours) {
         parts.push(section([
           row(undefined, big(clip(yours.name, 18)), yours.rank != null ? text(`#${yours.rank} of ${data.total}`, SOFT) : undefined),
-          muted([yours.score, plural(yours.members, 'member')].filter(Boolean).join(' · ')),
+          muted([yours.score, plural(yours.members, 'member')].filter(Boolean).join(', ')),
         ], { on: load({ event: s.event, team: yours.teamId, back: s.page }), tip: 'Your team’s members' }), gap(8));
       }
       parts.push(header(plural(data.total, 'team'), data.unplaced > 0 ? `${data.unplaced} not placed` : null), gap(3));
@@ -140,7 +140,7 @@ export function rosterUi(data: RosterPage | null, s: TeamsState, missingShots: s
 }
 
 function teamRow(t: RosterTeamOut, s: TeamsState): Node {
-  return row(swatch(t.color, 8), col([text(t.yours ? `${clip(t.name, 16)} · your team` : t.name, t.yours ? GOLD : 'white'), muted(teamLine(t))]), muted('›'), {
+  return row(swatch(t.color, 8), col([text(t.yours ? `${clip(t.name, 16)}, your team` : t.name, t.yours ? GOLD : 'white'), muted(teamLine(t))]), muted('›'), {
     pad: 8,
     bg: 'raised',
     ...(t.yours ? { edge: GOLD } : {}),
@@ -162,7 +162,7 @@ function personRow(p: RosterPersonOut, ranked: boolean, showTeam: boolean, s: Te
         ...(openTeam ? { tip: `Open ${p.teamName}`, on: openTeam } : {}),
       })
     : null;
-  const tag = p.captain && p.you ? 'Captain · you' : p.captain ? 'Captain' : p.you ? 'You' : null;
+  const tag = p.captain && p.you ? 'Captain, you' : p.captain ? 'Captain' : p.you ? 'You' : null;
   // A weekly activity streak rides after the role, in the flame's orange.
   // 2+ weeks only: one week is just "played this week".
   const streak = p.streak && p.streak >= 2 ? streakChip(p.streak) : undefined;

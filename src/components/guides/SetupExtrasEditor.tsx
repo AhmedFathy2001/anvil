@@ -6,6 +6,8 @@ import ChipsInput from '@/components/ChipsInput';
 import Checkbox from '@/components/Checkbox';
 import DialogFrame from '@/components/DialogFrame';
 import Input from '@/components/Input';
+import Select from '@/components/Select';
+import { CA_RULES, caName } from '@/lib/loadout/caRules';
 import Textarea from '@/components/Textarea';
 import type { GearIndex } from '@/lib/dps/summary';
 import type { GearSetup } from '@/lib/guideTiers';
@@ -19,6 +21,8 @@ import { SLOT_NAME } from '@/lib/slotNames';
 
 const SLOTS = ['head', 'cape', 'neck', 'ammo', 'quiver', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring'] as const;
 const SPELLS = ['Crumble Undead', 'Teleport to House', 'Vengeance', 'Ice Barrage', 'Blood Barrage', 'Fire Surge', 'Fire Wave', 'Iban Blast', 'Saradomin Strike', 'Thrall', 'Death Charge', 'Mark of Darkness', 'Resurrect Greater Ghost', 'Superior Ghost', 'Lunar teleport', 'Cure Me', 'Spellbook Swap'];
+/** "CA: …" on the pill: the tasks the trip card knows (they change a loadout), by name. */
+const CA_OPTIONS = [{ value: '', label: 'None' }, ...CA_RULES.map((r) => ({ value: String(r.id), label: caName(r.id) ?? '' })).filter((o) => o.label).sort((a, b) => a.label.localeCompare(b.label))];
 const LEVEL_SKILLS = ['attack', 'strength', 'defence', 'ranged', 'magic', 'prayer', 'hitpoints', 'slayer', 'agility'];
 
 const chip = (on: boolean) => `h-8 rounded-full border px-3 text-xs ${on ? 'border-gold bg-gold font-semibold text-brown-dark' : 'border-card-border bg-card-bg hover:border-gold/50'}`;
@@ -76,6 +80,10 @@ export default function SetupExtrasEditor({
         <label className="block space-y-1">
           <span className="font-semibold">Chip on the pill</span>
           <Input value={value.tag ?? ''} onChange={(e) => onChange({ tag: e.target.value.slice(0, 20) || undefined })} placeholder="Budget, Iron-friendly…" />
+        </label>
+        <label className="block space-y-1">
+          <span className="font-semibold">Combat Achievement variant</span>
+          <Select value={value.ca != null ? String(value.ca) : ''} onChange={(v) => onChange({ ca: v ? Number(v) : undefined })} options={CA_OPTIONS} ariaLabel="Combat Achievement this setup is for" searchable />
         </label>
         {curator && (
           <div className="flex items-end pb-2">

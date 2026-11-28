@@ -1,3 +1,4 @@
+import { tripEnabled } from '@/lib/serverInfo';
 import ClanLink from '@/components/ClanLink';
 import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import type { MyClan } from '@/lib/myClans';
@@ -70,6 +71,19 @@ export function SettingsButton() {
       className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-card-border bg-card-bg px-3 py-1.5 text-[13px] text-foreground transition-colors hover:border-gold/40 hover:text-gold-light"
     >
       <span aria-hidden>⚙</span> Settings
+    </ClanLink>
+  );
+}
+
+/** "My setups": the player's saved pre-trip setups (app/profile/setups), beside Settings on every tab. */
+export function MySetupsButton() {
+  if (!tripEnabled()) return null;
+  return (
+    <ClanLink
+      href="/profile/setups"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-card-border bg-card-bg px-3 py-1.5 text-[13px] text-foreground transition-colors hover:border-gold/40 hover:text-gold-light"
+    >
+      My setups
     </ClanLink>
   );
 }

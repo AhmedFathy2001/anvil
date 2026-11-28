@@ -1,8 +1,8 @@
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { loadTrackedConfig } from '@/lib/pluginFacts/load';
 import { buildRuleTable, huntDropRules } from '@/lib/pluginFacts/rules';
-import { huntTargetsFor } from '@/lib/itemHuntDb';
-import { pluginViewerRsn, verifyPluginTokenUser, resolvePluginClan } from '@/lib/auth';
+import { huntTargetsFor, rushKillRules } from '@/lib/itemHuntDb';
+import { pluginViewerRsn, verifyPluginTokenUser, resolvePluginClan, resolvePluginMember } from '@/lib/auth';
 import { rareTableFor } from '@/lib/notifyDropItems';
 import { pluginVersionHeader } from '@/lib/pluginSeen';
 import { huntPopupsSupportedBy, raidFactsSupportedBy } from '@/lib/tileConditionsCheck';
@@ -28,7 +28,16 @@ export async function GET(request: Request) {
     const hunts = huntDropRules(await huntTargetsForCaller(request).catch(() => []));
     for (const [id, rules] of Object.entries(hunts)) table.drops[id] = [...(table.drops[id] ?? []), ...rules] as typeof table.drops[string];
   }
+  // The targets of the running Boss Rushes this character is in: counted quietly (no chat line), so
+  // their kills come back as facts, board or no board (lib/itemHuntDb creditRushKills).
+  const rush: Awaited<ReturnType<typeof rushKillRules>> = await rushRulesForCaller(request).catch(() => ({}));
+  for (const [name, rules] of Object.entries(rush)) table.kills[name] = [...(table.kills[name] ?? []), ...rules];
   return jsonWithEtag(request, { ...table, rare: await rareTableFor(floor) });
+}
+
+async function rushRulesForCaller(request: Request) {
+  const member = await resolvePluginMember(request);
+  return member ? rushKillRules(member.clanId, member.clanMemberId) : {};
 }
 
 // A signed-in plugin with or without a live board (a hunt runs without one). The character is the

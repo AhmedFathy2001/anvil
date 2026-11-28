@@ -47,7 +47,7 @@ test('the All tiles list: no race header (the race page has it), filter dropdown
   for (const c of ['All', 'Next for us', 'Done', 'Locked']) assert.ok(raw.includes(`"label":"${c}"`), c);
   assert.ok(walk(ui).some((x) => x.t === 'input' && x.kind === 'select'), 'one filter dropdown');
   assert.ok(t.includes('Step 2') && t.includes('Finish'));
-  assert.ok(!t.some((x) => /^Step \d · (Kill|One|Vorkath|Barrows|Raid|Wintertodt)/.test(x)), 'no “Step 2 ·” in rows');
+  assert.ok(!t.some((x) => /^Step \d, (Kill|One|Vorkath|Barrows|Raid|Wintertodt)/.test(x)), 'no “Step 2 ·” in rows');
   assert.ok(t.includes('Done') && t.includes('Next') && t.includes('Locked'));
   assert.ok(!t.includes('You are here') && !t.some((x) => /visible tiles/.test(x)));
 });

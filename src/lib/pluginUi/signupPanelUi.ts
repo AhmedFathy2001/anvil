@@ -38,7 +38,7 @@ export function bingoSignupCard(s: BingoSignupState, eventId: number, backTo: st
     out.push(small(s.reason, FAINT, { wrap: CARD_W }));
   }
   if (s.names) {
-    out.push(title(`Signed up · ${s.count}`));
+    out.push(title(`Signed up (${s.count})`));
     out.push(s.names.length ? muted(s.names.slice(0, 40).join(', ') + (s.names.length > 40 ? ` +${s.names.length - 40}` : ''), { wrap: CARD_W }) : muted('Nobody yet — be the first.'));
   }
   return out.length ? section(out) : null;

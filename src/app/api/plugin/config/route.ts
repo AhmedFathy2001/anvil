@@ -14,13 +14,14 @@ import {
 } from '@/lib/pluginConfig';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { withTileCounts } from '@/lib/pluginTileCounts';
-import { TRIP_REGION_IDS } from '@/lib/tripContent';
+import { tripRegions } from '@/lib/guideAreas';
+import { regionIds, tripNamesOf } from '@/lib/tripContent';
 import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
 import { combatTaskVarps } from '@/lib/combatTasks';
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { h2hDropItemIdsForAccount } from '@/lib/h2h';
-import { huntReportItemIds } from '@/lib/itemHuntDb';
+import { huntReportItemIds, inRunningRush } from '@/lib/itemHuntDb';
 import { clanlessPluginConfig } from '@/lib/pluginConfigClanless';
 import { modeAwareNotifyFlags, pluginModeThresholds } from '@/lib/worldModeStore';
 import { worldModeOf } from '@/lib/worldModeRequest';
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) {
     const clanless = await clanlessPluginConfig(request);
-    return clanless ? jsonWithEtag(request, withTripRegions(withTileCounts(clanless))) : noClanForPlugin();
+    return clanless ? jsonWithEtag(request, await withTripRegions(withTileCounts(clanless))) : noClanForPlugin();
   }
   if (!auth) {
     // Distinguish "bad token" from "valid token but no active event" so the plugin
@@ -244,6 +245,11 @@ export async function GET(request: Request) {
       const myPrefs = await getNotifyPrefs(userOnly.userId);
       body.me = pluginMe(myPrefs, body.notify as never, clanDrops, body.modeThresholds as never, await dropHookFilters(userOnly.userId), await characterClanKinds(played?.accountId ?? null, clan.id, worldModeOf(request)?.key));
       withOwnAlwaysItems(body as unknown as Record<string, unknown>, myPrefs.alwaysItems);
+      // In a running Boss Rush: the plugin reports kills with no board live (its targets ride the
+      // rule table, api/plugin/rules), which is what the rush counts (lib/itemHuntDb creditRushKills).
+      if (played && played.clanId === clan.id && (await inRunningRush(clan.id, played.clanMemberId).catch(() => false))) {
+        (body as unknown as Record<string, unknown>).rush = true;
+      }
       // No board live HERE, but the character may be on boards elsewhere: a multi-board plugin
       // tracks those too (lib/pluginBoards). Keyed to the played character, so nothing at the
       // login screen beyond what the launcher hint already names.
@@ -253,7 +259,7 @@ export async function GET(request: Request) {
         else body.boards = [];
       }
       await markQuietWorld(request, body);
-      return jsonWithEtag(request, withTripRegions(withTileCounts(body)));
+      return jsonWithEtag(request, await withTripRegions(withTileCounts(body)));
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
@@ -307,16 +313,17 @@ export async function GET(request: Request) {
   }
   await markQuietWorld(request, built.body as unknown as Record<string, unknown>);
   // `tiles` last: the counts of every board folded in above (lib/pluginTileCounts).
-  return jsonWithEtag(request, withTripRegions(withTileCounts(built.body)));
+  return jsonWithEtag(request, await withTripRegions(withTileCounts(built.body)));
 }
 
 /**
  * `tripRegions` on every config shape (capability 'trip-check', lib/tripContent): the map regions
  * whose bank closing makes the plugin load the 'trip' view. A person in no clan gets a 404 config, so
- * /api/version carries the same list for them.
+ * /api/version carries the same list for them. `tripNames`: each region's trip, short ("ToA").
  */
-function withTripRegions<T extends object>(body: T): T & { tripRegions: number[] } {
-  return Object.assign(body, { tripRegions: TRIP_REGION_IDS });
+async function withTripRegions<T extends object>(body: T): Promise<T & { tripRegions: number[]; tripNames: Record<number, string> }> {
+  const regions = await tripRegions();
+  return Object.assign(body, { tripRegions: regionIds(regions), tripNames: tripNamesOf(regions) });
 }
 
 /**

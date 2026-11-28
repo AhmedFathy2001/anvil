@@ -53,7 +53,7 @@ test('different killers: the count leads, the latest killer after it', () => {
   const out = collapseMomentRuns([m({ source: 'Zulrah', occurredAt: at(0) }), m({ source: 'Vorkath', occurredAt: at(2) }), m({ source: null, occurredAt: at(4) })]);
   assert.equal(out.length, 1);
   assert.equal(out[0].run?.mixed, true);
-  assert.equal(momentTitle(out[0]), 'Died ×3 · last to Zulrah');
+  assert.equal(momentTitle(out[0]), 'Died ×3, last to Zulrah');
   assert.equal(momentSentence(out[0]), 'died ×3, last to Zulrah');
   const [noKiller] = collapseMomentRuns([m({ source: null }), m({ source: 'Vorkath', occurredAt: at(1) })]);
   assert.equal(momentTitle(noKiller), 'Died ×2');

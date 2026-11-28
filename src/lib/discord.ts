@@ -2284,7 +2284,7 @@ export interface WeeklyHuntPost {
 const dropsWord = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'drop' : 'drops'}`;
 const pointsWord = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'point' : 'points'}`;
 /** What a hunt's count is: points on a points hunt, drops on any other. */
-const huntWord = (hunt: WeeklyHuntPost, n: number) => (hunt.rule === 'points' ? pointsWord(n) : dropsWord(n));
+const huntWord = (hunt: WeeklyHuntPost, n: number) => (hunt.rule === 'points' || hunt.rule === 'rush' ? pointsWord(n) : dropsWord(n));
 
 function weeklyGroupField(type: string, g: WeeklyGroupPost, label: string) {
   const fmt = (n: number) => (type === 'efficiency' ? formatEfficiencyHours(Math.round(n)) : Math.round(n).toLocaleString());

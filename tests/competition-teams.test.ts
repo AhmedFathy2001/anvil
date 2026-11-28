@@ -151,7 +151,7 @@ test('panel payload: your team line, compact standings, nodes', () => {
   assert.equal(p.noun, 'team');
   assert.equal(p.of, 4);
   assert.equal(p.you!.name, 'Blue');
-  assert.equal(p.you!.line, 'Your team: 2nd of 4 · +1.2M XP');
+  assert.equal(p.you!.line, 'Your team: 2nd of 4, +1.2M XP');
   assert.deepEqual(p.standings.map((s) => [s.rank, s.name, s.you]), [[1, 'Red', false], [2, 'Blue', true], [3, 'Green', false], [4, 'Gold', false]]);
   assert.ok(yourGroupCard('skill', p));
   assert.equal(groupStandingsNodes('skill', p).length, 2 + 4);

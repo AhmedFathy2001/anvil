@@ -73,7 +73,7 @@ test('a card: identity, then Stats | Bosses | Collection log, the rest folded un
   const ui = playerCardUi(card, { sectionKey: 'lookup', cas: true });
   const all = texts(ui);
   assert.ok(all.includes('Drenvox mdps'));
-  assert.ok(all.includes('2,277 total · cb 126'));
+  assert.ok(all.includes('2,277 total, cb 126'));
   assert.ok(all.includes('600 / 1,600'), 'the log total heads its own tab');
   assert.ok(all.includes('Tanzanite fang'));
   const tabs = walk(ui).filter((x) => x.t === 'tabs') as Extract<Node, { t: 'tabs' }>[];
@@ -107,7 +107,7 @@ test('panel media, clan mark and this character’s display case are part of the
   assert.ok(images.some((n) => n.src.includes('kind=avatar') && n.motion && n.rad === 8));
   assert.ok(texts(ui).includes('Display case'));
   assert.ok(texts(ui).includes("Tumeken's shadow"));
-  assert.ok(texts(ui).includes('The AFK Spot · Ironman · on Anvil'), 'the muted line');
+  assert.ok(texts(ui).includes('The AFK Spot, Ironman, on Anvil'), 'the muted line');
   assert.ok(!JSON.stringify(ui).includes('stored-but-never-sent-directly'));
 });
 
@@ -195,10 +195,10 @@ test('log category search: a page found by an item says which, and the matching 
   assert.ok(walk(alt).some((n) => n.t === 'icon' && typeof n.item === 'number'), 'the icon id stays a number');
   const fang = filter.x!.find((e) => e[0] === 'Tanzanite fang')!;
   const got = fill(filter.xt!, fang);
-  assert.ok(texts(got).includes('Zulrah · got 2'));
+  assert.ok(texts(got).includes('Zulrah, got 2'));
   assert.ok(walk(got).some((n) => n.t === 'icon' && n.item === 12922 && n.dim === false));
   const missing = fill(filter.xt!, filter.x!.find((e) => e[2] === 'Zulrah' && e[0] !== 'Tanzanite fang')!);
-  assert.ok(texts(missing).some((s) => s.endsWith(' · not yet')) && walk(missing).some((n) => n.t === 'icon' && n.dim === true));
+  assert.ok(texts(missing).some((s) => s.endsWith(', not yet')) && walk(missing).some((n) => n.t === 'icon' && n.dim === true));
   assert.ok(texts(filter.xh!).includes('Matching items'));
   // A plugin that doesn't fill templates gets the search as before: one text to match, no templates.
   const old = playerCardUi({ ...card, clogQty: { 12922: 2 } }, { sectionKey: 'lookup', cas: false });
@@ -461,7 +461,7 @@ test('board rows: fifteen a page, every page and detail carried as a pane, and t
   const readOnly = boardRowsUi(boardOf(tiles, true), state, ctxOf({ claimBlock: 'Join this event to claim tiles.', pins: null }));
   assert.deepEqual(walk(readOnly).find((x) => x.menu)!.menu, [{ label: 'Join this event to claim tiles.' }]);
   const page = boardUi(boardOf(tiles, true), state, ctxOf({ claimBlock: 'Join this event to claim tiles.' }), readOnly);
-  assert.ok(texts(page).includes('Click for details · join this event to claim tiles.'));
+  assert.ok(texts(page).includes('Click for details, join this event to claim tiles.'));
 });
 
 test('tile detail: claim buttons, the pin (and its limit), the site link, and an error from the claim', () => {
@@ -489,12 +489,12 @@ test('tracking lines: sets say how much of each is needed and what is done', () 
       { itemId: 3, name: 'Skirt', requiredAmount: 1, currentAmount: 0, group: 'Karil', groupRequire: 0 },
     ],
   });
-  assert.deepEqual(trackingLines(t), ['Ahrim set — all 2 · done:', '  ✓ Hood', '  ✓ Top', 'Karil set — all 1:', '  1× Skirt']);
+  assert.deepEqual(trackingLines(t), ['Ahrim set — all 2, done:', '  ✓ Hood', '  ✓ Top', 'Karil set — all 1:', '  1× Skirt']);
 });
 
 test('teams: the ranked list opens a team; a team page goes back; search rows open the player', () => {
   const team = { teamId: 3, name: 'Red', color: '#ff0000', rank: 1, score: '9 tiles', members: 12, yours: true };
-  assert.equal(teamLine(team), '#1 · 9 tiles · 12 members');
+  assert.equal(teamLine(team), '#1, 9 tiles, 12 members');
   const overview = rosterUi({ mode: 'teams', page: 1, pageSize: 25, total: 1, pages: 1, teams: [team], yourTeam: null, unplaced: 0 }, { event: 7, team: 0, page: 1, back: 1 });
   assert.ok(actions(overview).some((a) => a.a === 'load' && a.args?.team === '3'));
   const members = rosterUi(
@@ -574,19 +574,19 @@ if (process.env.RACE_FIXTURES) {
     rsn: 'Drenvox',
     displayCase: [
       { id: 1, kind: 'kc', itemId: 0, statKey: 'vorkath', headline: '1,204 KC', name: 'Vorkath', source: null },
-      { id: 2, kind: 'pb', itemId: 0, statKey: '4:theatre_of_blood', headline: '17:42.6', name: 'ToB · 4 players', source: null },
+      { id: 2, kind: 'pb', itemId: 0, statKey: '4:theatre_of_blood', headline: '17:42.6', name: 'ToB, 4 players', source: null },
       { id: 3, kind: 'drop', itemId: 20997, statKey: null, headline: null, name: 'Twisted bow', source: 'Chambers of Xeric' },
       { id: 4, kind: 'clog', itemId: 21992, statKey: null, headline: null, name: 'Vorki', source: 'Vorkath' },
     ],
   };
   const h2h = (id: number, status: 'pending' | 'active', side: 'challenger' | 'opponent', them: string, me: number, they: number) => ({
-    id, kind: 'kc' as const, label: 'Vorkath kills', sentence: `${status === 'pending' ? 'Vorkath' : 'Zulrah'} kills · 7 days`, status, durationMin: 10_080, side,
+    id, kind: 'kc' as const, label: 'Vorkath kills', sentence: `${status === 'pending' ? 'Vorkath' : 'Zulrah'} kills, 7 days`, status, durationMin: 10_080, side,
     me: { rsn: 'Drenvox', score: me, hitAt: null }, them: { rsn: them, playerId: id, score: they, hitAt: null },
     createdAt: ago(60), respondBy: later(20 * 60), startedAt: ago(60), endsAt: later(2 * 24 * 60), finishedAt: null, outcome: null, resultLine: null,
     myPublic: true, isPublic: true, cancelAsked: null, itemIds: [], statKey: status === 'pending' ? 'vorkath' : 'zulrah',
   });
   const goals: GoalView[] = [
-    { id: 1, kind: 'skill', metric: 'slayer', target: 99, label: '99 Slayer', current: 10_200_000, of: 13_034_431, text: '96 · 4.2m xp left', done: false, due: null },
+    { id: 1, kind: 'skill', metric: 'slayer', target: 99, label: '99 Slayer', current: 10_200_000, of: 13_034_431, text: '96, 4.2m xp left', done: false, due: null },
     { id: 2, kind: 'boss', metric: 'vorkath', target: 500, label: '500 Vorkath', current: 312, of: 500, text: '312 / 500', done: false, due: null },
     { id: 3, kind: 'clog', metric: 'Barrows', target: 25, label: 'Barrows log', current: 22, of: 25, text: '22 / 25', done: false, due: { text: 'due in 2d', pace: null, tone: 'behind', days: 2, when: '14 Nov 2026' } },
     { id: 4, kind: 'clog', metric: 'Fight Caves', target: 1, label: 'Fire cape', current: 1, of: 1, text: '1 / 1', done: true, due: null },
@@ -635,7 +635,7 @@ test('display case: every pin kind shows its value, items keep a full-size icon'
     ...card,
     displayCase: [
       { id: 1, kind: 'kc', itemId: 0, statKey: 'vorkath', headline: '1,204 KC', name: 'Vorkath', source: null },
-      { id: 2, kind: 'pb', itemId: 0, statKey: '1:tob', headline: '17:42.6', name: 'ToB · 4 players', source: null },
+      { id: 2, kind: 'pb', itemId: 0, statKey: '1:tob', headline: '17:42.6', name: 'ToB, 4 players', source: null },
       { id: 3, kind: 'drop', itemId: 20997, statKey: null, headline: null, name: 'Twisted bow', source: 'CoX', kc: 312, when: null },
       { id: 4, kind: 'clog', itemId: 21992, statKey: null, headline: null, name: 'Vorki', source: 'Vorkath', kc: null, when: '2026-11-01T10:00:00Z' },
       { id: 5, kind: 'clog', itemId: 4151, statKey: null, headline: null, name: 'Abyssal whip', source: 'Abyssal Demon', kc: null, qty: 3, when: '2026-10-01T10:00:00Z' },
@@ -643,11 +643,11 @@ test('display case: every pin kind shows its value, items keep a full-size icon'
     ],
   };
   const t = texts(playerCardUi(shown, { sectionKey: 'you', cas: false }));
-  for (const want of ['1,204 KC', '17:42.6', 'ToB · 4 players', '312 KC', 'Twisted bow', 'Nov 2026', 'Vorki', '×3 owned', 'Armadyl godsword']) assert.ok(t.includes(want), want);
+  for (const want of ['1,204 KC', '17:42.6', 'ToB, 4 players', '312 KC', 'Twisted bow', 'Nov 2026', 'Vorki', '×3 owned', 'Armadyl godsword']) assert.ok(t.includes(want), want);
   const ui = playerCardUi(shown, { sectionKey: 'you', cas: false });
   assert.ok(walk(ui).some((n) => n.t === 'icon' && n.item === 20997 && n.w === 36 && n.h === 32));
-  const lucky = playerCardUi({ ...shown, displayCase: [{ ...shown.displayCase![2], luck: { text: 'Spooned · 54 KC (1/1,200)', tone: 'green' } }] }, { sectionKey: 'you', cas: false });
-  assert.ok(texts(lucky).includes('Spooned · 54 KC (1/1,200)') && !texts(lucky).includes('312 KC'), 'the luck line outranks a bare KC');
+  const lucky = playerCardUi({ ...shown, displayCase: [{ ...shown.displayCase![2], luck: { text: 'Spooned, 54 KC (1/1,200)', tone: 'green' } }] }, { sectionKey: 'you', cas: false });
+  assert.ok(texts(lucky).includes('Spooned, 54 KC (1/1,200)') && !texts(lucky).includes('312 KC'), 'the luck line outranks a bare KC');
   assert.ok(walk(lucky).some((n) => n.t === 'text' && n.s?.startsWith('Spooned') && n.color === '#6fdc6f'), 'spooned is green');
   assert.ok(!t.includes('Obtained') && !t.some((x) => x.startsWith('Obtained')), 'never the word Obtained');
   // Nothing known: the name in the normal small font, wrapped to the pin's width, with a tooltip.
@@ -665,7 +665,7 @@ test('goals: name on its own line, progress and due muted, days left only when c
   const runsOf = (ui: Node) => walk(ui).flatMap((n) => (n.t === 'text' && n.runs ? n.runs.map((r) => r.s) : []));
   const far = goalsUi([g(1, '99 Slayer', 369)], null);
   assert.ok(texts(far).includes('99 Slayer'));
-  assert.ok(runsOf(far).join('').includes('2 / 11 · due 12 Nov 2027') && !runsOf(far).join('').includes('days left'));
+  assert.ok(runsOf(far).join('').includes('2 / 11, due 12 Nov 2027') && !runsOf(far).join('').includes('days left'));
   assert.ok(runsOf(goalsUi([g(2, 'Barrows', 3)], null)).join('').includes('3 days left'));
   const done = goalsUi([{ ...g(3, 'Fire cape', 0), done: true } as GoalView], null);
   assert.ok(walk(done).some((n) => n.t === 'text' && n.s === 'Done' && n.chip));
@@ -703,8 +703,8 @@ test('a log page: each mode’s best time and kills, the items, then luck only w
   const ui = clogPageUi('Drenvox', {
     page: 'Brutus', obtained: 2, total: 4,
     items: [
-      { id: 1, name: 'Mooleta', owned: true, quantity: 35, luck: { text: '35 in 1,378 kc · expected 27 · lucky', tone: 'green' } },
-      { id: 2, name: 'Moo-ve over boots', owned: true, quantity: 8, luck: { text: '8 in 1,378 kc · expected 11 · a bit dry', tone: 'dry' } },
+      { id: 1, name: 'Mooleta', owned: true, quantity: 35, luck: { text: '35 in 1,378 kc, expected 27, lucky', tone: 'green' } },
+      { id: 2, name: 'Moo-ve over boots', owned: true, quantity: 8, luck: { text: '8 in 1,378 kc, expected 11, a bit dry', tone: 'dry' } },
       { id: 3, name: 'Beef', owned: true, quantity: 1, luck: null },
       { id: 4, name: 'Bucket', owned: false, quantity: 0 },
     ],
@@ -713,7 +713,7 @@ test('a log page: each mode’s best time and kills, the items, then luck only w
   const t = texts(ui);
   for (const want of ['Personal bests', 'Brutus', '0:41.20', '1,166 kc', 'Demonic Brutus', '1:12.80', '212 kc', 'Luck']) assert.ok(t.includes(want), want);
   const chips = walk(ui).filter((n): n is Extract<Node, { t: 'text' }> => n.t === 'text' && !!n.chip);
-  assert.deepEqual(chips.map((c) => c.s), ['35 in 1,378 kc · expected 27 · lucky', '8 in 1,378 kc · expected 11 · a bit dry']);
+  assert.deepEqual(chips.map((c) => c.s), ['35 in 1,378 kc, expected 27, lucky', '8 in 1,378 kc, expected 11, a bit dry']);
   assert.ok(!t.includes('Beef'), 'no rate or kills: no luck row');
   const bare = texts(clogPageUi('Drenvox', { page: 'Brutus', obtained: 0, total: 1, items: [{ id: 4, name: 'Bucket', owned: false, quantity: 0 }] }, 'main', null));
   assert.ok(!bare.includes('Personal bests') && !bare.includes('Luck'), 'nothing known: neither block');
@@ -722,9 +722,9 @@ test('a log page: each mode’s best time and kills, the items, then luck only w
 test('display case: a pin with a luck read says its name, then how it went', () => {
   const ui = playerCardUi({
     ...card,
-    displayCase: [{ id: 1, kind: 'clog', itemId: 27277, statKey: null, headline: null, name: "Tumeken's shadow", source: 'Tombs of Amascut', qty: 2, luck: { text: '2 in 200 kc · expected 0.5 · mega spooned', tone: 'green' } }],
+    displayCase: [{ id: 1, kind: 'clog', itemId: 27277, statKey: null, headline: null, name: "Tumeken's shadow", source: 'Tombs of Amascut', qty: 2, luck: { text: '2 in 200 kc, expected 0.5, mega spooned', tone: 'green' } }],
   }, { sectionKey: 'you', cas: false });
   const t = texts(ui);
-  assert.ok(t.indexOf("Tumeken's shadow") < t.indexOf('2 in 200 kc · expected 0.5 · mega spooned'));
+  assert.ok(t.indexOf("Tumeken's shadow") < t.indexOf('2 in 200 kc, expected 0.5, mega spooned'));
   assert.ok(walk(ui).some((n) => n.t === 'icon' && n.item === 27277 && n.qty === 2), 'copies held on the icon');
 });

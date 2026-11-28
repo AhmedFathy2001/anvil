@@ -1,3 +1,5 @@
+import { momentLabel } from '@/lib/petName';
+import { tripEnabled } from '@/lib/serverInfo';
 import type { PanelHighlights } from './highlightsUi';
 import { spendLifeline, teamEasePayload } from '@/lib/raceEaseDb';
 import { withoutPetDoubles } from '@/lib/momentDupes';
@@ -203,7 +205,7 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
         below: [
           goalsNode,
           ...(owner && hasGuidesPanel(request)
-            ? [tripEntryUi(await targetLabel(owner.userId, owner.accountId).catch(() => null)), await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n)
+            ? [tripEnabled() ? tripEntryUi(await targetLabel(owner.userId, owner.accountId).catch(() => null)) : null, await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n)
             : []),
         ],
       })
@@ -982,7 +984,7 @@ async function momentsView(request: Request, a: Args, note?: string): Promise<Vi
   const items: FeedItem[] = shown.map((m) => ({
     id: m.id,
     rsn: m.rsn,
-    label: m.itemName ?? m.source ?? m.kind,
+    label: momentLabel(m),
     itemId: m.itemId,
     kind: m.kind,
     at: m.occurredAt,
@@ -1126,7 +1128,7 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
     if (g) return g;
   }
   if (act.startsWith('trip-')) {
-    const t = await tripAct(request, act, args);
+    const t = await tripAct(request, act, args, fields);
     if (t) return t;
   }
   if (act === 'notice-hide') {

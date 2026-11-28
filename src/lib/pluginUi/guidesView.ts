@@ -4,6 +4,8 @@
 // played character when it is theirs, else their main. Clanless players get the Anvil library; a
 // clan member pointed at their clan gets the clan's copies where it has them (lib/guides).
 
+import { tripEnabled } from '@/lib/serverInfo';
+import { caName } from '@/lib/loadout/caRules';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -101,7 +103,7 @@ function rowOf(g: { id: number; title: string; category: string; body: string; k
   const levels = new Set([...(block?.setups.map((s) => s.tier) ?? []), ...textTiers(g.body)]).size;
   const parts = g.kind === 'route' ? ['Progression route'] : [levels > 1 ? `${levels} levels` : 'Guide', block ? `${block.setups.length} setup${block.setups.length === 1 ? '' : 's'}` : `${readingMinutes(g.body)} min read`];
   if (community) parts.push(`${community} community`);
-  return { id: g.id, title: g.title.split(' — ')[0], category: catLabel, pic: guidePic(g, block), meta: parts.join(' · '), by };
+  return { id: g.id, title: g.title.split(' — ')[0], category: catLabel, pic: guidePic(g, block), meta: parts.join(', '), by };
 }
 
 export async function guidesSearchView(request: Request, args: Args): Promise<View> {
@@ -133,7 +135,7 @@ export async function guidesSearchView(request: Request, args: Args): Promise<Vi
   const at = spot ? await publicGuideBySlug(clanId, spot.slug) : null;
   const here = at && spot ? { id: at.guide.id, title: at.guide.title.split(' — ')[0], where: spot.where, pic: guidePic(at.guide, firstGearBlock(at.guide.body)) } : null;
   // The pre-trip check's way in, for a signed-in player on a character of theirs.
-  const trip = viewer.userId && viewer.accountId ? await targetLabel(viewer.userId, viewer.accountId).catch(() => null) : undefined;
+  const trip = tripEnabled() && viewer.userId && viewer.accountId ? await targetLabel(viewer.userId, viewer.accountId).catch(() => null) : undefined;
   return { ui: guidesSearchUi({ recent, sections, filters, here, region, trip }) };
 }
 
@@ -274,20 +276,20 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       kind: guide.kind === 'route' ? 'Progression route' : categoryOf(guide.category, cats).label,
       tier,
       tiers,
-      byline: `${byShort(credits)}${top && !phase2 ? ` · ${top.label}` : ''}` || writtenByLine(credits),
+      byline: `${byShort(credits)}${top && !phase2 ? `, ${top.label}` : ''}` || writtenByLine(credits),
       rankGlyph: phase2 ? tone : null,
       region,
       keep: Object.fromEntries((['account', 'build'] as const).filter((k) => args[k] && args[k] !== 'any').map((k) => [k, args[k]!])),
       setups: all.map((x) => ({
         key: x.key,
         name: x.community ? `${x.setup.name} (community)` : x.setup.name,
-        sub: [x.setup.pick ? 'Curator pick' : x.setup.tag ?? '', x.dps != null ? `${x.dps.toFixed(1)} DPS` : ''].filter(Boolean).join(' · '),
+        sub: [x.setup.ca != null && caName(x.setup.ca) ? `CA: ${caName(x.setup.ca)}` : '', x.setup.pick ? 'Curator pick' : x.setup.tag ?? '', x.dps != null ? `${x.dps.toFixed(1)} DPS` : ''].filter(Boolean).join(', '),
         weapon: x.setup.gear.weapon ?? null,
         blocked: x.fit.ok ? null : x.fit.reason,
         pick: !!x.setup.pick,
       })),
       current: current?.key ?? null,
-      dps: current ? `${((current.resolved ? current.myDps : current.dps) ?? 0).toFixed(1)} DPS${current.ttk != null ? ` · ~${fmtDuration(current.ttk)}` : ''}` : '',
+      dps: current ? `${((current.resolved ? current.myDps : current.dps) ?? 0).toFixed(1)} DPS${current.ttk != null ? `, ~${fmtDuration(current.ttk)}` : ''}` : '',
       usingFallbacks:
         current?.resolved?.slots
           .filter((x) => x.use && (x.kind === 'fallback' || x.kind === 'owned' || x.kind === 'upgrade'))
@@ -334,7 +336,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       alternatives,
       route: guide.kind === 'route' ? await routePanel(viewer, guide.id, guide.body) : null,
       gearNow: nowCard,
-      goingNext: nextKey && nextTrip ? { key: nextKey, short: nextTrip.short } : null,
+      goingNext: tripEnabled() && nextKey && nextTrip ? { key: nextKey, short: nextTrip.short } : null,
     }),
   };
 }

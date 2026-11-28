@@ -1,6 +1,6 @@
 import { placementOf } from '@/lib/teamPlacement';
 import { eventStage } from '@/lib/eventStage';
-import { weeklyStage } from '@/lib/weeklyStage';
+import { weeklyBadge, weeklyStage } from '@/lib/weeklyStage';
 import { db } from '@/db';
 import { clanEvents, events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, isNull } from 'drizzle-orm';
@@ -145,6 +145,7 @@ export default async function AdminEventsPage() {
     endDate: w.endDate,
     participantCount: participantCounts[w.id] ?? 0,
     createdAt: w.createdAt,
+    badge: weeklyBadge(w.type, w.hunt, 'SOTW'),
   }));
 
   // A weekly is past once its status says so OR its end has simply passed. Honouring endDate here —

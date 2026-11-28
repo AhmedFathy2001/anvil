@@ -82,8 +82,9 @@ export default async function EventTilesPage({
 
   return (
     <>
-    {/* Suggestions come from co-host clans; a creator space has none (lib/coHost coHostKindRefusal). */}
-    {!isCreatorSpace(clan) && (
+    {/* Suggestions come from co-host clans; a creator space has none (lib/coHost coHostKindRefusal),
+        and nor does a practice board (it has no co-hosts). */}
+    {!isCreatorSpace(clan) && !event.practice && (
       <TileSuggestionsPanel
         eventId={event.id}
         fixedGrid={fixedGrid}

@@ -43,6 +43,7 @@ import { findBoardProblems } from '@/lib/boardMisconfig';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvRow, tilesToCsvText } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
+import { tilesFrozenByStart } from '@/lib/practiceRules';
 import { downloadFromApi } from '@/lib/downloadFile';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
@@ -251,7 +252,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }, [requestedTileId]);
 
   const pointsMode = isPointsMode(event.scoringMode);
-  const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
+  // A practice board's tiles never freeze: it runs from the moment it is made (lib/practiceRules).
+  const eventStarted = tilesFrozenByStart(event);
 
   // Reveal-policy events (lib/eventRules): tiles carry a hidden/scheduled/live/claimed state the
   // host needs to see at a glance; 'scheduled' events additionally edit each tile's reveal time.
@@ -1963,14 +1965,17 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           page to see tiles, not to read three panels first. */}
       {/* Live balance read — structural checks recompute client-side; the effort model
           refetches (debounced) whenever the tile set changes */}
-      <BoardBalancePanel
-        eventId={event.id}
-        tiles={localTiles}
-        tilesVersion={tilesVersion}
-        pointsMode={pointsMode}
-        tierBands={tierBands}
-        onApplyAllPoints={applyAllSuggestedPoints}
-      />
+      {/* A practice board counts for nothing, so it has no balance to read (its route refuses it). */}
+      {!event.practice && (
+        <BoardBalancePanel
+          eventId={event.id}
+          tiles={localTiles}
+          tilesVersion={tilesVersion}
+          pointsMode={pointsMode}
+          tierBands={tierBands}
+          onApplyAllPoints={applyAllSuggestedPoints}
+        />
+      )}
 
       <TileHistoryPanel eventId={event.id} />
 

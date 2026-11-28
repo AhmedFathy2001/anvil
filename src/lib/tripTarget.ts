@@ -3,6 +3,8 @@
 // PURE: lib/tripTargetStore reads the inputs, pluginUi/tripView and POST /api/plugin/items use it.
 //
 // THE TARGET, strongest first:
+//   lock    the player locked it on the card: every bank close checks it, whatever bank it is, and it
+//           stays through kills, deaths, logouts and idle time until they unlock or change it
 //   pick    the player chose it: "Going here next" on a guide, or a trip picked in the panel
 //   carried a trip item is worn or packed (TripContent.tripItems: a Mokhaiotl waystone is a Doom trip)
 //   guide   the guide they opened most recently, when it maps to a trip
@@ -26,10 +28,12 @@ export function carriedTrip(held: readonly number[]): string | null {
   return TRIP_CONTENT.find((c) => c.tripItems?.ids.some((id) => set.has(id)))?.key ?? null;
 }
 
-export type TargetSource = 'pick' | 'carried' | 'guide' | 'last';
+export type TargetSource = 'lock' | 'pick' | 'carried' | 'guide' | 'last';
 
 /** What is stored (lib/tripTargetStore): the pick and the last clear. ISO times. */
 export interface TargetState {
+  /** Locked on the card: wins over everything until unlocked or changed (no idle, no trip end). */
+  lock?: { key: string; at: string };
   pick?: { key: string; at: string };
   clearedAt?: string;
 }
@@ -72,13 +76,30 @@ export function bossOfKey(key: string): string | null {
  * or calc, unless they saved one for the trip itself too.
  */
 export function contentForBoss(boss: string, ownKeys: readonly string[]): string | null {
-  const own = ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
-  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return own && !ownKeys.includes(key) ? own : key;
-  return own;
+  for (const [key, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return key;
+  return ownKeys.find((k) => bossOfKey(k) === boss) ?? null;
 }
+
+/**
+ * One key per trip: "m:Doom of Mokhaiotl#…" (a boss picked by hand) is the Doom trip, so the picker
+ * has one Doom chip and a pick of it is the Doom target. A setup saved under the hand-picked key is
+ * still found for the trip (lib/pluginUi/tripView ownAlias). Anything else is itself.
+ */
+export function canonicalKey(key: string): string {
+  const boss = bossOfKey(key);
+  if (!boss) return key;
+  for (const [k, kcs] of Object.entries(CONTENT_KC)) if (kcs.includes(boss)) return k;
+  return key;
+}
+
+/** The player's own setup key standing in for a trip they saved it for by hand, or null. */
+export const ownAlias = (content: string, ownKeys: readonly string[]): string | null => ownKeys.find((k) => k !== content && canonicalKey(k) === content) ?? null;
 
 /** Can this key be a target: a known trip, or one the player saved a setup for. */
 export const isTargetKey = (key: string | null | undefined, ownKeys: readonly string[]): key is string => !!key && (!!tripContent(key) || ownKeys.includes(key));
+/** A pick may be any monster too ("m:<monster>"): picked, it is checked with the calc from the bank. */
+export const isPickKey = (key: string | null | undefined, ownKeys: readonly string[]): key is string =>
+  !!key && (!!tripContent(key) || ownKeys.includes(key) || (key.startsWith(MONSTER_PREFIX) && key.length > MONSTER_PREFIX.length && key.length <= 90));
 
 /**
  * The trip a guide is for: the trip naming it (TRIP_CONTENT.guide), else the boss its gear block
@@ -131,8 +152,10 @@ export function resolveTarget(inp: TargetInputs): Target | null {
     if (Number.isFinite(cleared) && at <= cleared) return false;
     return !kill || kill.at <= at + KC_GRACE_MS;
   };
+  const lock = inp.state?.lock;
+  if (lock && isPickKey(lock.key, inp.ownKeys)) return { key: canonicalKey(lock.key), source: 'lock' };
   const pick = inp.state?.pick;
-  if (pick && isTargetKey(pick.key, inp.ownKeys) && live(pick.at)) return { key: pick.key, source: 'pick' };
+  if (pick && isPickKey(pick.key, inp.ownKeys) && live(pick.at)) return { key: canonicalKey(pick.key), source: 'pick' };
   // Carried: it lasts as long as the item does, so only a clear after the reading ends it.
   const carried = inp.carried ? carriedTrip(inp.carried.ids) : null;
   if (carried && inp.carried && live(inp.carried.at)) return { key: carried, source: 'carried' };
@@ -146,7 +169,7 @@ export function resolveTarget(inp: TargetInputs): Target | null {
 }
 
 /** "your pick", "the guide you opened", "last trip": said as "Checking for: Doom (last trip)". */
-export const SOURCE_LABEL: Record<TargetSource, string> = { pick: 'your pick', carried: 'carrying its trip item', guide: 'guide you opened', last: 'last trip' };
+export const SOURCE_LABEL: Record<TargetSource, string> = { lock: 'locked', pick: 'your pick', carried: 'carrying its trip item', guide: 'guide you opened', last: 'last trip' };
 
 /** The target's reason in words: a carried trip names its item ("carrying a waystone"). */
 export const targetWhy = (t: Target): string => (t.source === 'carried' ? tripContent(t.key)?.tripItems?.carrying : null) ?? SOURCE_LABEL[t.source];

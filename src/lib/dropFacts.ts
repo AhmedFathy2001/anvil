@@ -230,3 +230,28 @@ export function parseGuaranteedOverrides(raw: string | null | undefined): Guaran
   }
   return out;
 }
+
+let petBySourceCache: Map<string, { id: number; name: string }[]> | null = null;
+
+/**
+ * Source (lowercased, as the loot event names it) → the pets it drops. The inverse of
+ * {@link petFacts}, for a pet line that named nothing: "you would have been followed" says a pet
+ * happened and never which, but the boss just killed usually answers it (Skotizo → Skotos).
+ */
+export function petsBySource(): Map<string, { id: number; name: string }[]> {
+  if (petBySourceCache) return petBySourceCache;
+  const facts = petFacts();
+  const out = new Map<string, { id: number; name: string }[]>();
+  for (const pet of activities['All Pets'] ?? []) {
+    const fact = facts[pet.name.toLowerCase()];
+    if (!fact) continue;
+    for (const source of fact.sources) {
+      const key = source.toLowerCase();
+      const list = out.get(key);
+      if (!list) out.set(key, [{ id: pet.id, name: pet.name }]);
+      else if (!list.some((p) => p.id === pet.id)) list.push({ id: pet.id, name: pet.name });
+    }
+  }
+  petBySourceCache = out;
+  return out;
+}

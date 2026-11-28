@@ -1706,6 +1706,11 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
   title: text('title').notNull(),
   startDate: text('start_date').notNull(),
   endDate: text('end_date').notNull(),
+  // Item hunts / Boss Rushes: their drop screenshots go 90 days after the end, owners and admins
+  // reminded first (lib/huntMediaRetention, same rules as an event's: lib/eventMediaRetentionRules).
+  mediaPurgedAt: text('media_purged_at'),
+  mediaPurgeNoticeAt: text('media_purge_notice_at'),
+  mediaPurgeFinalNoticeAt: text('media_purge_final_notice_at'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   status: text('status').notNull().default('upcoming'), // 'upcoming' | 'active' | 'completed'
@@ -1897,11 +1902,48 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   // (lib/huntRowStats). Null on every other competition and on v1 hunts.
   huntBaseline: jsonb('hunt_baseline').$type<Record<string, number>>(),
   huntCurrent: jsonb('hunt_current').$type<Record<string, number>>(),
+  // Boss Rush (an item hunt with rule 'rush', lib/bossRushRules): kills the plugin saw during it, the last
+  // count it pushed per boss key ({key: [kc, atMs]}), and deaths at a rush boss (the last one's time
+  // so a death reported twice counts once). Zero / null on every other competition.
+  rushKc: integer('rush_kc').notNull().default(0),
+  // Kills the plugin reported per target name (lib/itemHuntDb creditRushKills).
+  rushSeen: jsonb('rush_seen').$type<Record<string, number>>(),
+  rushDeaths: integer('rush_deaths').notNull().default(0),
+  rushDeathAt: text('rush_death_at'),
+  // Points staff added or took off by hand (lib/itemHuntDb adjustRushPoints).
+  rushAdjust: integer('rush_adjust').notNull().default(0),
+  // Each raid the plugin saw them finish during the rush, [[key, atMs], ...]: Clan Synergy (lib/bossRushRules rushSynergy).
+  rushRaids: jsonb('rush_raids').$type<[string, number][]>(),
 }, (table) => [
   index('weekly_participants_team_idx').on(table.teamId),
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),
   index('weekly_participants_comp_id_idx').on(table.competitionId),
   index('weekly_participants_clan_member_id_idx').on(table.clanMemberId),
+]);
+
+/**
+ * Boss Rush: a counted death's screenshot, for the player and staff to look back on (a dispute, a
+ * laugh). One row per death the rush took points for; the plugin uploads the frame under proof_key
+ * (POST /api/plugin/facts/proof). Pictures go 90 days after the rush ends, like a bingo's.
+ */
+export const rushDeathShots = pgTable('rush_death_shots', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  participantId: integer('participant_id').notNull().references(() => weeklyParticipants.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  occurredAt: text('occurred_at').notNull(),
+  /** What killed them, when the plugin knew. */
+  source: text('source'),
+  /** 'poison' | 'venom' when they died poisoned (source is then the likely culprit), else the killer's kind. */
+  sourceKind: text('source_kind'),
+  proofKey: text('proof_key'),
+  screenshotUrl: text('screenshot_url'),
+  /** The frame as the plugin took it, before the site drew its stamp (lib/huntStamp). */
+  cleanScreenshotUrl: text('clean_screenshot_url'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  index('rush_death_shots_comp_idx').on(table.competitionId, table.participantId),
+  uniqueIndex('rush_death_shots_proof_key_unique').on(table.proofKey).where(sql`proof_key is not null`),
 ]);
 
 /**
@@ -1944,6 +1986,8 @@ export const huntDrops = pgTable('hunt_drops', {
   flagReason: text('flag_reason'),
   dedupKey: text('dedup_key').notNull(),
   screenshotUrl: text('screenshot_url'),
+  /** The frame as the plugin took it, before the site drew its stamp on screenshotUrl (lib/huntStamp). */
+  cleanScreenshotUrl: text('clean_screenshot_url'),
   note: text('note'),
   requestedByUserId: integer('requested_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
@@ -3676,6 +3720,13 @@ export const moments = pgTable('moments', {
   // The player's XP in the competition's skill when this landed (a skilling pet in a skill week), from
   // the site's live reading. Null for everything else and for rows from before this was recorded.
   statXp: integer('stat_xp'),
+    // Where it happened (lib/momentPlace), for analytics: map region, and inside a raid its mode,
+    // Tombs level and party size. Null when the plugin did not say (older clients, non-plugin rows).
+    regionId: integer('region_id'),
+    raid: text('raid'),
+    raidMode: text('raid_mode'),
+    raidLevel: integer('raid_level'),
+    partySize: integer('party_size'),
   /** 1-in-N, priced HERE from the shipped drop dataset — never trusted from the client. */
   rarityDenominator: integer('rarity_denominator'),
   /**
@@ -4294,6 +4345,129 @@ export const guideCategories = pgTable('guide_categories', {
 ]);
 export type GuideCategoryRow = typeof guideCategories.$inferSelect;
 
+// ── Guide pieces (lib/guidePieces) ───────────────────────────────────────────────────────────
+//
+// The guide model underneath the piece editor and panel: a library guide is made of small pieces
+// (steps, a loadout, what kills you, a kit…) placed by section → role → variant, so a clan can
+// change ONE piece and keep following the rest of Anvil's. This replaces, per piece, what a whole
+// guide copy does with follows_source: no override = the clan follows Anvil's piece; an override is
+// the clan's own, and an Anvil change to that piece afterwards is an offer (anvilChanged), never an
+// overwrite. Bodies are validated per kind before they are stored (lib/guidePieces/schema).
+
+/** A piece of an Anvil library guide. Written only by platform guide editors. */
+export const guidePieces = pgTable('guide_pieces', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  // A raid room or boss phase ("akkha", "p2"), or "tactics" for simple content.
+  sectionKey: text('section_key').notNull().default('tactics'),
+  // '*' = everyone's base; "melee", "ranged"… layer on it.
+  roleKey: text('role_key').notNull().default('*'),
+  // { level?, account?, teamSize?: {min,max}, raidLevel?: {min,max} }; {} = every player.
+  variant: jsonb('variant').$type<Record<string, unknown>>().notNull().default({}),
+  // steps | danger | loadout | fallbacks | spec | checks | technique | kit | note
+  kind: text('kind').notNull(),
+  body: jsonb('body').$type<unknown>().notNull(),
+  position: integer('position').notNull().default(0),
+  // Bumped on every change to what the piece says; overrides compare against it.
+  version: integer('version').notNull().default(1),
+  // 'draft' | 'published'
+  status: text('status').notNull().default('draft'),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByUserId: integer('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  index('guide_pieces_guide_idx').on(t.guideId, t.sectionKey, t.position),
+]);
+export type GuidePieceRow = typeof guidePieces.$inferSelect;
+
+/**
+ * A clan's own version of one Anvil piece (piece_id set: a new body, or hidden), or a piece the clan
+ * added (piece_id null: guide/section/role/kind say where it goes). If Anvil deletes a piece a clan
+ * overrode, the override keeps its body and becomes the clan's own piece (ON DELETE SET NULL).
+ */
+export const guidePieceOverrides = pgTable('guide_piece_overrides', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  pieceId: integer('piece_id').references(() => guidePieces.id, { onDelete: 'set null' }),
+  // The library guide it belongs to (copied from the piece for an override).
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  sectionKey: text('section_key').notNull().default('tactics'),
+  roleKey: text('role_key').notNull().default('*'),
+  variant: jsonb('variant').$type<Record<string, unknown>>().notNull().default({}),
+  kind: text('kind').notNull(),
+  // Null only while hidden.
+  body: jsonb('body').$type<unknown>(),
+  hidden: boolean('hidden').notNull().default(false),
+  // Null = Anvil's position.
+  position: integer('position'),
+  // The Anvil piece's version this was written against (null for a clan-added piece).
+  basedOnVersion: integer('based_on_version'),
+  version: integer('version').notNull().default(1),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByUserId: integer('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  // One override per clan per Anvil piece (clan-added rows have piece_id null and are many).
+  unique('guide_piece_overrides_clan_piece_unique').on(t.clanId, t.pieceId),
+  index('guide_piece_overrides_clan_guide_idx').on(t.clanId, t.guideId),
+  index('guide_piece_overrides_piece_idx').on(t.pieceId),
+]);
+export type GuidePieceOverrideRow = typeof guidePieceOverrides.$inferSelect;
+
+/**
+ * Every saved state of a piece or an override, for history and one-click revert. clan_id null = an
+ * Anvil piece's history. Kept when the row it describes goes (the ids are set null).
+ */
+export const guidePieceRevisions = pgTable('guide_piece_revisions', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  pieceId: integer('piece_id').references(() => guidePieces.id, { onDelete: 'set null' }),
+  overrideId: integer('override_id').references(() => guidePieceOverrides.id, { onDelete: 'set null' }),
+  version: integer('version').notNull(),
+  kind: text('kind').notNull(),
+  body: jsonb('body').$type<unknown>(),
+  hidden: boolean('hidden').notNull().default(false),
+  // section/role/variant/position/status at the time.
+  meta: jsonb('meta').$type<Record<string, unknown>>().notNull().default({}),
+  // 'create' | 'update' | 'hide' | 'show' | 'revert' | 'take-anvil' | 'keep-ours' | 'delete'
+  action: text('action').notNull(),
+  editedByUserId: integer('edited_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+}, (t) => [
+  index('guide_piece_revisions_piece_idx').on(t.pieceId, t.version),
+  index('guide_piece_revisions_override_idx').on(t.overrideId, t.version),
+  index('guide_piece_revisions_clan_guide_idx').on(t.clanId, t.guideId),
+]);
+
+/**
+ * Where a content is in the game: map region ids tied to a trip content key (lib/tripContent) and,
+ * when there is one, its library guide. trip_check = closing the bank here runs the pre-trip check
+ * (the plugin is handed these ids as `tripRegions`). Seeded with the regions the check shipped with.
+ */
+export const guideAreas = pgTable('guide_areas', {
+  id: serial('id').primaryKey(),
+  contentKey: text('content_key').notNull(),
+  guideId: integer('guide_id').references(() => guides.id, { onDelete: 'set null' }),
+  regionId: integer('region_id').notNull(),
+  // "the ToA lobby": said as "picked from the ToA lobby".
+  label: text('label').notNull(),
+  tripCheck: boolean('trip_check').notNull().default(true),
+  // A shared bank (Ferox Enclave): the content is picked only when one of these items is held.
+  cues: jsonb('cues').$type<number[]>().notNull().default([]),
+  // No bank here: the check runs only when asked for.
+  noBank: boolean('no_bank').notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  // A region picks one content for the check.
+  uniqueIndex('guide_areas_trip_region_unique').on(t.regionId).where(sql`trip_check`),
+  unique('guide_areas_content_region_unique').on(t.contentKey, t.regionId),
+]);
+export type GuideAreaRow = typeof guideAreas.$inferSelect;
+
 /**
  * Platform edits to the gear calculator's data, applied on top of the dataset (lib/dps/store):
  *   kind 'item'    — key = item id. `data` holds the fields to add or replace; `hidden` drops it from pickers.
@@ -4558,17 +4732,32 @@ export const playerItemSnapshots = pgTable('player_item_snapshots', {
 }, (t) => [primaryKey({ columns: [t.accountId, t.container] })]);
 
 /**
- * A player's own setup for one trip (lib/tripSetups): "Save what you're wearing + inventory as my ToA
- * setup". The pre-trip check uses it before any guide's. OWNER-ONLY, like the item snapshots.
- * `content` is a trip key (lib/tripContent) or "m:<monster>" for one picked by hand.
+ * A player's own setups for one trip (lib/tripSetups): "Save what you're wearing + inventory as a ToA
+ * setup". Several per character and trip, one of them the trip's default; the pre-trip check uses the
+ * one picked in the panel, else the default, before any guide's. OWNER-ONLY, like the item snapshots
+ * (a shared setup shows only the setup itself, never the bank). `content` is a trip key
+ * (lib/tripContent) or "m:<monster>" for one picked by hand. `name` ≤24 characters, set on the site.
  */
 export const tripSetups = pgTable('trip_setups', {
+  id: serial('id').primaryKey(),
   accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   setup: jsonb('setup').$type<Record<string, unknown>>().notNull(),
+  name: text('name').notNull().default(''),
+  /** A preset tag for the content (lib/tripSetupNames): "Solo", "CM", "Contract 1"; null none. */
+  tag: text('tag'),
+  isDefault: boolean('is_default').notNull().default(false),
+  /** The clan sees it (the setup only). */
+  shareClan: boolean('share_clan').notNull().default(false),
+  /** The share link's token; null until a link is made. */
+  shareToken: text('share_token'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-}, (t) => [primaryKey({ columns: [t.accountId, t.content] })]);
+}, (t) => [
+  index('trip_setups_account_content_idx').on(t.accountId, t.content),
+  uniqueIndex('trip_setups_default_unique').on(t.accountId, t.content).where(sql`is_default`),
+  uniqueIndex('trip_setups_share_token_unique').on(t.shareToken).where(sql`share_token IS NOT NULL`),
+]);
 
 /**
  * Per-team Discord resources in servers OTHER than the host's bound one (lib/eventDiscord). The

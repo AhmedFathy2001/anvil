@@ -15,10 +15,10 @@
 // decideHuntDrop, huntPrizeBoard).
 
 import { countsWorld } from '@/lib/competitionGame';
-import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, huntDrops, users, weeklyCompetitions, weeklyParticipants, type HuntDropRow } from '@/db/schema';
+import { clanAuditLog, clanRoster, huntDrops, rushDeathShots, users, weeklyCompetitions, weeklyParticipants, type HuntDropRow } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
 import { dropCounts } from '@/lib/h2hRules';
 import {
@@ -50,6 +50,10 @@ import {
   serverDropKey,
   unconfirmedPrizeDrops,
   huntStat,
+  MAX_ITEM_POINTS,
+  isRush,
+  rushBossKeys,
+  rushTargets,
   isSameDrop,
   manualSourceAllowed,
   matchHuntReport,
@@ -59,7 +63,13 @@ import {
   serializeHunt,
 } from '@/lib/itemHunt';
 import { huntRates } from '@/lib/huntRates';
+import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns } from '@/lib/bossRushRules';
+import { bossKeyForName } from '@/lib/pluginStats';
+import { killTargetKeys } from '@/lib/pluginFacts/match';
+import { claimTileFacts, type FactOwner } from '@/lib/pluginFacts/factIdStore';
+import type { KillRule } from '@/lib/pluginFacts/rules';
 import { log } from '@/lib/logger';
+import { deathCause } from '@/lib/deathSource';
 import { newProofKey } from '@/lib/proofAfter';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { clogItemIdByName } from '@/lib/moments';
@@ -78,12 +88,40 @@ type EntrantSource = { rsn: string; baselineValue: number | null; currentValue: 
  * the rows' drop rates (lib/itemHunt huntRowProgress). Every board ranks through this, so the page,
  * the panel, the results post and the prize settle all put the driest in the same order.
  */
-function huntEntrants(config: HuntConfig, participants: EntrantSource[], rates: HuntRates, tracked = true): HuntEntrant[] {
-  return participants.map((p) => ({
-    rsn: p.rsn,
-    statGain: tracked && p.baselineValue != null && p.currentValue != null ? Math.max(0, p.currentValue - p.baselineValue) : null,
-    ...(config.v === 2 ? { due: huntRowProgress(config, p.huntBaseline, p.huntCurrent, rates).due } : {}),
-  }));
+function huntEntrants(config: HuntConfig, participants: EntrantSource[], rates: HuntRates, tracked = true, rush: RushCounts | null = null): HuntEntrant[] {
+  return participants.map((p) => {
+    const statGain = tracked && p.baselineValue != null && p.currentValue != null ? Math.max(0, p.currentValue - p.baselineValue) : null;
+    if (isRush(config)) {
+      // Kills the plugin reported. "Every kill counts": the hiscores gain at the targets the hiscores
+      // keep (the way Boss of the Week reads it), plus the plugin's at the ones they do not.
+      const mine = rush?.get(huntRsnKey(p.rsn));
+      const kc = config.rush.kcSource === 'any' ? (statGain ?? 0) + (mine?.offHiscores ?? 0) : mine?.kc ?? 0;
+      return { rsn: p.rsn, statGain, rush: { kc, deaths: mine?.deaths ?? 0, synergy: mine?.synergy ?? 0, adjust: mine?.adjust ?? 0 } };
+    }
+    return { rsn: p.rsn, statGain, ...(config.v === 2 ? { due: huntRowProgress(config, p.huntBaseline, p.huntCurrent, rates).due } : {}) };
+  });
+}
+
+/** A rush's plugin-reported kills (all, and at targets the hiscores do not keep), deaths and Clan Synergy per entrant, by normalised name. */
+type RushCounts = Map<string, { kc: number; offHiscores: number; deaths: number; synergy: number; adjust: number }>;
+
+/**
+ * Read off the seats themselves, whatever list a caller ranks over: the prize settle and the
+ * results post hand in their own narrower lists, which do not carry these columns.
+ */
+async function rushCounts(config: HuntConfig, competitionId: number): Promise<RushCounts | null> {
+  if (!isRush(config)) return null;
+  // clan-scope: global -- one competition's seats by its id; the caller settled the owning clan.
+  const rows = await db
+    .select({ rsn: weeklyParticipants.rsnNormalized, kc: weeklyParticipants.rushKc, byTarget: weeklyParticipants.rushSeen, deaths: weeklyParticipants.rushDeaths, raids: weeklyParticipants.rushRaids, adjust: weeklyParticipants.rushAdjust, optedOut: weeklyParticipants.optedOut })
+    .from(weeklyParticipants)
+    .where(eq(weeklyParticipants.competitionId, competitionId));
+  // Grouped over every seat in it, whichever list the caller ranks: a clanmate left off a prize
+  // list still raided with the winner.
+  const synergy = rushSynergy(config.rush, new Map(rows.filter((r) => !r.optedOut).map((r) => [huntRsnKey(r.rsn), r.raids ?? []])));
+  const off = new Set(config.rush.targets.filter((t) => bossKeyForName(t) == null).map((t) => t.toLowerCase()));
+  const offOf = (by: Record<string, number> | null) => Object.entries(by ?? {}).reduce((n, [t, v]) => n + (off.has(t.toLowerCase()) && typeof v === 'number' ? v : 0), 0);
+  return new Map(rows.map((r) => [huntRsnKey(r.rsn), { kc: r.kc, offHiscores: offOf(r.byTarget), deaths: r.deaths, synergy: synergy.get(huntRsnKey(r.rsn)) ?? 0, adjust: r.adjust }]));
 }
 
 function toHuntDrop(r: HuntDropRow): HuntDrop {
@@ -137,14 +175,14 @@ export async function huntDropStanding(
 ): Promise<{ config: HuntConfig; drop: HuntDrop; row: HuntRow | null; bounty: BountyClaim | null } | null> {
   const config = parseHunt(comp.hunt);
   if (comp.type !== 'hunt' || !config) return null;
-  const [participants, all] = await Promise.all([getEffectiveParticipants(comp.id), huntDropRows(comp.id)]);
+  const [participants, all, rush] = await Promise.all([getEffectiveParticipants(comp.id), huntDropRows(comp.id), rushCounts(config, comp.id)]);
   const drops = all.map(toHuntDrop);
   const drop = drops.find((d) => d.id === dropId);
   if (!drop) return null;
   const at = parseStamp(drop.occurredAt) ?? 0;
   const upTo = drops.filter((d) => d.id === dropId || (parseStamp(d.occurredAt) ?? 0) <= at);
   const rates = config.v === 2 ? huntRates(config) : {};
-  const rows = rankHunt(config, huntEntrants(config, participants, rates, huntStat(config) != null), upTo, windowOf(comp));
+  const rows = rankHunt(config, huntEntrants(config, participants, rates, huntStat(config) != null, rush), upTo, windowOf(comp));
   // The bounty place this drop claimed, if any: decided over the same drops, so it is the place it took.
   const bounty = huntBountyClaims(config, upTo, windowOf(comp)).find((c) => c.dropId === dropId) ?? null;
   return { config, drop, row: rows.find((r) => huntRsnKey(r.rsn) === drop.rsnKey) ?? null, bounty };
@@ -172,11 +210,11 @@ export interface HuntStandings {
 export async function huntStandings(comp: CompetitionLike): Promise<HuntStandings | null> {
   const config = parseHunt(comp.hunt);
   if (comp.type !== 'hunt' || !config) return null;
-  const [participants, all] = await Promise.all([getEffectiveParticipants(comp.id), huntDropRows(comp.id)]);
+  const [participants, all, rush] = await Promise.all([getEffectiveParticipants(comp.id), huntDropRows(comp.id), rushCounts(config, comp.id)]);
   const tracked = huntStat(config) != null;
   const drops = all.map(toHuntDrop);
   const rates = config.v === 2 ? huntRates(config) : {};
-  const rows = rankHunt(config, huntEntrants(config, participants, rates, tracked), drops, windowOf(comp));
+  const rows = rankHunt(config, huntEntrants(config, participants, rates, tracked, rush), drops, windowOf(comp));
   const progress = new Map(config.v === 2 ? participants.map((p) => [p.rsn, huntRowProgress(config, p.huntBaseline, p.huntCurrent, rates)] as const) : []);
   return {
     config,
@@ -205,7 +243,8 @@ export async function competitionBoard(
   const config = comp.type === 'hunt' ? parseHunt(comp.hunt) : null;
   if (comp.type !== 'hunt') return computeLeaderboard(participants);
   if (!config) return participants.map((p) => ({ rsn: p.rsn, baselineValue: 0, currentValue: 0, gained: 0 }));
-  const rows = rankHunt(config, huntEntrants(config, participants, config.v === 2 ? huntRates(config) : {}), (await huntDropRows(comp.id)).map(toHuntDrop), windowOf(comp));
+  const rush = await rushCounts(config, comp.id);
+  const rows = rankHunt(config, huntEntrants(config, participants, config.v === 2 ? huntRates(config) : {}, true, rush), (await huntDropRows(comp.id)).map(toHuntDrop), windowOf(comp));
   return rows.map((r) => ({ rsn: r.rsn, baselineValue: 0, currentValue: r.count, gained: r.count }));
 }
 
@@ -213,10 +252,13 @@ export async function competitionBoard(
 
 /** The running hunts in a clan, with their rules. */
 async function activeHunts(clanId: number, nowMs: number): Promise<{ comp: Competition; config: HuntConfig }[]> {
+  // Running by its dates, not by the stored status: the lifecycle cron flips 'upcoming' to 'active'
+  // up to 15 minutes late (and not at all where it is not scheduled), and a hunt's first drops,
+  // kills and deaths must count from its start. A finished one never does.
   const rows = await db
     .select()
     .from(weeklyCompetitions)
-    .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.type, 'hunt'), eq(weeklyCompetitions.status, 'active')));
+    .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.type, 'hunt'), ne(weeklyCompetitions.status, 'completed')));
   return rows.flatMap((comp) => {
     const config = parseHunt(comp.hunt);
     return config && weeklyStatus(comp, nowMs) === 'active' ? [{ comp, config }] : [];
@@ -281,6 +323,8 @@ export interface HuntReportsResult {
   stored: number;
   /** One key per new row: where its screenshot goes (POST /api/plugin/facts/proof). */
   proofs: HuntProofKey[];
+  /** Boss Rush deaths that cost points: where each one's screenshot goes. */
+  deathProofs: string[];
 }
 
 /** What one character may add to a hunt through the plugin: far above real play, well below a loop. */
@@ -311,7 +355,7 @@ export async function recordHuntReports(
   /** The game mode the drops came from (lib/worldModes key); null = the main game. */
   modeKey: string | null = null,
 ): Promise<HuntReportsResult> {
-  const none = { stored: 0, proofs: [] };
+  const none = { stored: 0, proofs: [], deathProofs: [] };
   if (reports.length === 0) return none;
   // Only the hunts that count this world: the main game, or the mode a hunt is set to (lib/competitionGame).
   const hunts = (await activeHunts(clanId, now.getTime())).filter((h) => countsWorld(h.comp.countsOn, modeKey));
@@ -331,6 +375,7 @@ export async function recordHuntReports(
     );
   let stored = 0;
   const proofs: HuntProofKey[] = [];
+  const deathProofs: string[] = [];
   const counted: number[] = [];
   for (const { comp, config } of hunts) {
     const seat = seats.find((s) => s.competitionId === comp.id);
@@ -338,6 +383,15 @@ export async function recordHuntReports(
     const window = windowOf(comp);
     const stat = huntStat(config);
     for (const report of reports) {
+      if (report.kind === 'death') {
+        if (isRush(config)) {
+          const key = await recordRushDeath(config, { id: seat.id, competitionId: comp.id, clanMemberId: member.clanMemberId }, report, window);
+          if (key) deathProofs.push(key);
+        }
+        continue;
+      }
+      // A rush over normal ToB does not take an Entry Mode chest's drops (lib/bossRushRules).
+      if (isRush(config) && !rushTakesRaidMode(config.rush.targets, report.place?.raid, report.place?.raidMode)) continue;
       // A log line or a pet line names the item only; the log's own id lets it meet the loot report.
       const withId = report.itemId == null && report.itemName ? { ...report, itemId: clogItemIdByName(report.itemName) } : report;
       const hit = matchHuntReport(config, withId);
@@ -371,7 +425,7 @@ export async function recordHuntReports(
       if (!cap.ok) {
         log.warn('hunt.rate-limited', { competitionId: comp.id, clanMemberId: member.clanMemberId });
         postHuntDrops(counted);
-        return { stored, proofs };
+        return { stored, proofs, deathProofs };
       }
 
       // Kill-count checks need one boss to compare against: the hunt shows kills for exactly one
@@ -427,7 +481,192 @@ export async function recordHuntReports(
     }
   }
   postHuntDrops(counted);
-  return { stored, proofs };
+  return { stored, proofs, deathProofs };
+}
+
+/** Each target's names as a kill fact or a death names it (lib/pluginFacts/match killTargetKeys), lower case. */
+function targetNames(config: HuntConfig): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const t of rushTargets(config)) for (const k of killTargetKeys(t)) if (!out.has(k)) out.set(k, t);
+  return out;
+}
+
+/**
+ * A death at one of a rush's targets, as the plugin named its killer or saw it close by (lib/deathSource has already
+ * settled a guessed one to a boss or nothing), or inside a target raid (the plugin's raid tag, else
+ * the raid's own monsters, lib/raidNpcs; Entry Mode Tombs is its own). Counted on the seat in one
+ * statement, and only when the seat's last death is more than RUSH_SAME_DEATH_MS before it: one
+ * death sent twice counts once. A death with no killer named, elsewhere, costs nothing.
+ */
+async function recordRushDeath(
+  config: HuntConfig,
+  seat: { id: number; competitionId: number; clanMemberId: number | null },
+  report: HuntReport,
+  window: { startMs: number | null; endMs: number | null },
+): Promise<string | null> {
+  if (!isRush(config) || !config.rush.deaths) return null;
+  const seatId = seat.id;
+  const atMs = parseStamp(report.occurredAt);
+  const names = targetNames(config);
+  const bossKeys = rushBossKeys(config);
+  const isTarget = (name: string) => {
+    const boss = bossKeyForSource(name);
+    return killTargetKeys(name).some((k) => names.has(k)) || (boss != null && bossKeys.includes(boss));
+  };
+  const source = report.source?.trim() ?? '';
+  // Killed by a target, or with one close by (a minion, a mechanic, nothing named: Blood reavers in
+  // Nex's prison count, the ones in the corridor do not), or inside a target raid.
+  const atTarget =
+    (!!source && isTarget(source)) ||
+    (report.near ?? []).some(isTarget) ||
+    (!!report.raid && config.rush.targets.some((t) => raidOfTarget(t) === report.raid));
+  if (atMs == null || !dropCounts(atMs, window.startMs, window.endMs) || !atTarget) return null;
+  const at = new Date(atMs).toISOString();
+  const before = new Date(atMs - RUSH_SAME_DEATH_MS).toISOString();
+  // clan-scope: global -- the member's own seat, found through this clan's running hunts.
+  const counted = await db
+    .update(weeklyParticipants)
+    .set({ rushDeaths: sql`${weeklyParticipants.rushDeaths} + 1`, rushDeathAt: at })
+    .where(and(eq(weeklyParticipants.id, seatId), or(isNull(weeklyParticipants.rushDeathAt), lt(weeklyParticipants.rushDeathAt, before))))
+    .returning({ id: weeklyParticipants.id });
+  if (counted.length === 0) return null;
+  // The death's own row: the plugin sends its screenshot under this key (lib/huntDropPosts huntProofUpload).
+  const proofKey = newProofKey();
+  await db.insert(rushDeathShots).values({
+    competitionId: seat.competitionId,
+    participantId: seatId,
+    clanMemberId: seat.clanMemberId,
+    occurredAt: at,
+    source: report.source?.trim() || null,
+    sourceKind: report.sourceKind ?? null,
+    proofKey,
+  });
+  return proofKey;
+}
+
+/** One kill fact as POST /api/plugin/facts parsed it: names to kills, and its id when it has one. */
+export interface RushKillFact {
+  id?: string;
+  n: Record<string, number>;
+}
+
+/** No one kill report adds more than this at one name: far past a real one, well short of a loop. */
+const MAX_KILLS_PER_FACT = 20;
+/** Kill reports one character may add to one rush: far above real play (a fast slayer task), well below a loop. */
+const RUSH_KILL_LIMIT = { limit: 240, windowMs: 10 * 60_000 };
+
+/**
+ * Kills the plugin reported, credited to the clan's running rushes this character is entered in.
+ *
+ * The same kill facts a bingo kill tile counts by (the kill-count line, or the loot each kill
+ * drops), so any target counts: a boss, a raid mode (Entry Mode included), a monster the hiscores
+ * do not keep. The rush's targets ride the plugin's rule table (api/plugin/rules), so it reports
+ * them with or without a board.
+ *
+ * Each fact counts once per rush: its id is taken in the same transaction as the credit (the fact
+ * id store the board credits use, keyed by the rush), so a resent fact adds nothing. Kills at a
+ * group target are noted with the time for Clan Synergy (lib/bossRushRules rushSynergy).
+ */
+export async function creditRushKills(
+  member: { clanMemberId: number },
+  owner: FactOwner | null,
+  clanId: number,
+  facts: RushKillFact[],
+  now: Date = new Date(),
+  /** The game mode the kills came from (lib/worldModes key); null = the main game. */
+  modeKey: string | null = null,
+): Promise<{ credited: number; factIndexes: number[] }> {
+  const done = { credited: 0, factIndexes: [] as number[] };
+  // Only facts with an id: the id is what makes a resent fact count once (every current plugin sends one).
+  if (owner == null || !facts.some((f) => f.id)) return done;
+  // Only the rushes that count this world: the main game, or the mode a rush is set to (lib/competitionGame).
+  const rushes = (await activeHunts(clanId, now.getTime())).filter((h) => isRush(h.config) && countsWorld(h.comp.countsOn, modeKey));
+  if (rushes.length === 0) return done;
+  // clan-scope: this clan -- the member's own seats in this clan's running rushes.
+  const seats = await db
+    .select({ id: weeklyParticipants.id, competitionId: weeklyParticipants.competitionId })
+    .from(weeklyParticipants)
+    .where(
+      and(
+        inArray(weeklyParticipants.competitionId, rushes.map((h) => h.comp.id)),
+        eq(weeklyParticipants.clanMemberId, member.clanMemberId),
+        eq(weeklyParticipants.optedOut, false),
+        isNull(weeklyParticipants.stoppedAt),
+      ),
+    );
+  const hit = new Set<number>();
+  for (const { comp, config } of rushes) {
+    const seat = seats.find((s) => s.competitionId === comp.id);
+    if (!seat) continue;
+    const names = targetNames(config);
+    for (const [index, fact] of facts.entries()) {
+      if (!fact.id) continue;
+      // Kills at each target in this fact.
+      const byTarget = new Map<string, number>();
+      for (const [name, amount] of Object.entries(fact.n)) {
+        const target = names.get(name.trim().toLowerCase());
+        const n = Math.min(MAX_KILLS_PER_FACT, Math.max(0, Math.floor(Number(amount) || 0)));
+        if (target && n > 0) byTarget.set(target, Math.max(byTarget.get(target) ?? 0, n));
+      }
+      if (byTarget.size === 0) continue;
+      hit.add(index);
+      const total = [...byTarget.values()].reduce((a, b) => a + b, 0);
+      const group = [...byTarget.keys()].filter((t) => isGroupTarget(t, bossKeyForName(t))).map((t) => [t, now.getTime()] as [string, number]);
+      // Each target's own count, added in the statement itself: two reports racing both land.
+      const counts = [...byTarget.entries()].map(
+        ([t, n]) => sql`jsonb_build_object(${t}::text, coalesce((${weeklyParticipants.rushSeen} ->> ${t}::text)::int, 0) + ${n})`,
+      );
+      const cap = await rateLimitByKey('rush-kills', String(seat.id), RUSH_KILL_LIMIT);
+      if (!cap.ok) {
+        log.warn('rush.rate-limited', { competitionId: comp.id, seatId: seat.id });
+        break;
+      }
+      const factId = fact.id;
+      const credited = await db.transaction(async (tx) => {
+        if (!(await claimTileFacts(tx, owner, [factId], -comp.id))) return false;
+        // clan-scope: global -- the member's own seat, found through this clan's running rushes.
+        await tx
+          .update(weeklyParticipants)
+          .set({
+            rushKc: sql`${weeklyParticipants.rushKc} + ${total}`,
+            rushSeen: sql`coalesce(${weeklyParticipants.rushSeen}, '{}'::jsonb) || ${sql.join(counts, sql` || `)}`,
+            ...(group.length ? { rushRaids: sql`coalesce(${weeklyParticipants.rushRaids}, '[]'::jsonb) || ${JSON.stringify(group)}::jsonb` } : {}),
+          })
+          .where(eq(weeklyParticipants.id, seat.id));
+        return true;
+      });
+      if (credited) done.credited += total;
+    }
+  }
+  done.factIndexes = [...hit];
+  return done;
+}
+
+/** The kill rules a character's plugin is handed for the rushes they are in (api/plugin/rules): every name of every target, counted quietly. */
+export async function rushKillRules(clanId: number, clanMemberId: number | null, nowMs: number = Date.now()): Promise<Record<string, KillRule[]>> {
+  const out: Record<string, KillRule[]> = {};
+  if (clanMemberId == null) return out;
+  const rushes = (await activeHunts(clanId, nowMs)).filter((h) => isRush(h.config));
+  if (rushes.length === 0) return out;
+  // clan-scope: this clan -- the member's own seats in this clan's running rushes.
+  const seats = await db
+    .select({ competitionId: weeklyParticipants.competitionId })
+    .from(weeklyParticipants)
+    .where(and(inArray(weeklyParticipants.competitionId, rushes.map((h) => h.comp.id)), eq(weeklyParticipants.clanMemberId, clanMemberId), eq(weeklyParticipants.optedOut, false)));
+  const entered = new Set(seats.map((s) => s.competitionId));
+  for (const { comp, config } of rushes) {
+    if (!entered.has(comp.id)) continue;
+    for (const target of rushTargets(config)) {
+      const rule: KillRule = { t: -comp.id, label: target, have: 0, of: 1_000_000, unit: 'kill', quiet: true };
+      for (const key of killTargetKeys(target)) (out[key] ??= []).push(rule);
+    }
+  }
+  return out;
+}
+
+/** Is this character entered in a running rush here? The plugin then reports kills without a board. */
+export async function inRunningRush(clanId: number, clanMemberId: number | null, nowMs: number = Date.now()): Promise<boolean> {
+  return Object.keys(await rushKillRules(clanId, clanMemberId, nowMs)).length > 0;
 }
 
 /**
@@ -488,21 +727,79 @@ export async function updateHuntSettings(
   const config = parseHunt(comp.hunt);
   if (comp.type !== 'hunt' || !config) return { ok: false, error: 'This competition is not an item hunt.' };
   if (comp.status === 'completed') return { ok: false, error: 'This hunt has finished.' };
-  const next = { ...config, ...huntSettingsFromInput({ ends: input.ends ?? config.ends, confirm: input.confirm ?? config.confirm }) };
-  if (JSON.stringify(next.ends) === JSON.stringify(config.ends) && next.confirm === config.confirm) return { ok: true, config };
+  const next: HuntConfig = { ...config, ...huntSettingsFromInput({ ends: input.ends ?? config.ends, confirm: input.confirm ?? config.confirm }) };
+  if (isRush(config)) {
+    // A rush runs to its date. Its scoring and each drop's points are the host's to change while it
+    // runs: every score is worked out from them when read, so a change rescores everyone at once.
+    next.ends = { kind: 'date' };
+    // Its targets are set once it has started: the starting lines were read for them.
+    if (input.rush !== undefined) next.rush = { ...rushFromInput(input.rush), targets: config.rush.targets };
+    if (input.repeat !== undefined) {
+      if (input.repeat === 'first') next.repeat = 'first';
+      else delete next.repeat;
+    }
+    const pts = input.points && typeof input.points === 'object' ? (input.points as Record<string, unknown>) : null;
+    if (pts) {
+      next.items = config.items.map((it) => {
+        const v = pts[String(it.id)];
+        return typeof v === 'number' && Number.isFinite(v) ? { ...it, points: Math.min(MAX_ITEM_POINTS, Math.max(0, Math.round(v))) } : it;
+      });
+    }
+    // Which rows count once (a kit claimed once), by item id.
+    const once = input.once && typeof input.once === 'object' ? (input.once as Record<string, unknown>) : null;
+    if (once) {
+      next.items = next.items.map((it) => {
+        const v = once[String(it.id)];
+        if (typeof v !== 'boolean') return it;
+        const row = { ...it };
+        if (v) row.once = true;
+        else delete row.once;
+        return row;
+      });
+    }
+  }
+  if (serializeHunt(next) === serializeHunt(config)) return { ok: true, config };
   await db.update(weeklyCompetitions).set({ hunt: serializeHunt(next) }).where(eq(weeklyCompetitions.id, comp.id));
   await db.insert(clanAuditLog).values({
     clanId: comp.clanId,
     eventType: 'hunt_settings_changed',
     actorUserId: by.userId > 0 ? by.userId : null,
-    oldValue: JSON.stringify({ competitionId: comp.id, ends: huntEndingWords(config.ends), confirm: config.confirm }),
-    newValue: JSON.stringify({ competitionId: comp.id, ends: huntEndingWords(next.ends), confirm: next.confirm }),
+    oldValue: JSON.stringify({ competitionId: comp.id, ends: huntEndingWords(config.ends), confirm: config.confirm, ...(isRush(config) ? { rush: config.rush, points: rushPoints(config) } : {}) }),
+    newValue: JSON.stringify({ competitionId: comp.id, ends: huntEndingWords(next.ends), confirm: next.confirm, ...(isRush(next) ? { rush: next.rush, points: rushPoints(next) } : {}) }),
     notes: `Item hunt "${comp.title}"`,
   });
   // The new ending may already be met (N lowered to what has landed): end it now if so.
   await closeIfDue({ ...comp, hunt: serializeHunt(next) }, next);
   return { ok: true, config: next };
 }
+
+/**
+ * Staff add points to an entrant, or take some off (a correction, a test), with the reason. Kept on
+ * the seat, shown beside the score ("+10 by staff") and written to the audit log.
+ */
+export async function adjustRushPoints(
+  comp: Competition,
+  input: { participantId: number; points: number; note: string | null },
+  by: { userId: number },
+): Promise<{ ok: true; adjust: number } | { ok: false; error: string }> {
+  const config = parseHunt(comp.hunt);
+  if (comp.type !== 'hunt' || !isRush(config)) return { ok: false, error: 'This competition is not a Boss Rush.' };
+  if (comp.status === 'completed') return { ok: false, error: 'This rush has finished.' };
+  const points = Math.round(input.points);
+  if (!Number.isFinite(points) || points === 0 || Math.abs(points) > MAX_RUSH_ADJUST) return { ok: false, error: 'Enter the points to add (or take off, below 0).' };
+  // clan-scope: global -- a seat of this competition, which the caller resolved for its clan.
+  const [seat] = await db
+    .update(weeklyParticipants)
+    .set({ rushAdjust: sql`${weeklyParticipants.rushAdjust} + ${points}` })
+    .where(and(eq(weeklyParticipants.id, input.participantId), eq(weeklyParticipants.competitionId, comp.id)))
+    .returning({ rsn: weeklyParticipants.rsn, clanMemberId: weeklyParticipants.clanMemberId, adjust: weeklyParticipants.rushAdjust });
+  if (!seat) return { ok: false, error: 'That player is not in this rush.' };
+  await audit(comp, seat.clanMemberId, 'rush_points_adjusted', by.userId, { rsn: seat.rsn, points, total: seat.adjust }, input.note?.trim().slice(0, 200) || undefined);
+  return { ok: true, adjust: seat.adjust };
+}
+
+/** A rush's drop points by item id, for the audit log. */
+const rushPoints = (config: HuntConfig) => Object.fromEntries(config.items.map((it) => [it.id, it.once ? `${it.points ?? 0} (once)` : it.points ?? 0]));
 
 /**
  * A hunt ranked over exactly the entrants handed in, for the prize settle (lib/weeklyPrizeSettle).
@@ -519,8 +816,8 @@ export async function huntPrizeBoard(
 ): Promise<{ rows: HuntRow[]; holds: HuntDrop[]; bounties: BountyClaim[] } | null> {
   const config = parseHunt(comp.hunt);
   if (comp.type !== 'hunt' || !config) return null;
-  const drops = (await huntDropRows(comp.id)).map(toHuntDrop);
-  const rows = rankHunt(config, huntEntrants(config, entrants, config.v === 2 ? huntRates(config) : {}), drops, windowOf(comp));
+  const [drops, rush] = await Promise.all([huntDropRows(comp.id).then((r) => r.map(toHuntDrop)), rushCounts(config, comp.id)]);
+  const rows = rankHunt(config, huntEntrants(config, entrants, config.v === 2 ? huntRates(config) : {}, true, rush), drops, windowOf(comp));
   // Bounties over the same list: only these entrants' drops claim one, and the drops behind a claim
   // wait for staff exactly as a paying place's do.
   const bounties = huntBountyClaims(config, drops, windowOf(comp), new Set(entrants.map((e) => huntRsnKey(e.rsn))));
@@ -718,3 +1015,47 @@ export async function myHuntSeats(competitionId: number, playerId: number): Prom
 }
 
 export { dropWeight };
+
+/**
+ * A rush's counted deaths with their screenshots, by entrant (as standings name them), newest first.
+ * `memberIds` limits it to those characters' seats (a player's own); omitted, every seat (staff).
+ */
+export async function rushDeathShotsOf(competitionId: number, memberIds?: number[]): Promise<Map<string, { at: string; source: string | null; url: string | null }[]>> {
+  if (memberIds && memberIds.length === 0) return new Map();
+  // clan-scope: global -- one competition the caller already resolved for its clan.
+  const rows = await db
+    .select({ rsn: weeklyParticipants.rsn, at: rushDeathShots.occurredAt, source: rushDeathShots.source, sourceKind: rushDeathShots.sourceKind, url: rushDeathShots.screenshotUrl })
+    .from(rushDeathShots)
+    .innerJoin(weeklyParticipants, eq(weeklyParticipants.id, rushDeathShots.participantId))
+    .where(and(eq(rushDeathShots.competitionId, competitionId), memberIds ? inArray(weeklyParticipants.clanMemberId, memberIds) : undefined))
+    .orderBy(desc(rushDeathShots.occurredAt));
+  const out = new Map<string, { at: string; source: string | null; url: string | null }[]>();
+  // `source` reads as the cause: "Zebak", "poison (Lizardman shaman)" (lib/deathSource deathCause).
+  for (const r of rows) out.set(r.rsn, [...(out.get(r.rsn) ?? []), { at: r.at, source: deathCause(r.source, r.sourceKind), url: r.url }]);
+  return out;
+}
+
+/**
+ * A rush's feed facts beyond its drops: each death it took points for, and each kill clanmates
+ * finished together (lib/bossRushRules togetherRuns), by entrant name. Opted-out entrants left out.
+ */
+export async function rushFeedFacts(competitionId: number): Promise<{ deaths: { rsn: string; source: string | null; at: string }[]; together: { target: string; at: string; who: string[] }[] }> {
+  // clan-scope: global -- one competition the caller already resolved for its clan.
+  const seats = await db
+    .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsn, raids: weeklyParticipants.rushRaids, optedOut: weeklyParticipants.optedOut })
+    .from(weeklyParticipants)
+    .where(eq(weeklyParticipants.competitionId, competitionId));
+  const live = seats.filter((s) => !s.optedOut);
+  const rsnOf = new Map(live.map((s) => [s.id, s.rsn]));
+  // clan-scope: global -- the same competition's own rows.
+  const shots = await db
+    .select({ participantId: rushDeathShots.participantId, source: rushDeathShots.source, sourceKind: rushDeathShots.sourceKind, at: rushDeathShots.occurredAt })
+    .from(rushDeathShots)
+    .where(eq(rushDeathShots.competitionId, competitionId))
+    .orderBy(desc(rushDeathShots.occurredAt))
+    .limit(40);
+  const deaths = shots.flatMap((d) => (rsnOf.has(d.participantId) ? [{ rsn: rsnOf.get(d.participantId)!, source: deathCause(d.source, d.sourceKind), at: d.at }] : []));
+  const runs = togetherRuns(new Map(live.map((s) => [s.rsn, s.raids ?? []])));
+  const together = runs.slice(-40).map((r) => ({ target: r.target, at: new Date(r.at).toISOString(), who: r.who }));
+  return { deaths, together };
+}

@@ -1,5 +1,6 @@
 import { BOSSES } from '@/lib/constants';
 import { bossKeyForName } from '@/lib/pluginStats';
+import { isRaidFamily, raidOfNpc } from '@/lib/raidNpcs';
 
 // What a death report may name as its killer.
 //
@@ -57,11 +58,37 @@ export function shownKiller(source: string | null | undefined): string | null {
   return source && !neverKiller(source) ? source : null;
 }
 
+/** The plugin's mark on a death nobody dealt: the player died poisoned or venomed; `source` is the likely culprit. */
+export const POISON_KINDS: ReadonlySet<string> = new Set(['poison', 'venom']);
+
+/**
+ * What a death reads as after "died to": the killer ("Vorkath"), the poison and who left it
+ * ("poison (Lizardman shaman)"), the poison alone, or null when nothing can be named.
+ */
+export function deathCause(source: string | null | undefined, sourceKind: string | null | undefined): string | null {
+  const who = shownKiller(source);
+  if (sourceKind && POISON_KINDS.has(sourceKind)) return who ? `${sourceKind} (${who})` : sourceKind;
+  return who;
+}
+
 export function settleDeathSource(raw: Record<string, unknown>): void {
   if (raw.kind !== 'death') return;
+  // Which raid it was: a Boss Rush over a raid counts the raid's deaths, whatever killed them. A
+  // current plugin says so itself, from the game's own "in this raid" values, which also covers the
+  // deaths nothing is behind (Warden skulls, Zebak's waves, Olm's crystals). An older one only names
+  // a killer, so it is read off the name before anything below blanks it (lib/raidNpcs).
+  // "toa-entry"/"tob-entry": the Entry Modes, their own targets (lib/bossRushRules RUSH_RAID_TARGETS).
+  // A client that says where it stood (regionId) also checked the raid state there: no tag from it
+  // means no raid, so its killer's name is never a reason to guess one (a Lizardman shaman under the
+  // Farming Guild is not Chambers of Xeric).
+  const placed = typeof raw.regionId === 'number';
+  const raid = raw.raid === 'toa-entry' || raw.raid === 'tob-entry' || isRaidFamily(raw.raid) ? raw.raid : placed || raw.sourceKind === 'player' ? null : raidOfNpc(raw.source);
+  if (raid) raw.raid = raid;
+  else delete raw.raid;
   if (typeof raw.source === 'string' && raw.sourceKind !== 'player' && neverKiller(raw.source)) {
     raw.source = null;
-    raw.sourceKind = null;
+    // A poison death stays one, whoever is blanked from it.
+    if (!(typeof raw.sourceKind === 'string' && POISON_KINDS.has(raw.sourceKind))) raw.sourceKind = null;
     return;
   }
   if (raw.sourceKind !== FOUGHT_SOURCE_KIND) return;

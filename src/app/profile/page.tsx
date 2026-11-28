@@ -6,7 +6,7 @@ import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { isFriendsHost } from '@/lib/friendEventRules';
 import { accounts, clanRoster, users, detectedAccounts } from '@/db/schema';
 import { characterStandings } from '@/lib/characterStandingRead';
-import ProfileTabs, { HostForFriendsButton, profileClans, SettingsButton } from './ProfileTabs';
+import ProfileTabs, { HostForFriendsButton, MySetupsButton, profileClans, SettingsButton } from './ProfileTabs';
 import LegacyAnchors from './LegacyAnchors';
 import { profileMediaForUser } from '@/lib/profileMedia';
 import OtherAccountsClient from './OtherAccountsClient';
@@ -290,6 +290,7 @@ export default async function ProfilePage({
         </span>
         <span className="ml-auto flex flex-wrap items-center gap-2">
           <HostForFriendsButton />
+          <MySetupsButton />
           <SettingsButton />
         </span>
       </div>

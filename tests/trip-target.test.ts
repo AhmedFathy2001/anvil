@@ -1,12 +1,12 @@
 // The pre-trip check's next-trip target (lib/tripTarget): which source wins, what clears it, which
-// guides and kills map to a trip, and the panel's "Checking for: … · change · clear". No database.
+// guides and kills map to a trip, and the panel's "Checking for: …" line with its change and clear links. No database.
 //
 // Run: npx tsx --test tests/trip-target.test.ts
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { bossOfKey, carriedTrip, contentForBoss, guideTarget, isTargetKey, lastKill, resolveTarget, TARGET_IDLE_MS, targetWhy, type TargetInputs } from '../src/lib/tripTarget.ts';
+import { bossOfKey, canonicalKey, carriedTrip, contentForBoss, ownAlias, guideTarget, isTargetKey, lastKill, resolveTarget, TARGET_IDLE_MS, targetWhy, type TargetInputs } from '../src/lib/tripTarget.ts';
 import { MOKHAIOTL_WAYSTONE } from '../src/lib/tripContent.ts';
 
 const NOW = Date.parse('2026-11-26T12:00:00Z');
@@ -21,8 +21,11 @@ test('kills and guides map to trips, or to the player’s own saved setup, never
   assert.equal(contentForBoss('vorkath', []), 'vorkath');
   assert.equal(bossOfKey(DOOM), 'doomOfMokhaiotl');
   assert.equal(contentForBoss('doomOfMokhaiotl', []), 'doom', 'a deep-delve count is a Doom trip');
-  assert.equal(contentForBoss('doomOfMokhaiotl', [DOOM]), DOOM, 'a setup saved for the boss by hand wins');
-  assert.equal(contentForBoss('doomOfMokhaiotl', [DOOM, 'doom']), 'doom', 'unless one is saved for the trip too');
+  assert.equal(contentForBoss('doomOfMokhaiotl', [DOOM]), 'doom', 'one key per trip: the hand-picked setup is only its source');
+  assert.equal(canonicalKey(`${DOOM}#Delve 1`), 'doom');
+  assert.equal(canonicalKey(VARD), VARD);
+  assert.equal(ownAlias('doom', [DOOM, VARD]), DOOM, 'the setup saved by hand stands in for the trip');
+  assert.equal(ownAlias('doom', [VARD]), null);
   assert.equal(contentForBoss('vardorvis', []), null, 'Vardorvis has no trip definition');
   assert.equal(contentForBoss('vardorvis', [VARD]), VARD, 'its own saved setup makes it one');
   assert.equal(guideTarget('tombs-of-amascut-entry', null, null, []), 'toa', 'the trip naming the guide');
@@ -79,17 +82,19 @@ test('clears: a trip end or "clear", two hours idle, a pick that is no longer a 
   const idle = TARGET_IDLE_MS / 60_000 + 1;
   assert.equal(resolveTarget(inp({ state: { pick: { key: 'toa', at: ago(idle) } } })), null);
   assert.equal(resolveTarget(inp({ kcTimes: { vorkath: ago(idle) } })), null);
-  assert.equal(resolveTarget(inp({ state: { pick: { key: DOOM, at: ago(5) } } })), null, 'a forgotten setup is no target');
+  assert.deepEqual(resolveTarget(inp({ state: { pick: { key: VARD, at: ago(5) } } })), { key: VARD, source: 'pick' }, 'any monster can be picked');
+  assert.deepEqual(resolveTarget(inp({ state: { pick: { key: DOOM, at: ago(5) } } })), { key: 'doom', source: 'pick' }, 'Doom picked by hand is the Doom trip');
+  assert.equal(resolveTarget(inp({ state: { pick: { key: 'nope', at: ago(5) } } })), null, 'not a trip or a monster');
 });
 
 // ── the panel ──────────────────────────────────────────────────────────────────────────────
 
 const base = { region: '12598', regionName: null, fromRegion: false, source: 'calc' as const, sourceLine: 'Worked out from your bank', guide: null, check: { rows: [], info: [], unknown: [] }, status: 'ready' as const, checkedAt: '18:42', hasOwn: true, canSave: true, options: [{ key: 'toa', short: 'ToA', name: 'Tombs of Amascut' }, { key: DOOM, short: 'Doom of Mokhaiotl', name: 'Doom of Mokhaiotl (your setup)' }], monsters: [{ key: 'Doom of Mokhaiotl', name: 'Doom of Mokhaiotl' }] };
 
-test('panel: "Checking for: Doom (last trip)", chips set the target, clear, again keeps it', async () => {
+test('panel: "Trip: Doom (last trip)", chips set the target, clear, again keeps it', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
   const json = JSON.stringify(tripPanelUi({ ...base, content: { key: DOOM, name: 'Doom of Mokhaiotl', short: 'Doom of Mokhaiotl' }, target: { key: DOOM, short: 'Doom of Mokhaiotl', why: 'last trip' }, fromTarget: true }));
-  assert.ok(json.includes('"Checking for: "') && json.includes(' (last trip) · '));
+  assert.ok(json.includes('"Trip: "') && json.includes(' (last trip)  "'));
   assert.ok(json.includes(`"target":"${DOOM}"`), 'a chip makes it the target');
   assert.ok(json.includes('"target":"clear"'));
   assert.ok(json.includes(`"content":"${DOOM}"`), 'the monster list only looks');
@@ -109,7 +114,7 @@ test('panel: "Checking for: Doom (last trip)", chips set the target, clear, agai
 test('panel: in a trip region the region’s trip shows, the target on its own line', async () => {
   const { tripPanelUi } = await import('../src/lib/pluginUi/tripUi.ts');
   const json = JSON.stringify(tripPanelUi({ ...base, region: '13454', regionName: 'the ToA lobby', fromRegion: true, content: { key: 'toa', name: 'Tombs of Amascut', short: 'ToA' }, target: { key: 'vorkath', short: 'Vorkath', why: 'last trip' }, fromTarget: false }));
-  assert.ok(json.includes('picked from the ToA lobby'));
+  assert.ok(json.includes(' (from the ToA lobby)  '));
   assert.ok(json.includes('Next trip: Vorkath (last trip)'));
   assert.ok(!json.includes('Checking for: '));
 });

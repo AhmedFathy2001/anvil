@@ -7,8 +7,8 @@
 import { parseDiscordWebhook } from '@/lib/discordWebhookUrl';
 import { nextTeamColour, soloTeamName } from '@/lib/teamPlacement';
 
-/** Most board tiles one practice board may hold (a combo's parts ride along with it, uncounted). */
-export const PRACTICE_MAX_TILES = 25;
+/** Most board tiles one practice board may hold (a combo's parts ride along with it, uncounted). 49 = a whole 7×7. */
+export const PRACTICE_MAX_TILES = 49;
 /** Most people on one practice board, the creator included. */
 export const PRACTICE_MAX_PLAYERS = 5;
 /** The lengths offered, in hours. */
@@ -21,8 +21,15 @@ export type PracticeSides = 1 | 2;
 
 /** What the one-screen setup sends. */
 export interface PracticeInput {
-  /** Copy tiles from one of this clan's boards (these tile ids of it), or start empty and add picked tiles. */
-  tiles: { mode: 'copy'; eventId: number; tileIds: number[] } | { mode: 'pick'; count: number };
+  /**
+   * Copy tiles from one of this clan's boards (these tile ids of it); start from a board library
+   * entry (its tiles arrive through the import, like picked ones); or start with `count` blank tiles
+   * the setup fills from picked ones — 0 = an empty board built in the tile editor.
+   */
+  tiles:
+    | { mode: 'copy'; eventId: number; tileIds: number[] }
+    | { mode: 'library'; boardId: number }
+    | { mode: 'pick'; count: number };
   /** Seats (clan_memberships ids) of the people who play, the creator's own included. */
   seats: number[];
   sides: PracticeSides;
@@ -78,9 +85,14 @@ export function parsePracticeInput(body: unknown): { ok: true; value: PracticeIn
     tiles = { mode: 'copy', eventId, tileIds };
   } else if (t?.mode === 'pick') {
     const count = Number(t.count);
-    if (!Number.isInteger(count) || count < 1) return { ok: false, error: 'Pick at least one tile.' };
+    // 0 is "build them in the tile editor": an empty board.
+    if (!Number.isInteger(count) || count < 0) return { ok: false, error: 'Pick at least one tile.' };
     if (count > PRACTICE_MAX_TILES) return { ok: false, error: `A practice board holds up to ${PRACTICE_MAX_TILES} tiles.` };
     tiles = { mode: 'pick', count };
+  } else if (t?.mode === 'library') {
+    const boardId = Number(t.boardId);
+    if (!Number.isInteger(boardId) || boardId <= 0) return { ok: false, error: 'Pick a library board.' };
+    tiles = { mode: 'library', boardId };
   } else {
     return { ok: false, error: 'Choose where the tiles come from.' };
   }
@@ -122,6 +134,18 @@ export function practiceTeams(seats: { id: number; rsn: string }[], sides: Pract
     { name: 'Team Gold', color: '#d4a84b', seats: gold },
     { name: 'Team Blue', color: '#5b8fd9', seats: blue },
   ];
+}
+
+/**
+ * Do this board's tiles freeze because it has started? A real board's do — its rules must not shift
+ * under the players. A practice board is always running (it starts the moment it is made) and
+ * authoring it while it runs is the point, so its tiles never freeze. Every tile-authoring route and
+ * the tile editor ask this one question.
+ */
+export function tilesFrozenByStart(e: { practice?: boolean | null; startDate?: string | null }, now = Date.now()): boolean {
+  if (e.practice) return false;
+  const start = Date.parse(e.startDate ?? '');
+  return Number.isFinite(start) && start <= now;
 }
 
 /** When a practice board stopped: ended by hand, else its end time. Null while it has no end. */

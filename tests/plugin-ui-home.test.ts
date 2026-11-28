@@ -81,9 +81,9 @@ test('the list: the board, a weekly and a scheduled bingo each drill in', () => 
   assert.ok(all.includes('Summer Bingo'));
   assert.ok(all.includes('3 / 25 tiles'));
   assert.ok(all.includes('Skill of the Week'));
-  assert.ok(all.includes('You: #4 · +1.2M xp'));
+  assert.ok(all.includes('You: #4, +1.2M xp'));
   assert.ok(all.includes('Winter Bingo'));
-  assert.ok(all.includes('Bingo · 5×5 · 25 tiles'));
+  assert.ok(all.includes('Bingo, 5×5, 25 tiles'));
   const opens = walk(ui).flatMap((x) => (x.on && (x.on as { a: string }).a === 'load' ? [(x.on as { args?: { open?: string } }).args?.open] : []));
   assert.deepEqual(opens, ['board', 'weekly:9', 'event:12']);
 });
@@ -103,14 +103,14 @@ test('the board page: standings, pins with a way to drop them, active now, neare
     'board',
   )!;
   const all = texts(ui);
-  assert.ok(all.includes('4  Mine · you'), 'your team shows even below the cut');
+  assert.ok(all.includes('4  Mine, you'), 'your team shows even below the cut');
   // Compact: the top three and yours; the rest open in place on "View all 5".
   assert.ok(all.includes('View all 5'));
   const tog = walk(ui).find((x) => x.t === 'toggle') as unknown as { off: Node; lit: Node };
   assert.ok(!texts(tog.off).includes('5  Last') && texts(tog.lit).includes('5  Last'));
   assert.ok(all.includes('Tracked on screen'));
   assert.ok(walk(ui).some((x) => x.on && (x.on as { a: string; tile?: number; on?: boolean }).a === 'pin' && (x.on as { tile: number }).tile === 2));
-  assert.ok(all.includes('You 30 · Mate 10'));
+  assert.ok(all.includes('You 30, Mate 10'));
   // Closest to done: tile 1 (80%) before tile 2 (1%); the done tile isn't there.
   const nearest = all.slice(all.indexOf('Closest to done'), all.indexOf('Feed'));
   assert.ok(nearest.indexOf('Tile 1') < nearest.indexOf('Tile 2'));
@@ -137,7 +137,7 @@ test('a ladder: the countdown ticks in the plugin, and missions show their value
     event: { id: 5, name: 'Ladder', format: 'ladder', nextRevealAt: '2026-10-26T12:30:00Z', decay: { hours: 10, targetPct: 50 }, missions: [{ tileId: 1, label: 'Kill 5', points: 100, revealedAt: '2026-10-26T07:00:00Z', expiresAt: '2026-10-26T14:00:00Z' }], monthlyStandings: { yourRank: 2, yourPoints: 340 } },
   })), 'board')!;
   const countdowns = walk(ui).filter((x) => x.t === 'countdown');
-  assert.deepEqual(countdowns.map((c) => c.prefix), ['Expires in ', 'Next in ', 'Live · 40/50 · ends in ']);
+  assert.deepEqual(countdowns.map((c) => c.prefix), ['Expires in ', 'Next in ', 'Live, 40/50, ends in ']);
   assert.ok(texts(ui).includes('100 → 75'), 'half way down a 50% decay over 10h');
   assert.equal(liveValue(100, '2026-10-26T12:00:00Z', null, NOW), 100);
   assert.ok(texts(ui).includes('#2 this month') && texts(ui).includes('340 pts'));
@@ -176,9 +176,9 @@ test('sizes: a list is never a grid, a grid keeps its shape, an old site is judg
   assert.equal(sizeLabel(b(0, 240, 'bingo', 'points')), '240 tiles');
   assert.equal(sizeLabel(b(8, 8, 'tilerace')), '8 tiles');
   assert.equal(sizeLabel(b(1, 1, 'bingo', 'points')), '1 tile');
-  assert.equal(sizeLabel(b(12, 5, 'bingo')), '5×5 · 12 tiles');
+  assert.equal(sizeLabel(b(12, 5, 'bingo')), '5×5, 12 tiles');
   assert.equal(sizeLabel(b(0, 5, 'bingo')), '5×5');
-  assert.equal(sizeLabel(b(25, 5, '')), '5×5 · 25 tiles');
+  assert.equal(sizeLabel(b(25, 5, '')), '5×5, 25 tiles');
   assert.equal(sizeLabel(b(240, 240, '')), '240 tiles');
 });
 
@@ -198,13 +198,13 @@ test('also live: other clans’ boards, a co-hosted board once, never the board 
 
 test('words: reveal notes, who is on a tile, and the feed', () => {
   assert.equal(revealNote({ id: 1, name: 'x' }, NOW), null);
-  assert.equal(revealNote({ id: 1, name: 'x', revealPolicy: 'bounty', hiddenTileCount: 1 }, NOW), '1 bounty left · next on claim');
-  assert.equal(revealNote({ id: 1, name: 'x', revealPolicy: 'interval', hiddenTileCount: 4, nextRevealAt: '2026-10-26T15:10:00Z' }, NOW), '4 tiles hidden · next in 3h 10m');
-  assert.equal(workersLine({ tileId: 1, workers: ['A', 'B', 'C', 'D'], self: false, gains: { A: 12_000, B: 3 } }), 'A 12K · B 3 · C · +1');
+  assert.equal(revealNote({ id: 1, name: 'x', revealPolicy: 'bounty', hiddenTileCount: 1 }, NOW), '1 bounty left, next on claim');
+  assert.equal(revealNote({ id: 1, name: 'x', revealPolicy: 'interval', hiddenTileCount: 4, nextRevealAt: '2026-10-26T15:10:00Z' }, NOW), '4 tiles hidden, next in 3h 10m');
+  assert.equal(workersLine({ tileId: 1, workers: ['A', 'B', 'C', 'D'], self: false, gains: { A: 12_000, B: 3 } }), 'A 12K, B 3, C, +1');
   assert.equal(workersLine({ tileId: 1, workers: ['A', 'B', 'C'], self: false }), 'A + 2 others');
   const e = (id: string, kind: ActivityEntry['kind'], player: string | null, amount: number, extra: Partial<ActivityEntry> = {}): ActivityEntry => ({ id, ts: '', player, tileId: 1, tileLabel: 'Zulrah', kind, amount, isSelf: false, ...extra });
   const folded = foldFeed([e('s1', 'progress', 'Bob', 1), e('s2', 'progress', 'Bob', 2), e('c1', 'complete', null, 0, { participants: ['Ann', 'Cy'] })]);
-  assert.deepEqual(folded.map(feedLine), ['Ann & 1 more completed Zulrah', 'Bob +3 · Zulrah']);
+  assert.deepEqual(folded.map(feedLine), ['Ann & 1 more completed Zulrah', 'Bob +3, Zulrah']);
   assert.equal(feedLine(e('r1', 'reveal', null, 0)), 'New tile revealed: Zulrah');
 });
 
@@ -217,7 +217,7 @@ test('a clan event: a card under Events, and its page says "I\'m going" for the 
   };
   const d = base(liveCfg(), { clanEvents: [ce] });
   const list = homeUi(d);
-  assert.ok(texts(list).includes('Ancient Prison · W330 · 2 going'));
+  assert.ok(texts(list).includes('Ancient Prison, W330, 2 going'));
   // Its CTA right on the list row: the same act, answering with the list.
   const tap = walk(list).find((x) => x.t === 'text' && x.s === 'I’m going') as { on: { act: string; args: Record<string, string> } };
   assert.deepEqual(tap.on.args, { id: '4', going: '1', open: '', clan: 'afk' });
@@ -258,7 +258,7 @@ test('a board’s page offers the character’s other live boards (the board swi
   const d = base(liveCfg({ boards: [summary(5, 'Summer Bingo', 3, 25), summary(8, 'Clan Wars', 4, 16)] }));
   const page = eventUi(d, 'board')!;
   assert.ok(texts(page).includes('Your other live boards'));
-  assert.ok(texts(page).includes('Clan Wars · 4 / 16'));
+  assert.ok(texts(page).includes('Clan Wars, 4 / 16'));
   const opens = walk(page).flatMap((n) => {
     const on = n.on as { v?: string; args?: { open?: string } } | undefined;
     return on?.v === 'home' && on.args?.open?.startsWith('board:') ? [on.args.open.slice(6)] : [];
@@ -295,7 +295,7 @@ test('a gated event says who may join, in a few words, on its card and its page 
   const long = gateLine({ ...gated, gate: 'Discord role: Extremely Long Role Name Here' });
   assert.ok((long[0] as { s: string }).s.endsWith('…'));
   // A read-only board's claim block names it too.
-  assert.equal(joinToClaimLine('Followers (Kick)'), 'Join this event to claim tiles · Followers (Kick)');
+  assert.equal(joinToClaimLine('Followers (Kick)'), 'Join this event to claim tiles, Followers (Kick)');
   assert.equal(joinToClaimLine(null), 'Join this event to claim tiles.');
 });
 
@@ -366,7 +366,7 @@ test('a board of many teams: the cut list worded as teams, your team picked out'
   )!;
   const all = texts(ui);
   assert.ok(all.includes('30 teams'));
-  assert.ok(all.includes('18  Team 18 · 3 members'));
+  assert.ok(all.includes('18  Team 18, 3 members'));
   assert.ok(all.includes('View all 30 teams'));
   assert.ok(!all.includes('All teams & members'));
   assert.ok(!all.some((s) => /players/.test(s)));
@@ -573,4 +573,50 @@ test('a weekly paid in Hardcore Worlds gp says so on its prize card, and tags HC
   const all = texts(ui);
   assert.ok(all.includes('HCW') && all.includes('HCW fell'));
   assert.equal(all.filter((t) => t.startsWith('HCW')).length, 2, 'only the Hardcore Worlds characters are tagged');
+});
+
+test('a Boss Rush page spells out its rules and scores in points', async () => {
+  const { __weeklyPageForTest } = await import('../src/lib/pluginUi/homeUi.ts');
+  const { DEFAULT_RUSH, rushRuleLines } = await import('../src/lib/bossRushRules.ts');
+  const rushRules = rushRuleLines({ ...DEFAULT_RUSH, targets: ['Chambers of Xeric', 'Theatre of Blood', 'Tombs of Amascut', 'Tombs of Amascut: Expert Mode'] });
+  const w = {
+    id: 9,
+    title: 'Boss Rush: raids',
+    type: 'hunt',
+    metric: 'x',
+    metricLabel: 'Raids, kills + rare drops - deaths',
+    status: 'upcoming',
+    startDate: '2026-11-21T20:00:00Z',
+    endDate: '2026-11-28T20:00:00Z',
+    rushRules,
+    huntItems: [{ id: 20997, name: 'Twisted bow', pts: 10 }, { id: 13652, name: 'Dragon claws' }],
+    prizeGp: [10_000_000, 5_000_000, 2_000_000],
+  };
+  const page = JSON.stringify(__weeklyPageForTest(w, Date.parse('2026-11-17T12:00:00Z')));
+  assert.match(page, /"How it scores, prizes"/);
+  assert.match(page, /"Boss Rush"/);
+  assert.match(page, /"Kill"/);
+  assert.match(page, /"\+1 pt"/);
+  assert.match(page, /"Puzzles and mechanics count too\."/);
+  assert.match(page, /"Together"/);
+  assert.match(page, /"Prizes"/);
+  assert.match(page, /"Drops that score"/);
+  assert.match(page, /"\+10"/);
+  assert.ok(!page.includes('Dragon claws'), 'a drop worth nothing is not listed');
+  // Before it starts the section is open; the prizes ride in it, not in a card of their own.
+  const toggle = (__weeklyPageForTest(w, Date.parse('2026-11-17T12:00:00Z')) as { t: string; c?: { t: string; off?: unknown }[] }[]).flatMap((n) => (n.c ?? []).filter((c) => c.t === 'toggle'));
+  assert.ok(JSON.stringify(toggle[0]?.off).includes('Hide'), 'open before it starts');
+  assert.ok(!page.includes('kills + rare drops'), 'the long target line is left to the title');
+
+  // Running, nobody scored: one line and your own row, not ten rows of zeros.
+  const live = { ...w, id: 5, status: 'active', startDate: '2026-11-20T00:00:00Z' };
+  const top = Array.from({ length: 10 }, (_, i) => ({ rank: i + 1, rsn: `P${i + 1}`, gained: 0, self: false }));
+  const ui = eventUi(base(liveCfg({ panel: { weeklies: [live] } }), { weekly: new Map([[5, { total: 156, top, you: { rank: 40, rsn: 'dead person', gained: 0, self: true } }]]) }), 'weekly:5')!;
+  const all = texts(ui);
+  assert.ok(all.some((t) => t.startsWith('No points yet')));
+  assert.ok(!all.includes('P2'), 'no list of zeros');
+  assert.ok(all.includes('dead person'));
+  // Once it runs the section is shut: "Show" to open it.
+  const shut = JSON.stringify(ui);
+  assert.match(shut, /"Show"/);
 });

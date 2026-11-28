@@ -1,6 +1,6 @@
 import ClanLink from '@/components/ClanLink';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
-import ProfileTabs, { HostForFriendsButton, SettingsButton } from '@/app/profile/ProfileTabs';
+import ProfileTabs, { HostForFriendsButton, MySetupsButton, SettingsButton } from '@/app/profile/ProfileTabs';
 import type { MyClan } from '@/lib/myClans';
 import CreatorChip from '@/components/CreatorChip';
 import { YOUR_CLANS_HEADING, groupClansAndSpaces } from '@/lib/creatorSpaces';
@@ -115,6 +115,7 @@ export default function PersonProfile({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <HostForFriendsButton />
+          <MySetupsButton />
           <SettingsButton />
         </div>
       </div>

@@ -3,14 +3,15 @@ import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { competitionForRequest } from '@/lib/eventScope';
-import { addManualDrop, decideHuntDrop, endHuntNow, updateHuntSettings } from '@/lib/itemHuntDb';
+import { addManualDrop, adjustRushPoints, decideHuntDrop, endHuntNow, updateHuntSettings } from '@/lib/itemHuntDb';
 
 // Staff actions on an item hunt (lib/itemHuntDb). One route, one `action`:
 //   add       "Add a drop": credit a character by hand, with a screenshot and the kill count or XP.
 //   confirm   a member's proof, a held plugin report, or a plugin drop the result rests on.
 //   reject    take a drop out of the standings (or never let it in).
 //   end       "End now and post results".
-//   settings  "How it ends" and "Who confirms drops".
+//   settings  "How it ends" and "Who confirms drops" (a Boss Rush: its scoring too).
+//   adjust    Boss Rush: add points to an entrant, or take some off, with the reason.
 // Every one is written to the clan's audit log by the function it calls.
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : null);
@@ -51,6 +52,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (body.action === 'confirm' || body.action === 'reject') {
     const result = await decideHuntDrop(comp, num(body.dropId) ?? -1, body.action, by);
+    return result.ok ? NextResponse.json(result) : NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  if (body.action === 'adjust') {
+    const result = await adjustRushPoints(
+      comp,
+      { participantId: num(body.participantId) ?? -1, points: typeof body.points === 'number' ? body.points : NaN, note: typeof body.note === 'string' ? body.note : null },
+      by,
+    );
     return result.ok ? NextResponse.json(result) : NextResponse.json({ error: result.error }, { status: 400 });
   }
 

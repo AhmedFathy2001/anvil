@@ -6,8 +6,10 @@
 //   "state": { "book": 0|1|2|3, "pouch": [[runeItemId, qty], ...], "pray": ["rigour", "augury"],
 //              "quiver": [ammoItemId, qty] }
 //
-// `quiver` is Dizana's quiver's ammo (its varps), sent always; the check and a saved setup only read it
-// while a quiver is worn or carried. An id of 0 or -1 is an empty quiver.
+// `quiver` is Dizana's quiver's ammo (its varps), sent always. An id of 0 or -1 is an empty quiver.
+// The varps read empty while the quiver sits in the bank, though its arrows stay in it: an empty read
+// with no quiver worn or carried keeps the last ammo read (keepBankedQuiver), so a banked quiver's
+// arrows still count as the player's.
 //
 // `book` uses the Inventory Setups numbering (0 standard, 1 ancient, 2 lunar, 3 arceuus), the same as
 // GearSetup.spellbook. `pray` lists only the prayers the plugin read as unlocked. The plugin can't read
@@ -78,4 +80,14 @@ export function storedTripState(v: unknown): TripState | null {
   const s = cleanTripState({ ...o, pouch }, Date.now() + 365 * 86_400_000);
   if (!s) return null;
   return { ...s, readAt: typeof o.readAt === 'string' ? o.readAt : s.readAt };
+}
+
+/**
+ * The state to store: a quiver read empty while no quiver is worn or carried is a banked quiver (the
+ * game's varps read empty then; its arrows stay in it), so the last ammo read stands. Worn or carried
+ * and empty, it is empty.
+ */
+export function keepBankedQuiver(next: TripState, prev: TripState | null, quiverAlong: boolean): TripState {
+  if (next.quiver !== null || quiverAlong || !prev?.quiver) return next;
+  return { ...next, quiver: prev.quiver };
 }

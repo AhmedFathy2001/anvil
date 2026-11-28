@@ -14,15 +14,16 @@ import { parseStatKeyTimes } from '@/lib/liveStats';
 import { ownsAccount } from '@/lib/playerItems';
 import { contentFromKey } from '@/lib/tripContent';
 import { equivalentsFor } from '@/lib/itemFamilies';
-import { guideTarget, isTargetKey, resolveTarget, targetWhy, type Target, type TargetState } from '@/lib/tripTarget';
+import { canonicalKey, guideTarget, isPickKey, resolveTarget, targetWhy, type Target, type TargetState } from '@/lib/tripTarget';
 import { ttlMemo } from '@/lib/ttlMemo';
 
 /** The container key the target is stored under (never one of CONTAINER_KINDS, nor 'state'). */
 export const TARGET_ROW = 'target';
 
 function readState(v: unknown): TargetState {
-  const s = (v ?? {}) as { pick?: { key?: unknown; at?: unknown }; clearedAt?: unknown };
+  const s = (v ?? {}) as { lock?: { key?: unknown; at?: unknown }; pick?: { key?: unknown; at?: unknown }; clearedAt?: unknown };
   const out: TargetState = {};
+  if (s.lock && typeof s.lock.key === 'string' && typeof s.lock.at === 'string') out.lock = { key: s.lock.key.slice(0, 90), at: s.lock.at };
   if (s.pick && typeof s.pick.key === 'string' && typeof s.pick.at === 'string') out.pick = { key: s.pick.key.slice(0, 90), at: s.pick.at };
   if (typeof s.clearedAt === 'string') out.clearedAt = s.clearedAt;
   return out;
@@ -51,7 +52,7 @@ async function saveState(accountId: number, state: TargetState): Promise<void> {
 export async function ownTripKeys(accountId: number): Promise<string[]> {
   // clan-scope: global -- the character's own setups.
   const rows = await db.select({ content: tripSetups.content }).from(tripSetups).where(eq(tripSetups.accountId, accountId));
-  return rows.map((r) => r.content);
+  return [...new Set(rows.map((r) => r.content))];
 }
 
 /** A guide's kc boss and gear-block monster, kept five minutes (the body is long; guides change rarely). */
@@ -124,13 +125,43 @@ export async function targetLabel(userId: number, accountId: number): Promise<{ 
 
 /** The player picked a target (a known trip or one of their saved setups); false when it can't be one. */
 export async function pickTarget(userId: number, accountId: number, key: string, ownKeys: readonly string[]): Promise<boolean> {
-  if (!isTargetKey(key, ownKeys) || !(await ownsAccount(userId, accountId))) return false;
+  if (!isPickKey(key, ownKeys) || !(await ownsAccount(userId, accountId))) return false;
+  key = canonicalKey(key);
   const prev = await loadState(accountId);
-  await saveState(accountId, { ...prev, pick: { key, at: new Date().toISOString() } });
+  // Changing the trip drops a lock (the new trip isn't locked until they lock it).
+  const rest: TargetState = { ...prev };
+  delete rest.lock;
+  await saveState(accountId, { ...rest, pick: { key, at: new Date().toISOString() } });
   return true;
 }
 
-/** "clear" in the panel, or the trip ended (death, logout, hop): every source older than now is gone. */
+/**
+ * The trip locked for this character: every bank close checks it, other bosses' banks don't switch
+ * it, and it lasts until unlocked or changed. False when it can't be a target.
+ */
+export async function lockTarget(userId: number, accountId: number, key: string, ownKeys: readonly string[]): Promise<boolean> {
+  if (!isPickKey(key, ownKeys) || !(await ownsAccount(userId, accountId))) return false;
+  key = canonicalKey(key);
+  const at = new Date().toISOString();
+  const prev = await loadState(accountId);
+  await saveState(accountId, { ...prev, lock: { key, at }, pick: { key, at } });
+  return true;
+}
+
+/** "unlock" on the card: the trip stays the target as a pick, no longer locked. */
+export async function unlockTarget(userId: number, accountId: number): Promise<void> {
+  if (!(await ownsAccount(userId, accountId))) return;
+  const prev = await loadState(accountId);
+  if (!prev.lock) return;
+  const { lock, ...rest } = prev;
+  await saveState(accountId, { ...rest, pick: { key: lock.key, at: new Date().toISOString() } });
+}
+
+/**
+ * "clear" in the panel, or the trip ended (death, logout, hop): every source older than now is gone.
+ * A lock stays: only unlocking or changing the trip drops it.
+ */
 export async function clearTarget(accountId: number): Promise<void> {
-  await saveState(accountId, { clearedAt: new Date().toISOString() });
+  const prev = await loadState(accountId);
+  await saveState(accountId, { ...(prev.lock ? { lock: prev.lock } : {}), clearedAt: new Date().toISOString() });
 }

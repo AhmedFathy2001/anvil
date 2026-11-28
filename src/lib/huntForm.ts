@@ -6,6 +6,7 @@
 // a pet hunt as the rows of its pets, each with the "Closest to it" the data picks (a v1 hunt had
 // one stat for all of them). Nothing changes until it is saved; a hunt left alone stays v1.
 
+import { DEFAULT_RUSH, type RushRules } from '@/lib/bossRushRules';
 import { type HuntConfig, type HuntConfirm, type HuntCountMode, type HuntEnding, type HuntRowStat, type HuntRule, autoRowStat, huntRows } from '@/lib/itemHunt';
 
 export interface HuntFormItem {
@@ -26,6 +27,12 @@ export interface HuntFormItem {
   stat: string;
   /** Still the one picked for it: an item's follows its sources until someone picks by hand. */
   statAuto: boolean;
+  /** Boss Rush: the picked bosses that put it on the list, so taking a boss off takes its drops too. Absent = added by hand. */
+  rushFrom?: string[];
+  /** Boss Rush: its 1-in-N at the commonest picked boss, shown to help set the points. */
+  rate?: number | null;
+  /** Boss Rush: only each player's first one scores (lib/itemHunt HuntItem.once). */
+  once?: boolean;
 }
 
 export interface HuntFormValue {
@@ -37,9 +44,11 @@ export interface HuntFormValue {
   confirm: HuntConfirm;
   /** The prizes shortcut: gp for each paid place, first place first. Empty = none set here. */
   prizes: number[];
+  /** Boss Rush: its targets and scoring. */
+  rush: RushRules;
 }
 
-export const DEFAULT_HUNT: HuntFormValue = { items: [], rule: 'first', repeat: 'every', ends: { kind: 'date' }, confirm: 'staff', prizes: [] };
+export const DEFAULT_HUNT: HuntFormValue = { items: [], rule: 'first', repeat: 'every', ends: { kind: 'date' }, confirm: 'staff', prizes: [], rush: DEFAULT_RUSH };
 
 export const encodeStat = (stat: HuntRowStat | null | undefined): string => (stat ? `${stat.type}:${stat.metric}` : '');
 export function decodeStat(v: string): HuntRowStat | null {
@@ -68,6 +77,16 @@ export function huntFormRow(t: { id: number; name: string; known?: string[]; sou
 
 /** What the form posts as `hunt`. */
 export function huntPayload(v: HuntFormValue) {
+  if (v.rule === 'rush') {
+    return {
+      v: 2,
+      rule: 'rush',
+      rush: v.rush,
+      repeat: v.repeat,
+      items: v.items.map((it) => ({ id: it.id, name: it.name, sources: it.pet || it.anySource ? [] : it.sources, points: it.points, ...(it.once ? { once: true } : {}) })),
+      confirm: v.confirm,
+    };
+  }
   return {
     v: 2,
     items: v.items.map((it) => ({
@@ -117,12 +136,14 @@ export function huntFormFromConfig(config: HuntConfig): HuntFormValue {
       statAuto: false,
     };
   });
+  const rush = config.rule === 'rush' && config.rush;
   return {
-    items,
+    items: rush ? items.map((it) => { const row = config.items.find((x) => x.id === it.id); return { ...it, points: row?.points ?? 0, once: !!row?.once }; }) : items,
     rule: config.rule,
     repeat: config.repeat ?? 'every',
     ends: config.ends,
     confirm: config.confirm,
     prizes: [],
+    rush: rush || DEFAULT_RUSH,
   };
 }
