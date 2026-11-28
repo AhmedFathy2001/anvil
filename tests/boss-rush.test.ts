@@ -21,11 +21,8 @@ import {
   rushTakesRaidMode,
   togetherRuns,
   rushInOrder,
-<<<<<<< HEAD
   rushHiscoresCheck,
-=======
   rushKillProofAt,
->>>>>>> 0b3dd67f9 (Boss Rush kill proofs: the 1st and every 25th kill at a target the hiscores do not keep asks the plugin for a screenshot (rush_kill_shots, 0304); staff see them beside the deaths; purged with the rush)
   type RushEvent,
 } from '@/lib/bossRushRules';
 import { type HuntDrop, defaultHuntTitle, huntFromInput, huntPanelLine, isRush, matchHuntReport, rankHunt, rushBossKeys, rushTargets, serializeHunt, parseHunt } from '@/lib/itemHunt';
@@ -319,7 +316,6 @@ test('"first player only": the first drop by anyone scores, every later one is 0
   assert.equal(rows.find((r) => r.rsn === 'Ann')?.count, 5);
 });
 
-<<<<<<< HEAD
 test('"plugin only" kills ahead of the hiscores are held, target by target', () => {
   const keyOf = (t: string) => ({ 'Chambers of Xeric': 'chambersOfXeric', Vorkath: 'vorkath' } as Record<string, string>)[t] ?? null;
   const r = rushHiscoresCheck(
@@ -336,7 +332,8 @@ test('"plugin only" kills ahead of the hiscores are held, target by target', () 
   // No start reading (or no hiscores reading yet): nothing at a hiscores target is assumed.
   assert.equal(rushHiscoresCheck({ 'Chambers of Xeric': 4 }, keyOf, null, { chambersOfXeric: 500 }).held, 4);
   assert.equal(rushHiscoresCheck({ 'Chambers of Xeric': 4 }, keyOf, { chambersOfXeric: 100 }, null).held, 4);
-=======
+});
+
 test('kill proofs: the 1st kill at a target, then every 25th', () => {
   assert.equal(rushKillProofAt(0, 1), 1);
   assert.equal(rushKillProofAt(1, 2), null);
@@ -344,5 +341,4 @@ test('kill proofs: the 1st kill at a target, then every 25th', () => {
   assert.equal(rushKillProofAt(25, 26), null);
   assert.equal(rushKillProofAt(48, 52), 50);
   assert.equal(rushKillProofAt(0, 30), 25);
->>>>>>> 0b3dd67f9 (Boss Rush kill proofs: the 1st and every 25th kill at a target the hiscores do not keep asks the plugin for a screenshot (rush_kill_shots, 0304); staff see them beside the deaths; purged with the rush)
 });

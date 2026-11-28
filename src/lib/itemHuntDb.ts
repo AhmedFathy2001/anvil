@@ -63,11 +63,7 @@ import {
   serializeHunt,
 } from '@/lib/itemHunt';
 import { huntRates } from '@/lib/huntRates';
-<<<<<<< HEAD
-import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns, rushHiscoresCheck, type RushEvent, type RushHeldRow, type RushRules } from '@/lib/bossRushRules';
-=======
-import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns, rushKillProofAt, type RushEvent, type RushRules } from '@/lib/bossRushRules';
->>>>>>> 0b3dd67f9 (Boss Rush kill proofs: the 1st and every 25th kill at a target the hiscores do not keep asks the plugin for a screenshot (rush_kill_shots, 0304); staff see them beside the deaths; purged with the rush)
+import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns, rushHiscoresCheck, rushKillProofAt, type RushEvent, type RushHeldRow, type RushRules } from '@/lib/bossRushRules';
 import { bossKeyForName } from '@/lib/pluginStats';
 import { killTargetKeys } from '@/lib/pluginFacts/match';
 import { claimTileFacts, type FactOwner } from '@/lib/pluginFacts/factIdStore';
@@ -1205,7 +1201,6 @@ export async function rushFeedFacts(competitionId: number): Promise<{ deaths: { 
   return { deaths, together };
 }
 
-<<<<<<< HEAD
 /**
  * Staff: who has "plugin only" kills held back because the hiscores do not show them yet, target by
  * target. Empty for a rush on "every kill" (its kills are the hiscores'). Held kills score once the
@@ -1221,7 +1216,8 @@ export async function rushHeldKills(comp: Competition): Promise<{ rsn: string; r
     const c = counts?.get(huntRsnKey(s.key));
     return c && c.held > 0 ? [{ rsn: s.rsn, rows: c.heldRows }] : [];
   });
-=======
+}
+
 /** Staff: a rush's kill proofs (targets the hiscores do not keep), by entrant, newest first. */
 export async function rushKillProofsOf(competitionId: number): Promise<Map<string, { target: string; n: number; at: string; url: string | null }[]>> {
   // clan-scope: global -- one competition the caller already resolved for its clan.
@@ -1234,5 +1230,4 @@ export async function rushKillProofsOf(competitionId: number): Promise<Map<strin
   const out = new Map<string, { target: string; n: number; at: string; url: string | null }[]>();
   for (const r of rows) out.set(r.rsn, [...(out.get(r.rsn) ?? []), { target: r.target, n: r.n, at: r.at, url: r.url }]);
   return out;
->>>>>>> 0b3dd67f9 (Boss Rush kill proofs: the 1st and every 25th kill at a target the hiscores do not keep asks the plugin for a screenshot (rush_kill_shots, 0304); staff see them beside the deaths; purged with the rush)
 }
