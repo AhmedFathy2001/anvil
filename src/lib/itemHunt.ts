@@ -1508,3 +1508,16 @@ export function huntIconUrl(config: HuntConfig | null): string | null {
 export function huntIconFor(hunt: string | null | undefined): string | null {
   return huntIconUrl(parseHunt(hunt));
 }
+
+/**
+ * Has this hunt row placed, for a paid place? A drop always does. Without one, a hunt's standings
+ * still order the rest by their progress (kills toward the targets since the start, or how due they
+ * are), and that progress is what places them: 2nd and 3rd on a "first to get it" week go to the
+ * players furthest along. Only someone who did nothing at the targets stays unplaced. A Boss Rush
+ * places on its score alone.
+ */
+export function huntRowPlaced(config: HuntConfig, row: Pick<HuntRow, 'count' | 'statGain' | 'due'>): boolean {
+  if (row.count > 0) return true;
+  if (isRush(config)) return false;
+  return (row.statGain ?? 0) > 0 || (row.due ?? 0) > 0;
+}
