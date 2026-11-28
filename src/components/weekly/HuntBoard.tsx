@@ -164,16 +164,20 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
           {view.v2 && !done && <ProgressChips row={row} />}
           {stat && <span className={`block text-xs ${!has && (row.statGain ?? 0) > 0 && !row.rushWords ? 'text-amber-300/90' : 'text-text-muted'}`}>{stat}</span>}
           {/* A hunt over several bosses: where those kills were, and each count's start and now on hover. */}
-          {row.statParts && view.rule !== 'rush' && (
-            <span className="block text-[11px] text-text-dim">
-              {row.statParts.map((p, i) => (
-                <span key={p.label} title={`${p.label}: ${p.from.toLocaleString()} at the start, ${p.now.toLocaleString()} now`}>
-                  {i > 0 ? ' · ' : ''}
-                  {p.label} {p.gained.toLocaleString()}
-                </span>
-              ))}
-            </span>
-          )}
+          {/* A Boss Rush lists only the targets they have kills at: "ToA: Expert 2, CoX 1". */}
+          {(() => {
+            const parts = row.statParts && view.rule === 'rush' ? row.statParts.filter((p) => p.gained > 0) : row.statParts;
+            return parts && parts.length > 0 ? (
+              <span className="block text-[11px] text-text-dim">
+                {parts.map((p, i) => (
+                  <span key={p.label} title={`${p.label}: ${p.from.toLocaleString()} at the start, ${p.now.toLocaleString()} now`}>
+                    {i > 0 ? ', ' : ''}
+                    {p.label} {p.gained.toLocaleString()}
+                  </span>
+                ))}
+              </span>
+            ) : null;
+          })()}
         </span>
         {/* Due: how much of the rows' drop rates a player without a drop has worked through. */}
         {view.v2 && view.rated && !has && (
