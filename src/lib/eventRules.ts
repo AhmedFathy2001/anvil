@@ -199,6 +199,15 @@ export interface StartProofConfig {
    * server records the reported age so staff can see it.
    */
   maxSessionMinutes: number;
+  /**
+   * Plugin behaviour, set by the host for everyone on the event (these used to be per-player plugin
+   * settings). `autoShot`: the plugin takes the shot by itself once the player stands still on the
+   * pinned spot and every check is green. `guide`: while a shot is owed, the plugin shows an on-screen
+   * card with the checks, a hint arrow and a world map pin to the spot. Both default ON — what the
+   * plugin did before the host could choose — and only an explicit false turns one off.
+   */
+  autoShot: boolean;
+  guide: boolean;
 }
 
 // How much the player-profile engine steers team formation (balance-engine plan, Part C).
@@ -477,6 +486,8 @@ export const DEFAULT_START_PROOF: StartProofConfig = {
   locations: [],
   pick: 'random',
   maxSessionMinutes: 15,
+  autoShot: true,
+  guide: true,
 };
 
 /** Host location pools stay small — this is a list to draw one line from, not a dataset. */
@@ -662,7 +673,10 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
   }
   let startProof: EventRules['startProof'] = null;
   const sp = obj.startProof as
-    | { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown }
+    | {
+        onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown;
+        autoShot?: unknown; guide?: unknown;
+      }
     | null
     | undefined;
   if (sp && typeof sp === 'object' && !Array.isArray(sp)) {
@@ -678,6 +692,9 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
       // Absent = 0 = off, so a policy stored before this field existed doesn't grow a new demand
       // on its players mid-event. `DEFAULT_START_PROOF` is what a fresh turn-on gets.
       maxSessionMinutes: clampInt(sp.maxSessionMinutes, 0, 720, 0),
+      // Absent = on: what the plugin did before the host could choose.
+      autoShot: sp.autoShot !== false,
+      guide: sp.guide !== false,
     };
   }
   return {
@@ -887,6 +904,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
       onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown;
+      autoShot?: unknown; guide?: unknown;
     };
     if (typeof s !== 'object' || Array.isArray(s)) {
       return { error: 'rules.startProof must be an object or null' };
@@ -896,6 +914,11 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     }
     if (s.autoAcceptPlugin !== undefined && typeof s.autoAcceptPlugin !== 'boolean') {
       return { error: 'rules.startProof.autoAcceptPlugin must be a boolean' };
+    }
+    for (const key of ['autoShot', 'guide'] as const) {
+      if (s[key] !== undefined && typeof s[key] !== 'boolean') {
+        return { error: `rules.startProof.${key} must be a boolean` };
+      }
     }
     if (s.pick !== undefined && !START_PROOF_PICKS.includes(s.pick as StartProofPick)) {
       return { error: "rules.startProof.pick must be 'random' or 'first'" };

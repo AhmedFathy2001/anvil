@@ -1604,6 +1604,69 @@
       "when": 1795600000000,
       "tag": "0291_trip_check",
       "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1795705982796,
+      "tag": "0292_boss_rush",
+      "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1795710737945,
+      "tag": "0293_rush_adjust",
+      "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1795713678830,
+      "tag": "0294_guide_pieces",
+      "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1795759276953,
+      "tag": "0295_moment_place",
+      "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1795763510702,
+      "tag": "0297_hunt_media_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1795765036771,
+      "tag": "0298_rush_death_shots",
+      "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1795765636771,
+      "tag": "0299_trip_setups_many",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1795768145213,
+      "tag": "0300_hunt_clean_shots",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1795772147174,
+      "tag": "0301_rush_death_cause",
+      "breakpoints": true
     }
   ]
 }

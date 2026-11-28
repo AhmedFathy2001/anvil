@@ -134,3 +134,9 @@ export const WEEKLY_BADGE: Record<string, string> = {
   efficiency: 'Efficiency',
   hunt: 'Item hunt',
 };
+
+/** The badge, with a Boss Rush named as one: underneath it is a hunt, its rules say which (lib/itemHunt rule 'rush'). */
+export function weeklyBadge(type: string, hunt?: string | null, fallback = 'Weekly'): string {
+  if (type === 'hunt' && hunt && /"rule"\s*:\s*"rush"/.test(hunt)) return 'Boss Rush';
+  return WEEKLY_BADGE[type] ?? fallback;
+}

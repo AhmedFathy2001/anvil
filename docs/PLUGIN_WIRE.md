@@ -338,7 +338,8 @@ the button simply never appears:
 ```json
 { "required": true, "drawn": true, "location": "Edgeville bank",
   "spot": { "x": 3094, "y": 3491, "radius": 25 }, "maxSessionMinutes": 15,
-  "keyword": "ANVIL-GRAPE-47", "needsUpload": true, "status": null, "imageUrl": null }
+  "keyword": "ANVIL-GRAPE-47", "needsUpload": true, "status": null, "imageUrl": null,
+  "autoShot": true, "guide": true }
 ```
 
 `keyword` is per PLAYER and derived from the event's draw stamp — a value that does not exist
@@ -355,6 +356,14 @@ squares from it still counts, measured Chebyshev-style — `max(|dx|, |dy|)`.
 logout, so a player who has been logged in since before the event has a stale start baseline.
 A plugin that supports this should refuse to file a session older than the window and say so —
 "log out and back in, then take the shot" — rather than filing something staff must chase.
+
+`autoShot` and `guide` are the host's plugin switches for the event (they replace the plugin's
+own "Auto starting shot" / "Starting shot guide" settings). `autoShot`: take and file the shot
+by itself once the player stands still on the pinned spot with every check green. `guide`:
+while a shot is owed, show the on-screen card with the checks, the hint arrow and the world map
+pin. Both are `true` unless the host turned them off; a site that predates them omits both,
+and a plugin must then treat them as `true`. Older plugins ignore them and keep using their
+own settings.
 
 Filing one: upload the PNG through `POST /api/upload` as usual, then
 `POST /api/events/:eventId/start-proof` with plugin-token auth and
@@ -703,15 +712,70 @@ only goes out where that is listed.
 
 - `tripRegions: number[]` on every `/api/plugin/config` shape, and on `/api/version` for a person in
   no clan (lib/tripContent). Compared against `WorldPoint.fromLocalInstance(...).getRegionID()`.
+  `tripNames: {region: short}` beside it: the plugin puts "Checking ToA…" (neutral) on screen the
+  moment the bank closes there, and replaces it with the answer ("Checking your trip…" elsewhere).
 - `POST /api/plugin/items` also takes `state: {book: 0|1|2|3, pouch: [[runeId, qty]], pray: [...]}`,
   alone or beside the containers. `pray` lists only what the plugin read as unlocked (`rigour`,
   `augury`); Piety is never sent and is treated as unknown. `pouch` is trusted only while a rune pouch
   is in the pushed inventory. Stored and deleted with the items, owner-only.
+- `state.quiver: [ammoItemId, qty]` (optional): Dizana's quiver's ammo, read off its varps
+  (`DIZANAS_QUIVER_TEMP_AMMO` / `_AMOUNT`) and sent always; an id of 0 or -1 is empty. The site reads
+  it only while a quiver is worn or carried: a saved setup puts it in the `quiver` slot, the check
+  wants the setup's quiver ammo in it (fewer than 50 is a problem). Without it (an older plugin) the
+  quiver's ammo is named in `unknown`.
 - View `trip` with args `{region, why: 'bank-close'|'manual', content?}` answers `{ui, warn}`:
-  `warn` is `{ok, title, lines[]}` for the overlay (`"ToA · 2 problems"` / `"✓ Ready for ToA"`), or
-  null when no trip matches, sharing is off or the items are over 30 minutes old. `content` is a trip
+  `warn` is `{ok, title, lines[], fight?, instance?}` for the overlay (`"ToA · 2 problems"` /
+  `"✓ Ready for ToA"`), or null when no trip matches, sharing is off or the items are over 30 minutes
+  old. `fight: number[]` (TripContent `fightRegions`, site data) and `instance: true` (raids) say where
+  the trip has begun; see Warning lifetime. `content` is a trip
   key or `m:<monster>` from the view's own picker. Actions `trip-save` and `trip-forget` (args
   `{region, content}`) keep or drop the player's own setup for a trip.
+- **Fresh items.** A plugin sending `X-Anvil-Bank-Filter: 1` pushes what is worn and carried (and
+  `state`, and the bank) on `POST /api/plugin/items` just before a check the player asked for (a bank
+  close, or a click on a `trip` load), whether or not it changed, under the same guard as every item
+  push, and then loads the view with `held: '1'`, or with why it couldn't (`paused`, `signed-out`,
+  `no-character`, `sharing-off`, `no-site`, `failed`), which the card says (with `warn` null). The
+  panel's Refresh and "Check again" count as asked. Only such a load with items over 20 seconds old
+  (the push hasn't landed) is held back: the card still checks the last items and says they are not
+  the newest, and `warn` is null. A load without `held` (a view restored after login) is checked
+  as is: items unchanged since their push are current. That push carries `region` too (Precomputed
+  while banking, below).
+- **The card** draws the setup as the game lays it out (lib/tripLayout): the equipment screen, the
+  28 inventory slots (one food or potion a slot, stackables one with a count), the rune pouch and
+  quiver; each item green (worn or packed), amber (in the bank) or red (not owned). A slot's click
+  loads the view with `alt: <slot>` (what the player owns for it, best first by mean DPS against the
+  trip, a bow or crossbow with its best owned ammo); a pick loads it with `swap: "slot:id,…"` (the
+  picks over the setup, kept on every load from the card; "Reset" drops them). Either answers
+  `warn: null`: adjusting in the panel is no bank-close answer. `trip-save` with `swap` keeps the
+  setup with the picks instead of what is worn and carried. Nothing new for the plugin to draw.
+- **Warning lifetime.** Green (Ready) stays 5 seconds. Red stays until the first of: the problems are
+  fixed (while red is up, each item push re-asks the view quietly and its answer replaces the warning,
+  green then fading after 5s), the player stands in a `fight` region or (with `instance`) in any
+  instance, combat starts (the first hitsplat the player deals or takes, or their interacting target
+  becoming an NPC with a combat level), its right-click "Dismiss" (or "Open" the panel's trip card), the
+  bank opening, or 2 minutes. The combat signals only ever take our own warning down:
+  nothing is shown, said or suggested in combat.
+- **Precomputed while banking.** An items push carrying the bank also carries `region`. In a trip
+  region with a bank (or with a next-trip target set), the site works the check out after answering
+  the push (tripView `warmTrip`) and keeps it, keyed by the person, character, trip and a hash of
+  worn, inventory, bank, looting bag, state, levels, skips and the own setup (10 minutes). The
+  bank-close ask then finds it done, or waits on the one already running; anything changed is a new
+  key. The calc's per-boss bank bests are kept by the owned pool too (lib/tripCheck bestLoadout), so
+  taking items out of the bank (same pool) doesn't redo them. Owner-only: the key starts with the
+  person and character the token proves, and nothing else reads it.
+- **Bank filter** (header `X-Anvil-Bank-Filter: 1`): failing rows carry the action
+  `{a: 'bank', ids: '<id>,<id>'}` (the bank's own ids that count as the missing item, its forms and
+  upgrades included), and the card has a "Show missing in bank" button with every such id. The plugin
+  opens a transient Bank Tags tag holding exactly those ids (`BankTagsService.openBankTag`):
+  display only, nothing is moved or withdrawn. Without the header no such action is sent.
+  "Show missing in bank" and "Show my setup in bank" add `layout`: ids by bank position (8 a row,
+  -1 empty) from lib/tripCheck `bankLayout`, the worn pieces as a paper doll in the first three
+  columns (spec left of the legs), switches to the right, then each supply kind on its own rows by
+  dose 4 → 1. The plugin saves it as the tag's Bank Tags layout; a row's own click has no layout.
+- **Re-checks.** Once asked away from the trip regions, the plugin asks again at the next bank close
+  after the player has been in any trip region and left it (a new attempt), or 10 minutes after it
+  asked (own setups, whose region is unknown). Location only, no combat signals. Banking again and
+  again while gearing (no region visit, under 10 minutes) asks once.
 
 ### `trip-target`
 
@@ -720,7 +784,8 @@ The pre-trip check's next-trip target (lib/tripTarget, lib/tripTargetStore), so 
 the plugin only remembers one flag.
 
 - The target, strongest first: the player's pick (a trip chip in the view, or "Going here next" on a
-  guide), the guide they opened most recently when it maps to a trip, else the trip of their last boss
+  guide), a trip item worn or packed in the last push (`TripContent.tripItems`: a Mokhaiotl waystone
+  is a Doom trip, "carrying a waystone"), the guide they opened most recently when it maps to a trip, else the trip of their last boss
   kc (the stat push's per-key stamps). Only a trip in `TRIP_CONTENT` or one the player saved a setup
   for (`trip-save`) can be a target. A pick or guide gives way to a kc after it; anything older than
   2 hours, or than the last `tripEnd` / "clear", is gone.
@@ -732,7 +797,9 @@ the plugin only remembers one flag.
   `{ok, stored, armed}`.
 - The plugin keeps `armed` from the last item push's answer and, while it is set, loads the `trip`
   view (`why: 'bank-close'`) when a bank closes anywhere, once per trip (a kc, death, logout or hop
-  starts the next). Not armed: no request outside the trip regions.
+  starts the next; see Re-checks above). Not armed: no request outside the trip regions.
+- Doom of Mokhaiotl's kc (`doomOfMokhaiotl`) is its deep-delve count, so only a delve 9+ makes Doom the
+  "last trip"; shallower runs reach it by a pick or a guide.
 
 ## Checklist: shipping a new plugin-facing feature
 

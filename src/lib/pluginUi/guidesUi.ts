@@ -27,6 +27,7 @@ import { button, card, col, gap, icon, muted, row, text, type Action, type Color
 import { backHeader } from './playerCardUi';
 import { CARD_W, CORAL, FAINT, GOLD, GREEN, LINE, PROGRESS, SOFT, boxChip, chip, section, small, title } from './sections';
 import type { BodySection } from './guideBody';
+import { tripEntryUi } from './tripUi';
 import { SLOT_NAME } from '@/lib/slotNames';
 
 /** A row's picture: an item, a boss (hiscores key or name) or a skill. */
@@ -48,6 +49,8 @@ export interface GuidesSearchData {
   here: { id: number; title: string; where: string; pic: GuidePic } | null;
   /** The map region the plugin said it stands in, carried on every action so "You're at" stays. */
   region?: string;
+  /** The pre-trip check's way in (pluginUi/tripUi tripEntryUi): the target, null for none; absent when signed out. */
+  trip?: { short: string; why: string } | null;
 }
 
 /** Filter options: `label` on the chip (short, fits a third of the panel), `long` in its list. */
@@ -167,11 +170,12 @@ function filterChips(d: GuidesSearchData): Node {
 /** The Guides search (the Lookup tab's Guides mode): "You're at", the search, filters, the lists. */
 export function guidesSearchUi(d: GuidesSearchData): Node {
   const parts: Node[] = [];
+  if (d.trip !== undefined) parts.push(tripEntryUi(d.trip, d.region));
   if (d.here) {
     parts.push(
       row(
         picWell(d.here.pic),
-        col([text(`You're at ${d.here.title}`, 'white', { font: 'bold', wrap: 112 }), small(`${d.here.where} · open guide?`, FAINT, { wrap: 112 })], { gap: 1 }),
+        col([text(`You're at ${d.here.title}`, 'white', { font: 'bold', wrap: 112 }), small(`${d.here.where}, open guide?`, FAINT, { wrap: 112 })], { gap: 1 }),
         small('Open ›', GOLD),
         { bg: 'card', edge: GOLD, pad: 7, inset: 8, gap: 8, on: openGuide(d.here.id, d.region), tip: `Open the ${d.here.title} guide` },
       ),
@@ -317,7 +321,8 @@ const SLOT_ROWS: (string | null)[][] = [
 const SLOT_SPRITE: Record<string, number> = { head: 156, cape: 157, neck: 158, weapon: 159, ring: 160, body: 161, shield: 162, legs: 163, hands: 164, feet: 165, ammo: 166 };
 /** The spellbook's tab picture (SpriteID TAB_MAGIC and TAB_MAGIC_SPELLBOOK_*). */
 const SPELLBOOK_SPRITE = [780, 1583, 1584, 1711];
-const QUEST_SPRITE = 776;
+/** A quest line's picture: the Quest point cape (the quest tab's sprite scales to an unreadable smudge). */
+const QUEST_ITEM = 9813;
 
 /** The equipment screen's wells: owned, an owned fallback, not owned. */
 /** The game's stone interface brown behind equipment, inventory and pouch (older plugins draw no fill). */
@@ -345,7 +350,7 @@ const pickSetup = (d: GuidePanelData, setup: string): Action => openGuide(d.id, 
 /** "‹ Vorkath" over "Bossing · Intermediate ↗", then the byline with the writer's quill. */
 function guideHead(d: GuidePanelData, back: Action = guideBack(d)): Node {
   const tierLabel = d.tiers.find((t) => t.key === d.tier)?.label;
-  const line = [d.kind, tierLabel].filter(Boolean).join(' · ') || 'Guide';
+  const line = [d.kind, tierLabel].filter(Boolean).join(', ') || 'Guide';
   return col([
     backHeader(d.title, line, false, back, `/guides/${d.slug}`, W_CARD, GOLD),
     d.byline
@@ -374,25 +379,33 @@ function copyButton(label: string, d: GuidePanelData, kind: 'banktag' | 'setup' 
   return button(d.phase2 ? label : `${label} (on the site)`, on, d.phase2 ? undefined : 'Copying straight from the panel comes in the next plugin update', look);
 }
 
-/** The open option's tinted ground in the setup list (the mockup's brown-gold). */
-const PICKED_BG = '#3a2a14' as const;
+/** The open option's ground in the setup list: a quiet lift, the gold tick says which one it is. */
+const PICKED_BG = '#2e2e2e' as const;
+
+/** "Ranged · " when every setup's name starts with it: said once (the tab already says it), not on every line. */
+function sharedLead(names: string[]): string {
+  const first = names[0]?.split(' · ')[0];
+  return first && names.length > 1 && names.every((n) => n.startsWith(`${first} · `)) ? `${first} · ` : '';
+}
 
 /**
- * The setup picker, as the mockup's dropdown: one gold-edged line "★ Ranged · DHCB · 1 of 3 ▾"; a click
- * (a local flip, no round trip) opens a gold-edged list under it, each option its weapon, a bold name
- * and a faint "Curator pick · 6.2 DPS", the open one on a tinted ground.
+ * The setup picker: one quiet line "★ Twisted bow · 1 of 3 ▾" (grey edge, gold only on the star); a click
+ * (a local flip, no round trip) opens the list under it, each option its weapon, the name and a faint
+ * "Curator pick · 7.9 DPS"; the open one on a lifted ground with a gold tick, not another gold box.
  */
 function setupPicker(d: GuidePanelData): Node | null {
   if (d.setups.length < 2) return null;
   const i = Math.max(0, d.setups.findIndex((s) => s.key === d.current));
   const cur = d.setups[i];
+  const lead = sharedLead(d.setups.map((s) => s.name));
+  const short = (n: string) => n.slice(lead.length);
   const key = `guide-setups:${d.id}:${d.tier}:${d.current}`;
   const flip: Action = { a: 'flip', key };
-  const lead = cur.pick || !cur.weapon ? icon({ glyph: 'star', w: 11, h: 11, color: GOLD }) : icon({ item: cur.weapon, w: 20, h: 18 });
+  const mark = cur.pick || !cur.weapon ? icon({ glyph: 'star', w: 11, h: 11, color: GOLD }) : icon({ item: cur.weapon, w: 20, h: 18 });
   const head = (open: boolean): Node =>
-    row(lead, text(cur.name, 'white', { font: 'bold' }), row(small(`${i + 1} of ${d.setups.length}`, FAINT), undefined, icon({ glyph: 'chevron-down', w: 9, h: 9, color: FAINT, alt: '▾' }), { gap: 4 }), {
+    row(mark, text(short(cur.name), 'white', { font: 'bold' }), row(small(`${i + 1} of ${d.setups.length}`, FAINT), undefined, icon({ glyph: 'chevron-down', w: 9, h: 9, color: FAINT, alt: '▾' }), { gap: 4 }), {
       bg: 'card',
-      edge: GOLD,
+      edge: LINE,
       pad: 6,
       inset: 8,
       gap: 6,
@@ -402,8 +415,9 @@ function setupPicker(d: GuidePanelData): Node | null {
   const options = d.setups.map((s) => {
     const lit = s.key === d.current;
     const sub = s.blocked ? `Not for you: ${s.blocked}` : s.sub || ' ';
-    return row(s32(s.weapon), col([text(s.name, lit ? GOLD : 'white', { font: 'bold', wrap: W_BESIDE }), small(sub, s.blocked ? CORAL : lit ? GOLD : FAINT, { wrap: W_BESIDE })], { gap: 1 }), undefined, {
-      ...(lit ? { bg: PICKED_BG, edge: GOLD } : {}),
+    const tick = lit ? icon({ glyph: 'check', w: 10, h: 10, color: GOLD, alt: '✓' }) : undefined;
+    return row(s32(s.weapon), col([text(short(s.name), 'white', { font: 'bold', wrap: W_BESIDE - 14 }), small(sub, s.blocked ? CORAL : FAINT, { wrap: W_BESIDE - 14 })], { gap: 1 }), tick, {
+      ...(lit ? { bg: PICKED_BG } : {}),
       pad: 5,
       inset: 6,
       gap: 8,
@@ -412,7 +426,7 @@ function setupPicker(d: GuidePanelData): Node | null {
       tip: lit ? 'The setup you have open' : `Open ${s.name}`,
     });
   });
-  return { t: 'toggle', key, off: head(false), lit: col([head(true), card(options, { inset: 3, gap: 2, edge: GOLD })], { gap: 2 }) };
+  return { t: 'toggle', key, off: head(false), lit: col([head(true), card(options, { inset: 3, gap: 2, edge: LINE })], { gap: 2 }) };
 }
 /** The dry tone for a lower number (the luck chips' gold ink). */
 const DRY = '#ffb54d';
@@ -580,7 +594,7 @@ function equipmentGrid(d: GuidePanelData): Node {
           align: 'c',
           icon: { t: 'icon', item: s.id, w: 30, h: 27 },
           on: act,
-          tip: `${SLOT_NAME[slot]}${s.fallback ? ` · ${s.fallback}` : s.missing ? ' · not owned' : ''} · click for alternatives`,
+          tip: `${SLOT_NAME[slot]}${s.fallback ? `, ${s.fallback}` : s.missing ? ', not owned' : ''}, click for alternatives`,
         }),
       );
     }
@@ -614,8 +628,9 @@ function setupTab(d: GuidePanelData): Node {
   const anyMissing = d.slots.some((s) => s.missing);
   const anyFallback = d.slots.some((s) => s.fallback);
   const card1: (Node | null)[] = [
-    // Name on its own line (a long one wraps instead of cutting off), the DPS under it.
-    text(cur.name, 'white', { font: 'bold', wrap: W_CARD }),
+    // Name on its own line (a long one wraps instead of cutting off), the DPS under it. With a picker
+    // above, it already names the setup: saying it twice is noise.
+    picker ? null : text(cur.name, 'white', { font: 'bold', wrap: W_CARD }),
     small(d.dps, PROGRESS),
     d.usingFallbacks ? small(`↓ Using a fallback: ${d.usingFallbacks}`, SOFT, { wrap: W_CARD }) : null,
     equipmentGrid(d),
@@ -639,14 +654,14 @@ function setupTab(d: GuidePanelData): Node {
   card1.push(
     row(
       icon({ sprite: SPELLBOOK_SPRITE[d.spellbookId] ?? 780, w: 20, h: 20 }),
-      col([small(`${d.spellbook} spellbook`, SOFT), d.spells.length ? small(d.spells.join(' · '), FAINT, { wrap: W_BESIDE + 10 }) : null], { gap: 1 }),
+      col([small(`${d.spellbook} spellbook`, SOFT), d.spells.length ? small(d.spells.join(', '), FAINT, { wrap: W_BESIDE + 10 }) : null], { gap: 1 }),
       undefined,
       { gap: 6 },
     ),
   );
   parts.push(section(card1, { gap: 8 }));
   parts.push(copyButton('Copy bank tag', d, 'banktag'), copyButton('Copy Inventory Setup', d, 'setup'));
-  if (d.hasMarkers) parts.push(copyButton(`Copy tile markers · ${d.hasMarkers} tiles`, d, 'markers'), small('Paste in RuneLite: right-click the world map orb → Import Ground Markers', FAINT, { wrap: 205, align: 'c' }));
+  if (d.hasMarkers) parts.push(copyButton(`Copy tile markers (${d.hasMarkers} tiles)`, d, 'markers'), small('Paste in RuneLite: right-click the world map orb → Import Ground Markers', FAINT, { wrap: 205, align: 'c' }));
   if (d.missing) {
     parts.push(
       section([
@@ -654,7 +669,7 @@ function setupTab(d: GuidePanelData): Node {
           ? row(undefined, title('Missing from your bank'), text(String(d.missing.length), PROGRESS, { font: 'bold' }), { gap: 6 })
           : title('You own every item in this setup', GREEN),
         ...d.missing.map((m) => row(icon({ item: m.id, w: 28, h: 25 }), col([text(m.name, 'white', { wrap: 115 }), small(m.price, m.price === 'untradeable' ? FAINT : PROGRESS)], { gap: 1 }), undefined, { gap: 6 })),
-        small(`Checked bank, inventory and worn gear${d.checkedAt ? ` · ${d.checkedAt}` : ''}. Kits and variants you own count.`, FAINT, { wrap: W_CARD }),
+        small(`Checked bank, inventory and worn gear${d.checkedAt ? `, ${d.checkedAt}` : ''}. Kits and variants you own count.`, FAINT, { wrap: W_CARD }),
       ]),
     );
   } else if (d.phase2) {
@@ -724,7 +739,7 @@ function bodyCard(d: GuidePanelData, s: BodySection, i: number): Node {
     if (b.k === 'p') lines.push(text(b.s, SOFT, { wrap: W_CARD }));
     else if (b.k === 'li') lines.push(bullet(b.s));
     else if (b.k === 'step') lines.push(stepBox(++step, b.s));
-    else if (b.k === 'img') lines.push(small(`Picture${b.alt ? `: ${b.alt}` : ''} · on the site`, GOLD, { wrap: W_CARD, icon: { t: 'icon', glyph: 'external', w: 10, h: 10, color: GOLD }, iconAfter: true, on: { a: 'site', path: `/guides/${d.slug}` } }));
+    else if (b.k === 'img') lines.push(small(`Picture${b.alt ? `: ${b.alt}` : ''}, on the site`, GOLD, { wrap: W_CARD, icon: { t: 'icon', glyph: 'external', w: 10, h: 10, color: GOLD }, iconAfter: true, on: { a: 'site', path: `/guides/${d.slug}` } }));
     else if (b.k === 'video') lines.push(small('Watch the video on the site', GOLD, { icon: { t: 'icon', glyph: 'external', w: 10, h: 10, color: GOLD }, iconAfter: true, on: { a: 'site', path: `/guides/${d.slug}` }, tip: 'The guide page plays it' }));
   }
   if (s.blocks.length > 14) lines.push(small(`${s.blocks.length - 14} more on the site`, GOLD, { on: { a: 'site', path: `/guides/${d.slug}` } }));
@@ -741,12 +756,14 @@ function beforeYouGo(d: GuidePanelData): Node | null {
       ? icon({ item: c.pic.item, w: 26, h: 23 })
       : c.pic?.skill
         ? icon({ skill: c.pic.skill })
-        : icon({ sprite: QUEST_SPRITE, w: 20, h: 20, or: icon({ glyph: 'star', w: 12, h: 12, color: GOLD }) });
+        : icon({ item: QUEST_ITEM, w: 26, h: 23, or: icon({ glyph: 'star', w: 12, h: 12, color: GOLD }) });
     const mark = c.ok === true ? icon({ glyph: 'check', w: 12, h: 12, color: GREEN }) : c.ok === false ? icon({ glyph: 'close', w: 11, h: 11, color: CORAL }) : undefined;
+    // Not known yet (no bank seen): a faint dash, so the column doesn't read as a gap.
+    const unknown = mark ? null : text('–', FAINT, { w: 12, align: 'c', tip: 'Not checked yet: open your bank once' });
     // The tick or cross first (as the mockup lists them), then the thing's picture and its words.
     return row(
-      row(text('', 'muted', { w: 12, align: 'c', ...(mark ? { icon: mark as Extract<Node, { t: 'icon' }> } : {}) }), text('', 'muted', { w: 26, align: 'c', icon: pic as Extract<Node, { t: 'icon' }> }), undefined, { gap: 4 }),
-      text(c.text, c.ok === false ? 'white' : SOFT, { wrap: 120 }),
+      row(unknown ?? text('', 'muted', { w: 12, align: 'c', icon: mark as Extract<Node, { t: 'icon' }> }), text('', 'muted', { w: 26, align: 'c', icon: pic as Extract<Node, { t: 'icon' }> }), undefined, { gap: 4 }),
+      text(c.text, c.ok === false ? 'white' : SOFT, { wrap: W_BESIDE }),
       undefined,
       { gap: 6 },
     );
@@ -779,7 +796,7 @@ function howToTab(d: GuidePanelData): Node {
   const cur = d.setups.find((s) => s.key === d.current);
   const tierLabel = d.tiers.find((t) => t.key === d.tier)?.label;
   const parts: Node[] = [];
-  if (cur) parts.push(small(`For ${cur.name}${tierLabel ? ` · ${tierLabel}` : ''}`, FAINT, { wrap: 205 }));
+  if (cur) parts.push(small(`For ${cur.name}${tierLabel ? `, ${tierLabel}` : ''}`, FAINT, { wrap: 205 }));
   parts.push(...howTo(d));
   if (parts.length <= 1) parts.push(section([muted('Nothing written for this level yet.', { wrap: W_CARD })]));
   return col(parts, { gap: 8 });
@@ -831,7 +848,7 @@ export function alternativesUi(d: GuidePanelData, a: PanelAlternatives): Node {
   const parts: Node[] = [
     row(
       cur ? text('', 'white', { chip: WELL.own, w: SLOT_PX, align: 'c', icon: { t: 'icon', item: cur.id, w: 30, h: 27 } }) : undefined,
-      col([title('Alternatives'), small(`${SLOT_NAME[a.slot] ?? a.slot} slot · best first`, FAINT)], { gap: 1 }),
+      col([title('Alternatives'), small(`${SLOT_NAME[a.slot] ?? a.slot} slot, best first`, FAINT)], { gap: 1 }),
       text('', 'muted', { icon: { t: 'icon', glyph: 'close', w: 11, h: 11, color: FAINT }, on: back, tip: 'Close' }),
       { gap: 8 },
     ),
@@ -843,7 +860,7 @@ export function alternativesUi(d: GuidePanelData, a: PanelAlternatives): Node {
         icon({ item: r.id, w: 30, h: 27, dim: r.skipped }),
         col([
           text(r.name, r.skipped ? FAINT : 'white', { wrap: 92 }),
-          text('', 'muted', { font: 'small', runs: [{ s: r.price, color: r.price === 'untradeable' ? FAINT : PROGRESS }, { s: ` · ${r.note}${r.skipped ? ' · skipped' : ''}`, color: FAINT }], wrap: 92 }),
+          text('', 'muted', { font: 'small', runs: [{ s: r.price, color: r.price === 'untradeable' ? FAINT : PROGRESS }, { s: `, ${r.note}${r.skipped ? ', skipped' : ''}`, color: FAINT }], wrap: 92 }),
           r.owned ? small('owned ✓', GREEN, { font: 'bold' }) : null,
         ], { gap: 1 }),
         r.inUse ? chip('In use', 'gold') : undefined,
@@ -962,11 +979,11 @@ export function nextUpUi(d: NextUpData): Node | null {
       ], { bg: 'panel', inset: 8, gap: 4 }),
     );
     if (d.lastDone) {
-      parts.push(row(d.lastDone.icon ? icon({ item: d.lastDone.icon, w: 28, h: 25 }) : undefined, col([text(d.lastDone.title, SOFT, { wrap: 100 }), small(`Done · ${d.lastDone.source}`, GREEN)], { gap: 1 }), icon({ glyph: 'check', w: 12, h: 12, color: GREEN }), { gap: 6 }));
+      parts.push(row(d.lastDone.icon ? icon({ item: d.lastDone.icon, w: 28, h: 25 }) : undefined, col([text(d.lastDone.title, SOFT, { wrap: 100 }), small(`Done, ${d.lastDone.source}`, GREEN)], { gap: 1 }), icon({ glyph: 'check', w: 12, h: 12, color: GREEN }), { gap: 6 }));
     }
     d.next.forEach((n, i) =>
       parts.push(
-        row(n.icon ? icon({ item: n.icon, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }), col([text(n.title, 'white', { font: 'bold', wrap: 105 }), n.line ? small(n.line, FAINT, { wrap: 105 }) : null, ...(n.reqs.length ? [small(n.reqs.map((r) => r.text).join(' · '), n.reqs.every((r) => r.met !== false) ? GREEN : PROGRESS, { wrap: 105 })] : [])], { gap: 2 }), undefined, {
+        row(n.icon ? icon({ item: n.icon, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }), col([text(n.title, 'white', { font: 'bold', wrap: 105 }), n.line ? small(n.line, FAINT, { wrap: 105 }) : null, ...(n.reqs.length ? [small(n.reqs.map((r) => r.text).join(', '), n.reqs.every((r) => r.met !== false) ? GREEN : PROGRESS, { wrap: 105 })] : [])], { gap: 2 }), undefined, {
           bg: 'card',
           pad: 5,
           inset: 6,

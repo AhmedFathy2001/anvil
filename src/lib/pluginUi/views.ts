@@ -1,3 +1,5 @@
+import { momentLabel } from '@/lib/petName';
+import { tripEnabled } from '@/lib/serverInfo';
 import type { PanelHighlights } from './highlightsUi';
 import { spendLifeline, teamEasePayload } from '@/lib/raceEaseDb';
 import { withoutPetDoubles } from '@/lib/momentDupes';
@@ -71,6 +73,8 @@ import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { boardChatOn } from '@/lib/eventChat';
 import { guideAct, guideNextView, guidePanelView, guidesSearchView, guideYouCard } from './guidesView';
 import { tripAct, tripView } from './tripView';
+import { tripEntryUi } from './tripUi';
+import { targetLabel } from '@/lib/tripTargetStore';
 import { hasGuidesPanel, hasFeedTab, hasLogSearch, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -197,7 +201,13 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
         tint: (await supporterInksForRsns([me.rsn]).catch(() => null))?.get(me.rsn)?.color ?? null,
         above: ownership ? [ownership] : [],
         // The guides card (pluginUi/guidesView): the route followed, else recent guides; none when empty.
-        below: [goalsNode, ...(owner && hasGuidesPanel(request) ? [await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n) : [])],
+        // The pre-trip check's way in: the next-trip target, else "Pre-trip check ›".
+        below: [
+          goalsNode,
+          ...(owner && hasGuidesPanel(request)
+            ? [tripEnabled() ? tripEntryUi(await targetLabel(owner.userId, owner.accountId).catch(() => null)) : null, await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n)
+            : []),
+        ],
       })
     : notFoundUi(me.rsn);
   return { ui: character ? cardUi : col([...(ownership ? [ownership] : []), cardUi, goalsNode], { gap: 8 }) };
@@ -974,7 +984,7 @@ async function momentsView(request: Request, a: Args, note?: string): Promise<Vi
   const items: FeedItem[] = shown.map((m) => ({
     id: m.id,
     rsn: m.rsn,
-    label: m.itemName ?? m.source ?? m.kind,
+    label: momentLabel(m),
     itemId: m.itemId,
     kind: m.kind,
     at: m.occurredAt,
@@ -1118,7 +1128,7 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
     if (g) return g;
   }
   if (act.startsWith('trip-')) {
-    const t = await tripAct(request, act, args);
+    const t = await tripAct(request, act, args, fields);
     if (t) return t;
   }
   if (act === 'notice-hide') {

@@ -24,7 +24,7 @@ import { idOrNull, idParam } from '@/lib/routeIds';
 import { weeklyLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { getEffectiveParticipants } from '@/lib/weekly';
-import { competitionBoard, myHuntSeats } from '@/lib/itemHuntDb';
+import { competitionBoard, myHuntSeats, rushFeedFacts } from '@/lib/itemHuntDb';
 import { competitionMode } from '@/lib/competitionTeams';
 import { ANONYMOUS_VIEWER, buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
 import OptOutToggle from '@/components/weekly/OptOutToggle';
@@ -37,7 +37,7 @@ import SelfEntry from '@/components/weekly/SelfEntry';
 import { myEntry, signupOpen, weeklyFeePotGp } from '@/lib/weeklySignups';
 import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
 import { loadHuntView } from '@/lib/itemHuntView';
-import { buildCompetitionFeed, buildHuntFeed, watchedPlaces, type FeedFilter } from '@/lib/competitionFeed';
+import { buildCompetitionFeed, buildHuntFeed, rushFeedExtra, watchedPlaces, type FeedFilter } from '@/lib/competitionFeed';
 import CompetitionFeed, { CompetitionLatest, CompetitionTabs, WhatCounts } from '@/components/weekly/CompetitionFeed';
 import { momentsForCompetition } from '@/lib/momentsStore';
 import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
@@ -181,7 +181,9 @@ export default async function WeeklyLeaderboardPage({
       session?.playerId && running ? myHuntSeats(compId, session.playerId) : [],
     ]);
     // A hunt's feed is its drops, day by day (lib/competitionFeed buildHuntFeed).
-    const huntFeed = buildHuntFeed(hunt.rows, competition.startDate);
+    // A rush also reads its deaths and the kills clanmates finished together.
+    const rushExtra = hunt.rule === 'rush' ? rushFeedExtra(await rushFeedFacts(compId), new Set(hunt.rows.filter((r) => r.isMe).map((r) => r.rsn))) : [];
+    const huntFeed = buildHuntFeed(hunt.rows, competition.startDate, rushExtra);
     if (feedTab) {
       return (
         <div>
@@ -195,7 +197,7 @@ export default async function WeeklyLeaderboardPage({
           <CompetitionTabs competitionId={compId} active="feed" />
           <CompetitionFeed
             days={huntFeed}
-            title="Drops in this hunt"
+            title={hunt.rule === 'rush' ? 'Drops, deaths and kills together' : 'Drops in this hunt'}
             filters={[{ key: 'all', label: 'Everything' }]}
             canFilterMine={!!hunt.me}
             emptyNote="Nobody has a drop yet. Each one shows here as it lands."

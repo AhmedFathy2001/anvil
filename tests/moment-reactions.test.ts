@@ -71,7 +71,7 @@ function texts(n: Node): string[] {
 test('the feed is the clan’s drops, never its deaths', async () => {
   const v = await V.pluginView(asFan(), 'moments', { slug: 'gz-clan' });
   const t = texts(v!.ui);
-  assert.ok(t.includes('Pet snakeling · pet'));
+  assert.ok(t.includes('Pet snakeling, pet'));
   assert.ok(!t.includes('Zulrah'), 'a death is a moment, not a drop');
   assert.ok(t.includes('GZ'));
   void deathId;
@@ -109,7 +109,7 @@ test('someone outside the clan can read a public feed but never GZ it', async ()
   await db.insert(s.accounts).values({ playerId: outsider.id, rsn: 'Outsider', rsnNormalized: 'outsider' });
   const asOut = () => new Request('http://site/api/plugin/ui', { headers: { Authorization: 'Bearer out-token', 'X-RSN': 'Outsider' } });
   const v = await V.pluginView(asOut(), 'moments', { slug: 'gz-clan' });
-  assert.ok(texts(v!.ui).includes('Pet snakeling · pet'));
+  assert.ok(texts(v!.ui).includes('Pet snakeling, pet'));
   assert.ok(!JSON.stringify(v!.ui).includes('"act":"react"'), 'no buttons for an outsider');
   const before = (await db.select().from(s.momentReactions)).length;
   const refused = await V.pluginAct(asOut(), 'react', { slug: 'gz-clan', id: String(petId), kind: 'gz' }, {});
@@ -119,7 +119,7 @@ test('someone outside the clan can read a public feed but never GZ it', async ()
 
 test('without a plugin login a public clan’s feed shows, but nothing can be pressed', async () => {
   const v = await V.pluginView(new Request('http://site/api/plugin/ui'), 'moments', { slug: 'gz-clan' });
-  assert.ok(texts(v!.ui).includes('Pet snakeling · pet'));
+  assert.ok(texts(v!.ui).includes('Pet snakeling, pet'));
   assert.ok(!JSON.stringify(v!.ui).includes('"act":"react"'), 'no reaction without knowing who gives it');
 });
 

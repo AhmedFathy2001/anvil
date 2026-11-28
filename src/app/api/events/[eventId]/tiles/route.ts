@@ -1,3 +1,4 @@
+import { PRACTICE_MAX_TILES, tilesFrozenByStart } from '@/lib/practiceRules';
 import { isAssetPath } from '@/lib/assetUrls';
 import { NextResponse } from 'next/server';
 import { parseJsonArray, tileKindLabel } from '@/lib/tileKinds';
@@ -109,7 +110,8 @@ export async function PUT(
   });
 
   const now = new Date();
-  const eventStarted = event?.startDate && new Date(event.startDate) <= now;
+  // A practice board never freezes its tiles (lib/practiceRules tilesFrozenByStart).
+  const eventStarted = !!event && tilesFrozenByStart(event, now.getTime());
 
   // Admin-only live-event override. After start, label / kind / required-amount are frozen so a
   // running board's rules don't shift under contestants. An admin can knowingly override that to
@@ -1021,14 +1023,15 @@ export async function POST(
       { status: 400 },
     );
   }
-  if (event.startDate && new Date(event.startDate) <= new Date()) {
+  if (tilesFrozenByStart(event)) {
     return NextResponse.json({ error: 'Tiles cannot be added after the event has started.' }, { status: 400 });
   }
 
   // Board tiles only: a combo's parts (lib/combo) are neither cells nor positions.
   const existing = await db.select({ position: tiles.position }).from(tiles).where(and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)));
-  if (existing.length >= MAX_TILES) {
-    return NextResponse.json({ error: `Events are capped at ${MAX_TILES} tiles.` }, { status: 400 });
+  const cap = event.practice ? PRACTICE_MAX_TILES : MAX_TILES;
+  if (existing.length >= cap) {
+    return NextResponse.json({ error: event.practice ? `A practice board holds up to ${cap} tiles.` : `Events are capped at ${cap} tiles.` }, { status: 400 });
   }
   const nextPosition = existing.length === 0 ? 0 : Math.max(...existing.map((t) => t.position)) + 1;
 

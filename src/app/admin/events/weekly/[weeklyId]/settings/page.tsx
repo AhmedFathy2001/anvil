@@ -2,8 +2,10 @@ import WeeklySignupPanel from '../WeeklySignupPanel';
 import WeeklyTargetPanel from '../WeeklyTargetPanel';
 import { competitionNotStarted } from '@/lib/competitionTeamsDb';
 import { huntFormFromConfig } from '@/lib/huntForm';
+import RushDeathsPanel from '../RushDeathsPanel';
 import HuntSettingsPanel from '../HuntSettingsPanel';
-import { huntRows, parseHunt } from '@/lib/itemHunt';
+import { huntRows, isRush, parseHunt } from '@/lib/itemHunt';
+import { getEffectiveParticipants } from '@/lib/weekly';
 import { notFound } from 'next/navigation';
 
 import { requireClan } from '@/lib/clanContext';
@@ -60,7 +62,25 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
       <WeeklyTargetPanel competitionId={comp.id} type={comp.type} metric={comp.metric} hunt={hunt ? huntFormFromConfig(hunt) : null} />
     )}
     <WeeklySignupPanel competitionId={comp.id} selfSignup={comp.selfSignup} entryFee={comp.entryFee} feesToPrizes={comp.feesToPrizes} feeGatesPrize={comp.feeGatesPrize} ended={comp.status === 'completed'} canSetFee={atLeast(session?.role, 'treasurer')} />
-    {hunt && <HuntSettingsPanel competitionId={comp.id} initial={{ ends: hunt.ends, confirm: hunt.confirm }} finished={comp.status === 'completed'} rowCount={huntRows(hunt).length} />}
+    {hunt && (
+      <HuntSettingsPanel
+        competitionId={comp.id}
+        initial={{ ends: hunt.ends, confirm: hunt.confirm }}
+        finished={comp.status === 'completed'}
+        rowCount={huntRows(hunt).length}
+        rush={
+          isRush(hunt)
+            ? {
+                rules: hunt.rush,
+                repeat: hunt.repeat === 'first' ? 'first' : 'every',
+                items: hunt.items.map((it) => ({ id: it.id, name: it.name, points: it.points ?? 0, once: !!it.once })),
+                entrants: (await getEffectiveParticipants(comp.id)).map((p) => ({ id: p.id, rsn: p.rsn })),
+              }
+            : null
+        }
+      />
+    )}
+    {hunt && isRush(hunt) && <RushDeathsPanel competitionId={comp.id} />}
     <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />
     <WeeklyGamePanel
       competitionId={comp.id}

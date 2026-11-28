@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { eventsDueForPurge, purgeEventMedia } from '@/lib/eventMediaRetention';
 import { eventsNeedingNotice, sendPurgeNotice } from '@/lib/eventMediaNotice';
+import { huntsDueForPurge, huntsNeedingNotice, purgeHuntMedia, sendHuntPurgeNotice } from '@/lib/huntMediaRetention';
 import { log } from '@/lib/logger';
 
 // Daily: remind clans ahead of deletion (lib/eventMediaNotice), then delete the proof images of
-// events past their date (lib/eventMediaRetention) — 90 days after the end, and never sooner than a
+// events (and item hunts' drop screenshots, lib/huntMediaRetention) past their date (lib/eventMediaRetention) — 90 days after the end, and never sooner than a
 // week after the first reminder. `?dryRun=1` lists the reminders and deletions it WOULD make.
 
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -36,7 +37,15 @@ export async function GET(request: Request) {
     const r = await purgeEventMedia(e.id, { dryRun });
     if (r) results.push({ ...r, purgeAt: e.purgeAt.toISOString() });
   }
-  const files = results.reduce((t, r) => t + r.files, 0);
-  log.info('media-retention.tick', { dryRun, notices: notices.length, events: results.length, files });
-  return NextResponse.json({ success: true, dryRun, notices, events: results.length, files, results });
+  // Item hunts and Boss Rushes: their drop screenshots, on the same rules (lib/huntMediaRetention).
+  const huntNotices = [];
+  for (const h of await huntsNeedingNotice(now)) huntNotices.push(await sendHuntPurgeNotice(h, now, { dryRun }));
+  const hunts = [];
+  for (const h of await huntsDueForPurge(now)) {
+    const r = await purgeHuntMedia(h.id, { dryRun });
+    if (r) hunts.push({ ...r, purgeAt: h.purgeAt.toISOString() });
+  }
+  const files = results.reduce((t, r) => t + r.files, 0) + hunts.reduce((t, r) => t + r.files, 0);
+  log.info('media-retention.tick', { dryRun, notices: notices.length + huntNotices.length, events: results.length, hunts: hunts.length, files });
+  return NextResponse.json({ success: true, dryRun, notices, huntNotices, events: results.length, hunts, files, results });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { clogSlotPostedRecently } from '@/lib/notifySeen';
 import { duplicateClogSlot } from '@/lib/notifyDedupe';
+import { withPetName } from '@/lib/petName';
 import { judgeDropRequest, withHeldBefore, withNotableFacts, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanDrops, characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
@@ -244,7 +245,7 @@ export async function POST(request: Request) {
     facts = rest;
   }
   if (kind === 'drop') facts = await withHeldBefore(await withNotableFacts(facts, member?.accountId ?? null), member?.accountId ?? null);
-  if (kind === 'pet') facts = await withPetRarity(facts);
+  if (kind === 'pet') facts = await withPetRarity(withPetName(facts));
   // WHO POSTED IS THE TOKEN'S CHARACTER, for every kind: the `rsn` a body names is ignored and replaced
   // by the character the token resolved (its seat's name; else the poster lookup). A body name let a
   // client post a drop, pet or level under someone else's name into clan channels.

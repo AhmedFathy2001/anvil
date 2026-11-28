@@ -43,7 +43,7 @@ test('game modes stay behind one quiet doorway, then reuse the familiar filters'
     scopes: [clan], current: clan, pane: 'feed', chatAvailable: false, filter: 'all', teamId: null,
     rows: [], mode: { active: false, count: 6 },
   }));
-  assert.match(ordinary, /Game-mode activity · 6/);
+  assert.match(ordinary, /Game-mode activity \(6\)/);
   assert.match(ordinary, /"bg":"raised"[^}]*"on":\{"a":"load","v":"feed","args":\{"s":"clan:afk","p":"feed","m":"1"/, 'the mode doorway is a raised row that opens it');
   assert.doesNotMatch(ordinary, /moments:clan:3:modes/);
 
@@ -149,13 +149,13 @@ test('the chat pane carries the send box; the feed pane its floor line', () => {
       rows: [],
       send: { act: 'chat-send', args: { e: '9', to: 'team:4' }, hint: 'x' },
       chans: [{ label: 'My team', on: true, act: { a: 'load', v: 'feed' }, feed: 'chat:9:team:4' }, { label: 'All teams', on: false, act: { a: 'load', v: 'feed' }, feed: 'chat:9:all', n: 3, blue: true }],
-      lock: { locked: 'You’re timed out · 9m left', sub: 'You can still read along.', warn: true },
+      lock: { locked: 'You’re timed out, 9m left', sub: 'You can still read along.', warn: true },
     }),
   );
   assert.match(chat, /"t":"feed","id":"chat:9:team:4"/);
   assert.match(chat, /"send":\{"act":"chat-send"/);
   assert.match(chat, /"chans":\[\{"label":"My team","on":true/);
-  assert.match(chat, /"locked":"You’re timed out · 9m left","lockSub":"You can still read along.","lockWarn":true/);
+  assert.match(chat, /"locked":"You’re timed out, 9m left","lockSub":"You can still read along.","lockWarn":true/);
   const feed = JSON.stringify(feedTabUi({ scopes, current: scopes[0], pane: 'feed', chatAvailable: false, filter: 'drops', teamId: null, rows: [], floorNote: 'Drops ≥ 5m' }));
   assert.match(feed, /"id":"moments:clan:3:drops"/);
   assert.match(feed, /Drops ≥ 5m/);
@@ -176,7 +176,7 @@ test('more than one clan or board: a dropdown of all of them, on the one showing
   assert.equal(select.kind, 'select');
   assert.equal(select.name, 's', 'the choice rides the load as the scope');
   assert.equal(select.value, 'event:12');
-  assert.deepEqual(select.options.map((o) => o.label), ['Clan · The AFK Spot', 'Event · Chat Test', 'Clan · Other Clan', 'Event · Summer Bingo']);
+  assert.deepEqual(select.options.map((o) => o.label), ['Clan, The AFK Spot', 'Event, Chat Test', 'Clan, Other Clan', 'Event, Summer Bingo']);
   const one = JSON.stringify(feedTabUi({ scopes: [scopes[0]], current: scopes[0], pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }));
   assert.doesNotMatch(one, /"kind":"select"/, 'one scope is a heading, not a dropdown');
   const boostedClan = { kind: 'clan' as const, id: 1, slug: 'afk', name: 'The AFK Spot', boostLevel: 2 };

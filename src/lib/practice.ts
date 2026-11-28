@@ -44,8 +44,10 @@ import {
   tiles,
 } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
+import { EVENT_MODES } from '@/lib/eventModes';
+import { getBoard, type LibraryBoard } from '@/lib/libraryBoards';
 import { purgeEventMedia } from '@/lib/eventMediaRetention';
-import { parseEventRules } from '@/lib/eventRules';
+import { parseEventRules, validateEventRules } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
 import { progressGoal, progressStore, type ProgressStore } from '@/lib/labTileProgress';
 import { countProgress } from '@/lib/countProgress';
@@ -201,12 +203,42 @@ function placeholder(eventId: number, position: number): typeof tiles.$inferInse
 }
 
 /**
- * Start a practice board now. One per clan at a time. Copy mode copies the chosen tiles; pick mode
- * makes `count` blank tiles the setup screen then fills from the library (the ordinary tile import —
- * the creator gets an editor grant on this board for it). Returns the new event id.
+ * A board library entry (lib/libraryBoards) as a practice board's shape: its format, scoring and
+ * reveal preset from its mode, and how many tiles that makes (a classic grid is N×N). Published
+ * boards only, or this clan's own; never more than a practice board holds.
  */
-export async function createPracticeBoard(actorUserId: number, clanId: number, input: PracticeInput): Promise<number> {
+async function libraryShape(clanId: number, boardId: number) {
+  const board = await getBoard(boardId);
+  if (!board || (board.status !== 'published' && board.clanId !== clanId)) throw new PracticeError('That library board is not available.', 404);
+  const mode = EVENT_MODES.find((m) => m.key === board.mode);
+  if (!mode) throw new PracticeError('That library board’s format can’t be practised.');
+  const count = mode.square ? board.boardSize * board.boardSize : board.tiles.length;
+  if (count < 1) throw new PracticeError('That library board has no tiles.');
+  if (count > PRACTICE_MAX_TILES) throw new PracticeError(`That board has ${count} tiles; a practice board holds up to ${PRACTICE_MAX_TILES}.`);
+  const rules = mode.revealPolicy ? validateEventRules({ revealPolicy: mode.revealPolicy }) : { rules: null };
+  return {
+    board,
+    count,
+    format: mode.format,
+    scoringMode: mode.scoringMode,
+    boardSize: mode.square ? board.boardSize : count,
+    rules: 'rules' in rules ? rules.rules : null,
+  };
+}
+
+/**
+ * Start a practice board now. One per clan at a time. Copy mode copies the chosen tiles; pick and
+ * library modes make blank tiles the setup screen then fills through the ordinary tile import (the
+ * creator gets an editor grant on this board for it) — a library board's rows come back for that.
+ * Pick with no tiles is an empty board, built in the tile editor. Returns the new event id.
+ */
+export async function createPracticeBoard(
+  actorUserId: number,
+  clanId: number,
+  input: PracticeInput,
+): Promise<{ id: number; rows: LibraryBoard['tiles'] | null }> {
   const seats = await clanSeats(clanId, input.seats);
+  const lib = input.tiles.mode === 'library' ? await libraryShape(clanId, input.tiles.boardId) : null;
   let source: EventRow | null = null;
   if (input.tiles.mode === 'copy') {
     // clan-scope: this clan -- the board to copy must be this clan's own, and a real one.
@@ -223,7 +255,7 @@ export async function createPracticeBoard(actorUserId: number, clanId: number, i
   // A minute in the past, so the plugin's "has it started" never races the first poll.
   const startMs = now - 60_000;
   const endMs = now + input.hours * 3_600_000;
-  const pick = input.tiles.mode === 'pick' ? input.tiles.count : 0;
+  const pick = input.tiles.mode === 'pick' ? input.tiles.count : lib ? lib.count : 0;
 
   return db.transaction(async (tx) => {
     // One live practice board per clan: serialise creates for this clan, then look.
@@ -236,22 +268,22 @@ export async function createPracticeBoard(actorUserId: number, clanId: number, i
       throw new PracticeError('This clan already has a practice board running. End it first.', 409);
     }
 
-    const rules = source?.rules ?? null;
+    const rules = source?.rules ?? lib?.rules ?? null;
     const [event] = await tx
       .insert(events)
       .values({
         clanId,
         practice: true,
-        name: (source ? `Practice · ${source.name}` : 'Practice board').slice(0, 80),
+        name: (source ? `Practice · ${source.name}` : lib ? `Practice · ${lib.board.title}` : 'Practice board').slice(0, 80),
         // Closed whatever the clan's setting: lib/eventAccess lets only the people on it, and the
         // admins, see a practice board.
         visibility: 'invited',
         entry: 'approval',
         advertised: false,
         signupsEnabled: false,
-        format: source?.format ?? 'bingo',
-        scoringMode: source?.scoringMode ?? 'points',
-        boardSize: source ? source.boardSize : pick,
+        format: source?.format ?? lib?.format ?? 'bingo',
+        scoringMode: source?.scoringMode ?? lib?.scoringMode ?? 'points',
+        boardSize: source ? source.boardSize : lib ? lib.boardSize : pick,
         rules,
         // The copied board's in-game chat feed comes along — it is one of the things being tested.
         chatFeed: source?.chatFeed ?? false,
@@ -285,9 +317,10 @@ export async function createPracticeBoard(actorUserId: number, clanId: number, i
 
     if (source && input.tiles.mode === 'copy') {
       await copyTiles(tx, source, input.tiles.tileIds, event.id, 0, startMs);
-    } else if (pick > 0) {
-      await tx.insert(tiles).values(Array.from({ length: pick }, (_, i) => placeholder(event.id, i)));
-      // The import route is the one place a library row becomes a tile; it asks for an editor.
+    } else {
+      if (pick > 0) await tx.insert(tiles).values(Array.from({ length: pick }, (_, i) => placeholder(event.id, i)));
+      // The import route is the one place a library row becomes a tile; it asks for an editor. So
+      // does the tile editor an empty board is built in.
       await tx.insert(eventEditors).values({ eventId: event.id, userId: actorUserId, role: 'editor', grantedByUserId: actorUserId }).onConflictDoNothing();
     }
 
@@ -301,7 +334,7 @@ export async function createPracticeBoard(actorUserId: number, clanId: number, i
     return event.id;
   }).then((id) => {
     notifyBoardPeople(id);
-    return id;
+    return { id, rows: lib ? lib.board.tiles.slice(0, lib.count) : null };
   });
 }
 

@@ -11,6 +11,8 @@ export interface PurgeNoticeInput {
   files: number;
   /** The event's admin page on the clan's site, where the archive download is. */
   archiveUrl: string;
+  /** An item hunt or Boss Rush: no archive zip, its drops and screenshots are on its admin page. */
+  hunt?: boolean;
   now: Date;
 }
 
@@ -42,11 +44,15 @@ export function purgeNoticeText(input: PurgeNoticeInput): { subject: string; lin
   const subject =
     input.stage === 'final'
       ? `Last reminder: ${event} proof images are deleted in ${days} day${days === 1 ? '' : 's'}`
-      : `${event}: download the archive before the proof images are deleted`;
+      : input.hunt
+        ? `${event}: drop screenshots are deleted soon`
+        : `${event}: download the archive before the proof images are deleted`;
   const lines = [
     `The ${images} from ${event} (${cleanName(input.clanName, 60)}) will be deleted on ${when}.`,
     'Anvil keeps proof images for 90 days after an event ends. The event itself, its results, completions and who did what are kept for good.',
-    'To keep the images, download the event archive: one zip with every record and every proof, filed by tile and team.',
+    input.hunt
+      ? 'To keep any of them, save them from the competition\'s page before then: every drop and its screenshot is listed there.'
+      : 'To keep the images, download the event archive: one zip with every record and every proof, filed by tile and team.',
   ];
   return { subject, lines };
 }

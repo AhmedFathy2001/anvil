@@ -27,6 +27,8 @@ export interface Event {
   addedPrizePool?: number | null;
   /** events.signups_enabled (0259): false = no public form; staff add players. */
   signupsEnabled?: boolean;
+  /** events.practice (0282): a practice board (lib/practice) — authored while it runs, counts for nothing. */
+  practice?: boolean;
   signupOpensAt: string | null;
   signupDeadline: string | null;
   paymentDeadline?: string | null;

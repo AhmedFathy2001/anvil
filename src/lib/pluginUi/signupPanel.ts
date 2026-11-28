@@ -230,7 +230,7 @@ export async function bingoSignupForm(request: Request, a: Args, error: string |
     }
     parts.push(gap(4), {
       t: 'fold',
-      head: text(`Hours you can play${p.activeDailyHours ? ` · ${formatHoursRange(p.activeDailyHours)}/day` : ''}`, 'white', { font: 'small' }),
+      head: text(`Hours you can play${p.activeDailyHours ? `, ${formatHoursRange(p.activeDailyHours)}/day` : ''}`, 'white', { font: 'small' }),
       chev: true,
       c: col(HOURS.flatMap((h, i) => [small(h.label, FAINT), { t: 'grid', cols: 2, gap: 4, c: grid.slice(i * 2, i * 2 + 2) } as Node]), { gap: 3 }),
     });
@@ -244,10 +244,10 @@ export async function bingoSignupForm(request: Request, a: Args, error: string |
   };
   if (fields.bosses) {
     const list = [...BOSSES].sort((x, y) => x.label.localeCompare(y.label)).map((b) => ({ v: b.key, label: b.label }));
-    parts.push(gap(4), { t: 'fold', head: text(`Bosses you do${p.bosses?.length ? ` · ${p.bosses.length}` : ''}`, 'white', { font: 'small' }), chev: true, c: checks('boss', list, p.bosses) });
+    parts.push(gap(4), { t: 'fold', head: text(`Bosses you do${p.bosses?.length ? ` (${p.bosses.length})` : ''}`, 'white', { font: 'small' }), chev: true, c: checks('boss', list, p.bosses) });
   }
   if (fields.skills) {
-    parts.push(gap(4), { t: 'fold', head: text(`Skills you train${p.skills?.length ? ` · ${p.skills.length}` : ''}`, 'white', { font: 'small' }), chev: true, c: checks('skill', SKILL_KEYS.map((s) => ({ v: s, label: cap(s) })), p.skills) });
+    parts.push(gap(4), { t: 'fold', head: text(`Skills you train${p.skills?.length ? ` (${p.skills.length})` : ''}`, 'white', { font: 'small' }), chev: true, c: checks('skill', SKILL_KEYS.map((s) => ({ v: s, label: cap(s) })), p.skills) });
   }
   for (const q of questions) {
     const nodes = questionInputs(q, f ? answerOf(q, f) : p.answers?.[String(q.id)], typed);

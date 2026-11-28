@@ -80,7 +80,12 @@ const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
 // The roll tables as the plugin needs them: ids to match loot against, the vestige to watch for, and
 // the cadence. Item NAMES stay server-side — they exist for the tile editor's fill button, and the
 // plugin already knows how to name an item id.
-export const pluginRollTables = ROLL_TABLES.map((t) => ({
+// Sent EMPTY for now: the plugin's "Roll N of 3" line counted every unique (Virtus pieces, ingots,
+// the boss's item) toward the vestige, but only vestige rolls count (each miss drops a gold ring), so
+// the line was wrong and its "the count was off, re-anchoring" fallback showed up in drop posts.
+// With no tables the plugin says nothing; ROLL_TABLES still serves the tile editor.
+export const pluginRollTables: { boss: string; rollItemIds: number[]; vestigeItemId: number; vestigeName: string; rollsPerVestige: number }[] = [];
+export const pluginRollTablesWhenFixed = ROLL_TABLES.map((t) => ({
   boss: t.boss,
   rollItemIds: rollItemIds(t),
   vestigeItemId: t.vestigeItemId,

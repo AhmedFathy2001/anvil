@@ -4,6 +4,7 @@
 
 import { gainParts } from '@/lib/weeklyMetric';
 import { weeklyMetricLabel } from '@/lib/constants';
+import { rushRulesWords } from '@/lib/bossRushRules';
 import { itemObtainInfo } from '@/lib/itemObtain';
 import {
   type HuntConfig,
@@ -21,10 +22,12 @@ import {
   huntPets,
   huntRows,
   huntBountyBoard,
+  isRush,
+  rushTallyWords,
   type HuntRowProgress,
 } from '@/lib/itemHunt';
 import { parsePrizeCurrency, type PrizeCurrency } from '@/lib/competitionGame';
-import { huntStandings, type HuntStandings } from '@/lib/itemHuntDb';
+import { huntStandings, rushDeathShotsOf, type HuntStandings } from '@/lib/itemHuntDb';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { isHardcoreEntrant, MAIN } from '@/lib/competitionGame';
 
@@ -62,6 +65,8 @@ export interface HuntViewRow {
   rank: number;
   rsn: string;
   count: number;
+  /** Boss Rush: "312 kc · +55 drops · 4 deaths", what the score is made of. */
+  rushWords: string | null;
   isMe: boolean;
   /** Kills at the source (or XP) since the hunt started; null when the hunt shows neither. */
   statGain: number | null;
@@ -85,6 +90,15 @@ export interface HuntViewRow {
   completeAt: string | null;
   /** Item ids of the rows they hold, for the little icons beside the name. */
   heldIds: number[];
+  /** Boss Rush, the viewer's own rows only: each death that cost points, with its screenshot. */
+  deathShots?: RushDeathShot[];
+}
+
+/** One counted Boss Rush death as its player sees it. */
+export interface RushDeathShot {
+  at: string;
+  source: string | null;
+  url: string | null;
 }
 
 /** One target a manual proof can be for, with the sources it may name. */
@@ -105,6 +119,8 @@ export interface HuntView {
   rule: HuntRule;
   /** A points hunt: each item and what it scores, for the line under the title. */
   points: { name: string; points: number }[] | null;
+  /** Boss Rush: its scoring on one line ("1 kill = 1 pt · each death -1 · plugin kills only"). */
+  rushRules: string | null;
   /** A points hunt: only each player's first drop of each item scores. */
   firstOfEach: boolean;
   endingWords: string;
@@ -154,6 +170,7 @@ export function buildHuntView(
   comp: { metric: string; startDate: string; endDate: string; status: string; countsOn?: string | null; prizeCurrency?: string | null },
   standings: HuntStandings,
   viewerMemberIds: number[] = [],
+  deathShots: Map<string, RushDeathShot[]> = new Map(),
 ): HuntView {
   const { config } = standings;
   const stat = huntStat(config);
@@ -170,6 +187,7 @@ export function buildHuntView(
     rank: r.rank,
     rsn: r.rsn,
     count: r.count,
+    rushWords: r.rush ? rushTallyWords(r.rush) : null,
     isMe: mine.has(r.rsn),
     statGain: stat ? r.statGain : null,
     statPending: !!stat && !baselined.get(r.rsn),
@@ -182,9 +200,10 @@ export function buildHuntView(
     due: r.due,
     held: r.held,
     completeAt: r.completeAt,
+    ...(mine.has(r.rsn) && deathShots.has(r.rsn) ? { deathShots: deathShots.get(r.rsn) } : {}),
     heldIds: [...new Set(r.drops.map((d) => d.itemId).filter((id): id is number => id != null && targetIds.has(id)))],
     drops: r.drops.map((d, i) => ({
-      score: config.rule !== 'points' ? null : config.repeat === 'first' && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
+      score: config.rule !== 'points' && config.rule !== 'rush' ? null : (config.repeat === 'first' || (config.rule === 'rush' && !!config.items.find((it) => it.id === d.itemId)?.once)) && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
       id: d.id,
       itemId: d.itemId,
       itemName: d.itemName,
@@ -204,8 +223,9 @@ export function buildHuntView(
     kindWord: huntKindWord(config),
     line: huntLine(config, comp.metric),
     rule: config.rule,
-    points: config.rule === 'points' ? config.items.map((it) => ({ name: it.name, points: it.points ?? 1 })) : null,
-    firstOfEach: config.rule === 'points' && config.repeat === 'first',
+    points: config.rule === 'points' ? config.items.map((it) => ({ name: it.name, points: it.points ?? 1 })) : config.rule === 'rush' ? config.items.filter((it) => (it.points ?? 0) > 0).map((it) => ({ name: it.name, points: it.points ?? 0 })) : null,
+    rushRules: isRush(config) ? rushRulesWords(config.rush) : null,
+    firstOfEach: (config.rule === 'points' || config.rule === 'rush') && config.repeat === 'first',
     endingWords: huntEndingWords(config.ends),
     confirm: config.confirm,
     status: weeklyStatus(comp),
@@ -235,5 +255,8 @@ export async function loadHuntView(
   viewerMemberIds: number[] = [],
 ): Promise<HuntView | null> {
   const standings = await huntStandings(comp);
-  return standings ? buildHuntView(comp, standings, viewerMemberIds) : null;
+  if (!standings) return null;
+  // A rush's death screenshots go to the player who died (staff see everyone's on the admin page).
+  const shots = isRush(standings.config) && viewerMemberIds.length ? await rushDeathShotsOf(comp.id, viewerMemberIds) : new Map<string, RushDeathShot[]>();
+  return buildHuntView(comp, standings, viewerMemberIds, shots);
 }

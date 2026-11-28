@@ -237,9 +237,18 @@ export function buildHuntFeed(
     drops: { id: number; itemName: string; quantity: number; source: string | null; occurredAt: string; stat: string | null; awaiting: boolean }[];
   }[],
   startDate: string,
+  /** A rush's other lines: its counted deaths and its kills finished together (already built). */
+  extra: CompetitionFeedLine[] = [],
 ): CompetitionFeedDay[] {
   const start = Date.parse(`${startDate.slice(0, 10)}T00:00:00Z`);
   const byDay = new Map<string, CompetitionFeedLine[]>();
+  for (const line of extra) {
+    if (!line.at) continue;
+    const day = line.at.slice(0, 10);
+    const list = byDay.get(day);
+    if (list) list.push(line);
+    else byDay.set(day, [line]);
+  }
   for (const row of rows) {
     for (const d of row.drops) {
       if (d.awaiting) continue;
@@ -265,4 +274,16 @@ export function buildHuntFeed(
       index: Math.max(0, Math.round((Date.parse(`${day}T00:00:00Z`) - start) / 86_400_000)),
       lines: lines.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? '')),
     }));
+}
+
+/** A rush's deaths and kills done together as feed lines (lib/itemHuntDb rushFeedFacts). */
+export function rushFeedExtra(
+  facts: { deaths: { rsn: string; source: string | null; at: string }[]; together: { target: string; at: string; who: string[] }[] },
+  mine: ReadonlySet<string>,
+): CompetitionFeedLine[] {
+  const names = (who: string[]) => (who.length <= 1 ? (who[0] ?? '') : `${who.slice(0, -1).join(', ')} and ${who[who.length - 1]}`);
+  return [
+    ...facts.deaths.map((d, i): CompetitionFeedLine => ({ key: `rd${i}:${d.at}`, tag: 'death', rsn: d.rsn, text: d.source ? `died to ${d.source}` : 'died', detail: null, at: d.at, mine: mine.has(d.rsn) })),
+    ...facts.together.map((t, i): CompetitionFeedLine => ({ key: `rt${i}:${t.at}`, tag: 'milestone', rsn: names(t.who), text: `finished ${t.target} together`, detail: null, at: t.at, mine: t.who.some((w) => mine.has(w)) })),
+  ];
 }

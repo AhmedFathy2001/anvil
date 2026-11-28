@@ -60,7 +60,13 @@ export type Action =
    * PHASE 2 (guides, sent only past GUIDES_PANEL_MIN_PLUGIN): fetch `path` (a path on this site,
    * /api/plugin/guide-export?…) with the account token and put the answer's `text` on the clipboard.
    */
-  | { a: 'copy'; path: string };
+  | { a: 'copy'; path: string }
+  /**
+   * The pre-trip check's "show in bank" (sent only to a plugin with X-Anvil-Bank-Filter): the open bank
+   * shows only these item ids (comma-separated), display only. Nothing is moved or withdrawn. With
+   * `layout` (comma-separated ids by bank position, -1 empty, 8 a row) they are laid out that way.
+   */
+  | { a: 'bank'; ids: string; layout?: string };
 
 interface Common {
   /** Tooltip, plain text. */
@@ -148,7 +154,7 @@ export type Node =
       boss?: string;
       /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
       /** 'chevron-down': an open accordion's chevron; a plugin without it draws the `alt` (▾). */
-      glyph?: 'check' | 'chevron-right' | 'chevron-down' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
+      glyph?: 'check' | 'chevron-right' | 'chevron-down' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | 'lock' | 'unlock' | TenureGlyph | 'up' | 'down' | GuideQuillGlyph;
       color?: Color;
       w?: number;
       h?: number;
@@ -470,7 +476,7 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
           // Before the name, as in game chat.
           // Whatever the name already explained stays, after who they are.
           const who = found.label ?? 'Anvil Supporter';
-          t.tip = t.tip ? `${who} · ${t.tip}` : who;
+          t.tip = t.tip ? `${who}, ${t.tip}` : who;
         }
       }
     }

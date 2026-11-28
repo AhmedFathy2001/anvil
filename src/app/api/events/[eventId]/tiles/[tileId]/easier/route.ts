@@ -1,3 +1,4 @@
+import { tilesFrozenByStart } from '@/lib/practiceRules';
 import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 
@@ -38,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   if (tile.parentTileId != null || isMissionTile(tile)) {
     return NextResponse.json({ error: 'Only a tile on the race board can have an easier option.' }, { status: 400 });
   }
-  const started = !!event.startDate && new Date(event.startDate) <= new Date();
+  const started = tilesFrozenByStart(event);
   if (started && !atLeast(editor.role, 'admin')) {
     return NextResponse.json({ error: 'Adding an easier option to a live race is admin-only.' }, { status: 403 });
   }

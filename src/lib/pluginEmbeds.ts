@@ -11,16 +11,19 @@
 // sentence templates and the reaction-line pool — lives in this file, so a wording change is a site
 // deploy instead of a plugin-hub release. The Java side of the contract is NotifyFacts.java.
 //
-// Every builder reproduces what the plugin built itself up to plugin 1.x (tests/plugin-embeds.test.ts
-// compares against fixtures dumped from the old Java builders). `rsn` is always optional: without it
+// The builders started as what the plugin built itself up to plugin 1.x (tests/plugin-embeds.test.ts
+// compares against fixtures dumped from the old Java builders); the diary, quest, CA tier, level and
+// total-level posts have since been restyled like the drop posts (author, wiki link, fields,
+// thumbnail), and the 99 is still the legacy post. `rsn` is always optional: without it
 // the post has no author line and says "A clan member".
 //
 // Pure: no database, no network — the route validates and calls `buildPluginEmbed`.
 
 import { clamp, code, EMBED_COLOR, LIMIT, type DiscordEmbed, type DiscordEmbedField } from './discordEmbeds';
 import { FUN_DEATH_MESSAGES } from './constants';
-import { foughtBoss, FOUGHT_SOURCE_KIND, shownKiller } from './deathSource';
+import { deathCause, foughtBoss, FOUGHT_SOURCE_KIND, shownKiller } from './deathSource';
 import { NOTIFY_DEFAULTS } from './notifyPrefs';
+import { isGenericPetName } from './genericPetName';
 import { absoluteAssetUrl, discordAssetUrl } from './seo';
 import { itemIconUrl as itemIconPath, skillIconUrl as skillIconPath, wikiImageUrl } from './tileIcons';
 
@@ -178,7 +181,7 @@ export interface DeathFacts {
   /** What killed them: an NPC or a player's name, or null when nothing can be named truthfully. */
   source?: string | null;
   /** 'npc' or 'player' once parsed ('pvp' is read as 'player'; 'fought' is settled to a boss or nothing). */
-  sourceKind?: 'npc' | 'player' | null;
+  sourceKind?: 'npc' | 'player' | 'poison' | 'venom' | null;
   /** Distinct players who attacked them in the last few seconds before the death (the plugin's attacker window). */
   pile?: number | null;
 }
@@ -418,7 +421,10 @@ function deathEmbed(f: DeathFacts, wording: DeathWording, random: () => number):
     : pick(taunts.length ? taunts : DEATH_TAUNT_LINES, random);
   const desc = `${template.replaceAll('{name}', name)}\n${reaction}`;
   const e = base(f.rsn, '💀 Death', desc, EMBED_COLOR.red);
-  if (f.source) {
+  if (f.sourceKind === 'poison' || f.sourceKind === 'venom') {
+    const cause = deathCause(f.source, f.sourceKind)!;
+    e.fields = [stat('Killed by', cause.charAt(0).toUpperCase() + cause.slice(1))];
+  } else if (f.source) {
     const others = f.sourceKind === 'player' && pile > 1 ? ` + ${pile - 1} other${pile === 2 ? '' : 's'}` : '';
     e.fields = [stat('Killed by', f.sourceKind === 'player' ? `${f.source} (PvP)${others}` : f.source)];
   }
@@ -568,36 +574,83 @@ function caTaskEmbed(f: CaTaskFacts): DiscordEmbed {
   return e;
 }
 
-// The message-only achievement posts carry no author line, as the plugin built them.
-function textEmbed(title: string, description: string): DiscordEmbed {
-  return base(null, title, description, PLUGIN_COLOR.achievement);
+// A wiki page link built from free text (an area, a quest name): spaces to underscores, then
+// everything but the path-safe characters percent-encoded ("Lumbridge & Draynor" must not become a
+// query string, and a "#" or "?" in a name must not cut the link short).
+function wikiPageUrl(page: string): string {
+  return WIKI + encodeURIComponent(page.trim().replace(/\s+/g, '_')).replace(/%2F/gi, '/');
+}
+
+const diaryIconUrl = () => discordAssetUrl(wikiImageUrl('Achievement_Diaries_icon.png'));
+/** Quest point cape: the item the wiki and the game both use for quests. */
+const QUEST_ICON_ITEM = 9813;
+
+function caTierEmbed(f: CaTierFacts): DiscordEmbed {
+  const e = base(
+    f.rsn,
+    `🏆 ${f.tier} Combat Achievements`,
+    `${who(f.rsn)} unlocked the **${f.tier}** Combat Achievements tier.`,
+    PLUGIN_COLOR.achievement,
+  );
+  e.url = caTaskWikiUrl(f.tier, '');
+  e.fields = [stat('Tier', f.tier)];
+  e.thumbnail = { url: caIconUrl() };
+  return e;
+}
+
+function diaryEmbed(f: DiaryFacts): DiscordEmbed {
+  const e = base(
+    f.rsn,
+    `📜 ${f.area} ${f.tier} diary`,
+    `${who(f.rsn)} completed the **${f.area} ${f.tier}** achievement diary.`,
+    PLUGIN_COLOR.achievement,
+  );
+  e.url = wikiPageUrl(`${f.area} Diary`);
+  e.fields = [stat('Area', f.area), stat('Tier', f.tier)];
+  e.thumbnail = { url: diaryIconUrl() };
+  return e;
+}
+
+function questEmbed(f: QuestFacts): DiscordEmbed {
+  const e = base(f.rsn, `🗺️ ${f.quest}`, `${who(f.rsn)} completed **${f.quest}**.`, PLUGIN_COLOR.achievement);
+  e.url = wikiPageUrl(f.quest);
+  if (f.difficulty) e.fields = [stat('Difficulty', f.difficulty)];
+  e.thumbnail = { url: itemIconUrl(QUEST_ICON_ITEM) };
+  return e;
 }
 
 function totalLevelEmbed(f: TotalLevelFacts): DiscordEmbed {
-  const e = textEmbed(
+  const e = base(
+    f.rsn,
     f.maxed ? '🏆 Maxed!' : '📈 Total level milestone!',
     f.maxed
       ? `${who(f.rsn)} just **maxed** with a total level of **${f.total}**!`
       : `${who(f.rsn)} just reached **${f.total} total level**!`,
+    PLUGIN_COLOR.achievement,
   );
   // From the LIVE total, not the milestone; omitted on a max and when there's nothing left.
   if (!f.maxed && f.current != null && f.max != null && f.max - f.current > 0) {
     e.fields = [plain('Progress to max', `${commas(f.current)} / ${commas(f.max)} — ${commas(f.max - f.current)} to go`, true)];
   }
+  const icon = skillIconUrl('overall');
+  if (icon) e.thumbnail = { url: icon };
   return e;
 }
 
-/** A 99 — the post the plugin has always made, kept byte-for-byte (tests pin it to the legacy fixture). */
+/**
+ * A 99 — the post the plugin has always made, kept byte-for-byte (tests pin it to the legacy
+ * fixture): no author line, no thumbnail. Not restyled with the other achievement posts yet.
+ */
 function level99Embed(f: Level99Facts): DiscordEmbed {
-  const e = textEmbed('🎉 Level 99!', `${who(f.rsn)} just reached **level 99 ${f.skill}**!`);
+  const e = base(null, '🎉 Level 99!', `${who(f.rsn)} just reached **level 99 ${f.skill}**!`, PLUGIN_COLOR.achievement);
   e.fields = [plain('Progress', `${f.at99} of ${f.skills} skills at 99`, true)];
   return e;
 }
 
-/** Any other level a clan or member chose to post: same voice as the 99, plus the skill's wiki page and icon. */
+/** Any other level a clan or member chose to post: the 99's voice, with an author line, the skill's wiki page and icon. */
 function levelEmbed(f: LevelFacts): DiscordEmbed {
   if (f.level === 99) return level99Embed({ rsn: f.rsn, skill: f.skill, at99: f.at99, skills: f.skills });
-  const e = textEmbed('⬆️ Level up!', `${who(f.rsn)} just reached **level ${f.level} ${f.skill}**!`);
+  const e = base(f.rsn, '⬆️ Level up!', `${who(f.rsn)} just reached **level ${f.level} ${f.skill}**!`, PLUGIN_COLOR.achievement);
   e.url = wikiUrl(f.skill);
   const icon = skillIconUrl(f.skill);
   if (icon) e.thumbnail = { url: icon };
@@ -615,22 +668,9 @@ export function pluginEmbed(input: PluginEmbedFacts, opts: BuildOptions = {}): D
     case 'pet': e = petEmbed(input.facts); break;
     case 'clogSlot': e = clogSlotEmbed(input.facts); break;
     case 'caTask': e = caTaskEmbed(input.facts); break;
-    case 'caTier': {
-      const f = input.facts;
-      e = textEmbed('🏆 Combat Achievement tier!', `${who(f.rsn)} unlocked the **${f.tier}** Combat Achievements tier!`);
-      break;
-    }
-    case 'diary': {
-      const f = input.facts;
-      e = textEmbed('📜 Diary completed!', `${who(f.rsn)} just completed the **${f.area} ${f.tier}** achievement diary!`);
-      break;
-    }
-    case 'quest': {
-      const f = input.facts;
-      const tag = f.difficulty ? ` (${f.difficulty})` : '';
-      e = textEmbed('🗺️ Quest complete!', `${who(f.rsn)} just completed **${f.quest}**${tag}!`);
-      break;
-    }
+    case 'caTier': e = caTierEmbed(input.facts); break;
+    case 'diary': e = diaryEmbed(input.facts); break;
+    case 'quest': e = questEmbed(input.facts); break;
     case 'level99': e = level99Embed(input.facts); break;
     case 'level': e = levelEmbed(input.facts); break;
     case 'totalLevel': e = totalLevelEmbed(input.facts); break;
@@ -727,7 +767,8 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
       return {
         kind,
         facts: {
-          rsn: rsnOf(o), name: optStr(o, 'name'), itemId: optInt(o, 'itemId'), duplicate: flag(o, 'duplicate'),
+          // A generic name ("pet") is no name: the post reads "Pet drop!" rather than "🐾 pet".
+          rsn: rsnOf(o), name: isGenericPetName(optStr(o, 'name')) ? null : optStr(o, 'name'), itemId: optInt(o, 'itemId'), duplicate: flag(o, 'duplicate'),
           source: optStr(o, 'source'), skill: optStr(o, 'skill', 32), kc: optInt(o, 'kc'),
           dropRate: optRate(o, 'dropRate'),
         },
@@ -780,9 +821,10 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
       // as a known boss, and a never-killer (Death in his domain) names nobody.
       let source = shownKiller(optStr(o, 'source', 64)?.trim() || null);
       const rawKind = optStr(o, 'sourceKind', 32)?.toLowerCase() ?? null;
-      let sourceKind: DeathFacts['sourceKind'] = rawKind === 'player' || rawKind === 'pvp' ? 'player' : 'npc';
+      let sourceKind: DeathFacts['sourceKind'] = rawKind === 'player' || rawKind === 'pvp' ? 'player' : rawKind === 'poison' || rawKind === 'venom' ? rawKind : 'npc';
       if (rawKind === FOUGHT_SOURCE_KIND) source = foughtBoss(source);
-      if (!source) sourceKind = null;
+      // A poison death names the poison even with no culprit to put beside it.
+      if (!source && sourceKind !== 'poison' && sourceKind !== 'venom') sourceKind = null;
       const pile = optInt(o, 'pile');
       return { kind, facts: { rsn: rsnOf(o), source, sourceKind, pile: pile == null ? null : Math.min(Math.max(pile, 0), 50) } };
     }

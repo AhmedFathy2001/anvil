@@ -257,7 +257,7 @@ export function claimLine(claims: BoardTile['claims']): string | null {
 }
 
 export function claimWho(claims: BoardTile['claims']): string {
-  return (claims ?? []).map((c) => `${c.mine ? 'You' : c.name ?? 'A teammate'}${c.note?.trim() ? ` (${c.note.trim()})` : ''}`).join(' · ');
+  return (claims ?? []).map((c) => `${c.mine ? 'You' : c.name ?? 'A teammate'}${c.note?.trim() ? ` (${c.note.trim()})` : ''}`).join(', ');
 }
 
 const mine = (claims: BoardTile['claims']) => (claims ?? []).some((c) => c.mine);
@@ -290,7 +290,7 @@ function stateText(t: BoardTile, pre: boolean): string | null {
 
 /** A read-only board's claim block: who may join, when the host gates entry ("… · Subs only (Twitch)"). */
 export function joinToClaimLine(gate: string | null): string {
-  return gate ? `Join this event to claim tiles · ${gate}` : 'Join this event to claim tiles.';
+  return gate ? `Join this event to claim tiles, ${gate}` : 'Join this event to claim tiles.';
 }
 
 export type RacePayload = {
@@ -345,7 +345,7 @@ function raceDetail(board: Board, t: BoardTile) {
   return {
     state,
     locked: state === 'ahead' || state === 'closed',
-    where: `${info.stepLine}${roads ? ` · Road ${roadOf(m.graph, t.tileId)}` : ''}`,
+    where: `${info.stepLine}${roads ? `, Road ${roadOf(m.graph, t.tileId)}` : ''}`,
     chip: chip(...RACE_CHIP[state]),
     why: why ? text(why, FAINT, { font: 'small', wrap: CARD_W }) : null,
     goes: whereItGoes(m.graph, route, t.tileId, label, (id) => pane(`t:${id}`)),
@@ -382,14 +382,14 @@ export function raceRouteUi(board: Board, s?: BoardState): Node | null {
     if (st.phase === 'current' && !race.finished) {
       out.push(gap(2), text('▸ You are here', 'brand', { font: 'small' }), { t: 'bar', pct: 100, color: 'brand', h: 2, bg: 'panel' } as Node, gap(3));
     }
-    const crowd = st.crowd > 0 && race.entrants > 6 ? ` · ${st.crowd} ${crowdWord ?? `team${st.crowd === 1 ? '' : 's'}`}` : '';
+    const crowd = st.crowd > 0 && race.entrants > 6 ? `, ${st.crowd} ${crowdWord ?? `team${st.crowd === 1 ? '' : 's'}`}` : '';
     const mark = st.phase === 'done' ? '✓ ' : st.phase === 'later' ? '- ' : '';
     out.push(text(`${mark}${st.heading}${crowd}`, st.phase === 'done' ? 'done' : st.phase === 'current' ? 'text' : 'muted', { font: st.phase === 'current' ? 'bold' : 'small' }));
     for (const t of st.tiles) {
       const lane = t.road ? `${t.road}: ` : '';
       if (t.state === 'done') out.push(text(`   ✓ ${lane}${t.label}`, 'done', { on: pane(`t:${t.id}`), tip: 'Done — open this tile' }));
       else if (t.state === 'open') {
-        const choice = m.route ? ` · ${roadChoiceLine(m.graph, m.route, t.id).toLowerCase()}` : '';
+        const choice = m.route ? `, ${roadChoiceLine(m.graph, m.route, t.id).toLowerCase()}` : '';
         out.push(text(`   Next ▸ ${lane}${t.label}${st.tiles.length > 1 ? choice : ''}`, 'brand', { wrap: true, on: pane(`t:${t.id}`), tip: 'Open this tile' }));
       } else if (m.route?.pickFrom.includes(t.id) && s && !board.readOnly) {
         out.push({ ...button(`Pick ${lane}${t.label}`, { a: 'post', act: 'race-pick', args: args(s, { tile: String(t.id) }) }, 'Lock in this tile for your team — a pick can’t be changed') } as Node);
@@ -407,15 +407,15 @@ export function raceRouteUi(board: Board, s?: BoardState): Node | null {
 export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: Node): Node {
   const tiles = board.tiles as BoardTile[];
   if (!tiles.length) return muted(board.tilesRevealed ? 'No visible tiles.' : 'Tiles haven’t been revealed yet.');
-  const hidden = 'hiddenTileCount' in board && board.hiddenTileCount ? ` · ${board.hiddenTileCount} still hidden` : '';
+  const hidden = 'hiddenTileCount' in board && board.hiddenTileCount ? `, ${board.hiddenTileCount} still hidden` : '';
   const hint =
     ctx.claimBlock == null
-      ? 'Click for details · right-click to claim.'
+      ? 'Click for details, right-click to claim.'
       : ctx.claimBlock.startsWith('Log in')
-        ? 'Click for details · log in to claim tiles.'
+        ? 'Click for details, log in to claim tiles.'
         : board.readOnly
-          ? 'Click for details · join this event to claim tiles.'
-          : 'Click for details · claims aren’t available on this site.';
+          ? 'Click for details, join this event to claim tiles.'
+          : 'Click for details, claims aren’t available on this site.';
   const reload = list({ ...s, page: 0 });
   return col([
     // This board's feed and chat, one click away (any board, not only the one the plugin tracks).
@@ -619,7 +619,7 @@ export function finisherLine(t: BoardTile, f: { name: string; amount: number }):
   if (f.amount <= 0) return f.name;
   const unit =
     t.statType === 'skill' ? ' XP' : t.statType === 'boss' || t.statType === 'kc' ? ' KC' : t.tileType === 'value' || t.tileType === 'valuetotal' ? ' gp' : '';
-  return `${f.name} · ${count(f.amount)}${unit}`;
+  return `${f.name}, ${count(f.amount)}${unit}`;
 }
 
 /** The exact inputs the plugin watches, as lines: set headers end in ":", items start with two spaces. */
@@ -666,7 +666,7 @@ export function trackingLines(t: BoardTile, progress?: BoardContext['progress'])
       const need0 = Math.max(0, ...reqs.map((r) => r.groupRequire));
       const need = need0 <= 0 ? reqs.length : Math.min(need0, reqs.length);
       const times = setTimes(reqs, need);
-      lines.push(`${name} set — ${need < reqs.length ? `any ${need} of ${reqs.length}` : `all ${reqs.length}`}${times > 1 ? ` · done ×${times}` : times === 1 ? ' · done' : ''}:`);
+      lines.push(`${name} set — ${need < reqs.length ? `any ${need} of ${reqs.length}` : `all ${reqs.length}`}${times > 1 ? `, done ×${times}` : times === 1 ? ', done' : ''}:`);
       lines.push(...reqs.map(itemLine));
     }
   } else if (t.trackedItems?.length) {
@@ -699,7 +699,7 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   const p = ctx.progress.get(t.tileId);
   const moving = !!p && !t.complete && p.current < p.goal && p.goal > 1;
   const live = moving ? { tile: t.tileId, cur: p!.current, goal: p!.goal } : undefined;
-  const meta = [t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null, t.category?.trim() ? t.category.trim().replace(/,/g, ' ·') : null].filter(Boolean).join(' · ');
+  const meta = [t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null, t.category?.trim() ? t.category.trim().replace(/,/g, ',') : null].filter(Boolean).join(', ');
   const race = s.pre ? null : raceDetail(board, t);
   const locked = !!race?.locked;
   const state = s.pre ? (isManual(t) ? chip('Manual', 'blue') : null) : race && !t.complete ? race.chip : t.complete ? chip('Done', 'green') : closedUndone(t) ? chip('Closed', 'grey') : moving && p!.current > 0 ? chip('In progress', 'gold') : chip(stateText(t, false) ?? 'Open', 'grey');

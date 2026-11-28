@@ -12,14 +12,17 @@
 // PURE: no database, no datasets. The form (a client component), the routes and the tests all read
 // the rules from here. Source matching is the drop tiles' own (lib/pluginFacts/match sourceMatches).
 
+import { bossKeyForName } from '@/lib/pluginStats';
 import { BOSSES, RAIDS_ANY_MODE, SKILL_LABELS, bossMetricLabel, metricKeys } from '@/lib/constants';
 import { dropCounts } from '@/lib/h2hRules';
 import skillPets from '@/data/skillPets.json';
 import { PET_BOSS_KEYS, PET_GROUPS } from '@/lib/petGroups';
 import { sourceMatches } from '@/lib/pluginFacts/match';
 import { itemIconUrl } from '@/lib/tileIcons';
+import { type RushRules, type RushTally, rushFromInput, rushTotal } from '@/lib/bossRushRules';
 
-export type HuntRule = 'first' | 'most' | 'points';
+/** 'rush': Boss Rush, kills + rare-drop bonuses - deaths at the chosen bosses (lib/bossRushRules). */
+export type HuntRule = 'first' | 'most' | 'points' | 'rush';
 /** Points hunts: does a second drop of the same item score again, or only each player's first? */
 export type HuntRepeat = 'every' | 'first';
 export const MAX_ITEM_POINTS = 1000;
@@ -67,6 +70,8 @@ export interface HuntItem {
   bounty?: number[];
   /** v2: the row is a pet. It counts from wherever it came, one at a time, like a v1 pet hunt's. */
   pet?: true;
+  /** Boss Rush: only each player's first one scores (a kit you can claim once), whatever `repeat` says. */
+  once?: true;
   /**
    * v2: "Closest to it", the stat that shows progress toward this row (kills at its boss, XP in its
    * skill). null = nothing shown for it. Absent on every v1 config, which has the one stat below.
@@ -116,6 +121,11 @@ export interface HuntConfig {
    * A repeating hunt starts its next run from here, at full length, not from the early finish.
    */
   plannedEnd?: string | null;
+  /**
+   * Rule 'rush' (v2 only): the scoring and its targets (`killsOf` holds those the hiscores keep); the rows are the drops that score,
+   * each with the points the host gave it.
+   */
+  rush?: RushRules;
 }
 
 export const MAX_HUNT_ITEMS = 12;
@@ -337,6 +347,7 @@ export function v2HuntStat(rows: HuntItem[]): { killsOf: string | null; xpSkill:
 }
 
 function huntV2FromInput(body: Record<string, unknown>, opts: { lenient?: boolean }): { ok: true; config: HuntConfig } | { ok: false; error: string } {
+  if (body.rule === 'rush') return rushFromBody(body, opts);
   const rule: HuntRule | null = body.rule === 'most' ? 'most' : body.rule === 'first' ? 'first' : body.rule === 'points' ? 'points' : null;
   if (!rule) return { ok: false, error: 'Pick the rule: first to get it, most by the end, or most points.' };
   const raw = Array.isArray(body.items) ? body.items : [];
@@ -399,6 +410,75 @@ function huntV2FromInput(body: Record<string, unknown>, opts: { lenient?: boolea
 }
 
 /**
+ * Boss Rush: the targets (any boss, raid mode or monster, by the name the game reports kills by),
+ * the scoring, and the drops that score with the host's points for each (0 = listed, scores nothing
+ * yet). `killsOf` is the targets the hiscores keep, for "every kill counts" and the starting line.
+ * A row with no sources counts from anywhere. It always ends at the end date.
+ */
+function rushFromBody(body: Record<string, unknown>, opts: { lenient?: boolean }): { ok: true; config: HuntConfig } | { ok: false; error: string } {
+  const rush = rushFromInput(body.rush);
+  // Stored before any monster could be a target: hiscores boss keys, read back as their names.
+  if (rush.targets.length === 0) {
+    const legacy = Array.isArray(body.bosses) ? body.bosses : typeof body.killsOf === 'string' ? body.killsOf.split(',') : [];
+    rush.targets = legacy.flatMap((k) => (typeof k === 'string' ? BOSSES.filter((b) => b.key === k.trim()).map((b) => b.label) : []));
+  }
+  if (rush.targets.length === 0) return { ok: false, error: 'Pick at least one boss, raid or monster for the rush.' };
+  const keys = [...new Set(rush.targets.flatMap((t) => bossKeyForName(t) ?? []))];
+  const items: HuntItem[] = [];
+  const seen = new Set<number>();
+  for (const r of (Array.isArray(body.items) ? body.items : []).slice(0, MAX_HUNT_ROWS)) {
+    const it = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
+    const id = typeof it.id === 'number' && Number.isInteger(it.id) && it.id > 0 ? it.id : null;
+    if (id == null || seen.has(id)) continue;
+    const pet = isPetId(id);
+    const name = pet ? (PET_BY_ID.get(id)?.name ?? '') : typeof it.name === 'string' ? it.name.trim().slice(0, 80) : '';
+    if (!name) continue;
+    seen.add(id);
+    const sources = pet
+      ? []
+      : [...new Map((Array.isArray(it.sources) ? it.sources : []).filter((x): x is string => typeof x === 'string' && !!x.trim()).map((x) => [norm(x), x.trim().slice(0, 80)])).values()].slice(0, MAX_HUNT_SOURCES);
+    const pts = typeof it.points === 'number' && Number.isFinite(it.points) ? Math.round(it.points) : 1;
+    items.push({ id, name, sources, count: 'drops', points: Math.min(MAX_ITEM_POINTS, Math.max(0, pts)), ...(pet ? { pet: true as const } : {}), ...(it.once === true ? { once: true as const } : {}), stat: null });
+  }
+  return {
+    ok: true,
+    config: {
+      v: 2,
+      target: 'items',
+      items,
+      petGroup: null,
+      rule: 'rush',
+      // A second drop of the same item: scores again (default), or only each player's first.
+      ...(body.repeat === 'first' ? { repeat: 'first' as const } : {}),
+      ends: { kind: 'date' },
+      confirm: body.confirm === 'auto' ? 'auto' : 'staff',
+      killsOf: keys.length ? keys.join(',') : null,
+      xpSkill: null,
+      rush,
+      ...(opts.lenient && typeof body.plannedEnd === 'string' ? { plannedEnd: body.plannedEnd } : {}),
+    },
+  };
+}
+
+export const isRush = (config: HuntConfig | null | undefined): config is HuntConfig & { rush: RushRules } => config?.rule === 'rush' && !!config.rush;
+
+/** A rush's targets the hiscores keep, as their keys. */
+export function rushBossKeys(config: HuntConfig): string[] {
+  return isRush(config) && config.killsOf ? config.killsOf.split(',').filter(Boolean) : [];
+}
+
+/** A rush's targets, by name. */
+export function rushTargets(config: HuntConfig): string[] {
+  return isRush(config) ? config.rush.targets : [];
+}
+
+/** A rush drop's points: what the host gave its row (0 until they do). */
+export function rushDropPoints(config: HuntConfig, drop: Pick<HuntDrop, 'itemId'>): number {
+  if (!isRush(config)) return 0;
+  return config.items.find((it) => it.id === drop.itemId)?.points ?? 0;
+}
+
+/**
  * The rows a hunt counts, whatever version it is: a v2 hunt's list, a v1 item hunt's items, a v1 pet
  * hunt's pets as pet rows. A v1 row has no stat of its own (stat null): the hunt's one stat is it.
  */
@@ -422,11 +502,13 @@ export function dropIsPet(config: HuntConfig, itemId: number | null): boolean {
 
 /** 'Item hunt' or 'Pet hunt': a v2 hunt of nothing but pets is a pet hunt too. */
 export function huntKindWord(config: HuntConfig | null): string {
+  if (isRush(config)) return 'Boss Rush';
   if (config?.v === 2) return config.items.length > 0 && config.items.every((it) => it.pet) ? 'Pet hunt' : 'Item hunt';
   return config?.target === 'pets' ? 'Pet hunt' : 'Item hunt';
 }
 
 export function huntRuleWords(config: HuntConfig | null): string {
+  if (isRush(config)) return 'kills + drops - deaths';
   return config?.rule === 'points' ? 'most points by the end' : config?.rule === 'most' ? 'most by the end' : 'first to get it';
 }
 
@@ -442,6 +524,10 @@ function sourcesWords(sources: string[]): string {
  * pets picked out of a group. Stored as the competition's `metric`.
  */
 export function huntTargetsLabel(config: HuntConfig): string {
+  if (isRush(config)) {
+    const names = config.rush.targets;
+    return (names.slice(0, 3).join(' + ') + (names.length > 3 ? ` + ${names.length - 3} more` : '')).slice(0, 160) || 'Boss Rush';
+  }
   if (config.target === 'pets') {
     if (config.petIds) {
       const picked = huntPets(config);
@@ -479,6 +565,7 @@ export function huntTitleLine(config: HuntConfig | null, metric: string): string
 
 /** A default name for the competition. */
 export function defaultHuntTitle(config: HuntConfig): string {
+  if (isRush(config)) return `Boss Rush: ${huntTargetsLabel(config)}`.slice(0, 100);
   const picked = config.petIds ? huntPets(config) : null;
   const label = picked
     ? picked.slice(0, 2).map((p) => p.name).join(' + ') + (picked.length > 2 ? ' + more' : '')
@@ -600,6 +687,15 @@ export interface HuntReport {
   itemName?: string | null;
   quantity?: number | null;
   source?: string | null;
+  /** 'death' only: the raid it happened in (lib/raidNpcs), when the killer named was a raid's own. */
+  raid?: string | null;
+  /** 'death' only: the monsters within a few tiles when it happened (the plugin's look around), so a
+   *  death to a boss's minion or mechanic counts at that boss (Blood reavers at Nex). */
+  near?: string[] | null;
+  /** The killer's kind; 'poison' | 'venom' for a death nobody dealt (lib/deathSource). */
+  sourceKind?: string | null;
+  /** Where it happened (lib/momentPlace): a rush skips an Entry Mode chest it does not run. */
+  place?: { raid: string | null; raidMode: string | null } | null;
   kc?: number | null;
   occurredAt: string;
   dedupKey: string;
@@ -763,6 +859,8 @@ export interface HuntDrop {
 
 export interface HuntEntrant {
   rsn: string;
+  /** Boss Rush: the kills that count (lib/bossRushRules kcSource), and deaths at a rush boss. */
+  rush?: { kc: number; deaths: number; synergy?: number; adjust?: number };
   /** Stat gained since the hunt started (kills at the source, or XP), or null with nothing tracked. */
   statGain: number | null;
   /** v2: Due, as a fraction (1 = one drop expected by now; huntRowProgress). Null: no rate, or not read yet. */
@@ -785,6 +883,8 @@ export interface HuntRow {
   held: number;
   /** "When a player has all of them": when they first held every row; null otherwise. */
   completeAt: string | null;
+  /** Boss Rush: what `count` is made of. */
+  rush?: RushTally;
 }
 
 /** Kills (or XP) one drop of a row is expected to take, per row stat key: rates[rowId]["boss:generalGraardor"]. */
@@ -875,9 +975,15 @@ export function rowProgressWords(p: Pick<HuntRowProgress, 'label' | 'unit' | 'ga
  */
 export function huntPanelLine(
   config: HuntConfig,
-  row: Pick<HuntRow, 'count' | 'held' | 'due' | 'drops'> & { rank?: number },
+  row: Pick<HuntRow, 'count' | 'held' | 'due' | 'drops'> & { rank?: number; rush?: RushTally },
   progress: HuntRowProgress[] | null,
 ): { figure: string | null; sub: string | null } {
+  // The breakdown only once there is one: "0 kc" under every name says nothing.
+  if (isRush(config)) {
+    const r = row.rush;
+    const any = !!r && (r.kc || r.bonus || r.synergy || r.adjust || r.deaths);
+    return { figure: `${row.count.toLocaleString('en-US')} pts`, sub: any && r ? rushTallyWords(r) : null };
+  }
   // "First to get it": one drop and they are finished, in their place. Progress no longer matters.
   if (config.rule === 'first' && row.count > 0 && row.rank != null) return { figure: firstDoneWords(row.rank), sub: null };
   const total = huntRows(config).length;
@@ -886,6 +992,16 @@ export function huntPanelLine(
   const have = new Set(row.drops.map((d) => d.itemId));
   const words = (progress ?? []).filter((p) => !have.has(p.id) && (p.gain ?? 0) > 0).map(rowProgressWords).filter((w): w is string => !!w);
   return { figure, sub: words.length > 0 ? words.slice(0, 2).join(' · ') : null };
+}
+
+/** "312 kc · +55 drops · -4 deaths": what a rush score is made of. */
+export function rushTallyWords(t: RushTally): string {
+  const parts = [`${t.kc.toLocaleString('en-US')} kc`];
+  if (t.bonus) parts.push(`+${t.bonus.toLocaleString('en-US')} drops`);
+  if (t.synergy) parts.push(`+${t.synergy.toLocaleString('en-US')} synergy`);
+  if (t.adjust) parts.push(`${t.adjust > 0 ? '+' : ''}${t.adjust.toLocaleString('en-US')} by staff`);
+  if (t.deaths) parts.push(`${t.deaths.toLocaleString('en-US')} ${t.deaths === 1 ? 'death' : 'deaths'}`);
+  return parts.join(' · ');
 }
 
 export const huntRsnKey = (rsn: string) => norm(rsn);
@@ -899,16 +1015,24 @@ export function dropWeight(config: HuntConfig, drop: Pick<HuntDrop, 'itemId' | '
 
 /** What one drop puts on the standings: its count, times the item's points on a points hunt. */
 export function dropScore(config: HuntConfig, drop: Pick<HuntDrop, 'itemId' | 'quantity'>): number {
+  if (isRush(config)) return rushDropPoints(config, drop);
   const n = dropWeight(config, drop);
   if (config.rule !== 'points') return n;
   return n * (config.items.find((it) => it.id === drop.itemId)?.points ?? 1);
 }
 
-/** A points hunt that scores each item once: a player's drops less the repeats, oldest kept. */
+/**
+ * A points hunt that scores each item once: a player's drops less the repeats, oldest kept. A rush
+ * can also mark single rows "counts once" (a kit claimed once) while the rest score every time.
+ */
 function scoringDrops(config: HuntConfig, mine: HuntDrop[]): HuntDrop[] {
-  if (config.rule !== 'points' || config.repeat !== 'first') return mine;
+  if (config.rule !== 'points' && config.rule !== 'rush') return mine;
+  const all = config.repeat === 'first';
+  const once = new Set(config.rule === 'rush' ? config.items.filter((it) => it.once).map((it) => it.id) : []);
+  if (!all && once.size === 0) return mine;
   const seen = new Set<number | string>();
   return mine.filter((d) => {
+    if (!all && (d.itemId == null || !once.has(d.itemId))) return true;
     const k = d.itemId ?? d.itemName ?? '';
     if (seen.has(k)) return false;
     seen.add(k);
@@ -1114,6 +1238,8 @@ export function rankHunt(
     const scoring = scoringDrops(config, mine);
     let count = 0;
     for (const d of scoring) count += dropScore(config, d);
+    const rush = isRush(config) ? rushTotal(config.rush, e.rush?.kc ?? 0, e.rush?.deaths ?? 0, count, e.rush?.synergy ?? 0, e.rush?.adjust ?? 0) : undefined;
+    if (rush) count = rush.total;
     return {
       rsn: e.rsn,
       rank: 0,
@@ -1127,6 +1253,7 @@ export function rankHunt(
       due: e.due ?? null,
       held: rowsHeld(config, mine),
       completeAt: complete?.get(huntRsnKey(e.rsn)) ?? null,
+      ...(rush ? { rush } : {}),
     };
   });
 
@@ -1135,6 +1262,8 @@ export function rankHunt(
   // line read yet) keeps the order every hunt had before.
   const byDue = entrants.some((e) => e.due != null);
   rows.sort((a, b) => {
+    // A rush is one number, below zero too when the host lets it: the kills behind it break a tie.
+    if (a.rush && b.rush) return b.count - a.count || b.rush.kc - a.rush.kc || t(a.reachedAt) - t(b.reachedAt) || a.rsn.localeCompare(b.rsn);
     if (complete && (a.completeAt != null || b.completeAt != null)) {
       if (a.completeAt == null || b.completeAt == null) return a.completeAt ? -1 : 1;
       return t(a.completeAt) - t(b.completeAt) || a.rsn.localeCompare(b.rsn);
