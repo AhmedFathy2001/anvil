@@ -1581,6 +1581,8 @@ export const users = pgTable('users', {
   // hall matches Discord's widget names against this and the username.
   discordGlobalName: text('discord_global_name'),
   discordAvatar: text('discord_avatar'),
+  /** When the daily refresh last checked that avatar still loads (lib/discordAvatarRefresh). */
+  discordAvatarCheckedAt: text('discord_avatar_checked_at'),
   email: text('email'),
   lastLoginAt: text('last_login_at'),
   // Long-lived per-user plugin token. The RuneLite plugin stores this once and uses it

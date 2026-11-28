@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { syncClanCommands } from '@/lib/discordCommandSync';
 import { log } from '@/lib/logger';
+import { refreshStaleAvatars } from '@/lib/discordAvatarRefresh';
 
 // A couple of Discord REST calls — nothing that needs the long budget the sweeps do.
 export const runtime = 'nodejs';
@@ -37,6 +38,10 @@ export async function GET(request: Request) {
   }
 
   const result = await syncClanCommands();
+
+  // Avatars that stopped loading (changed on Discord since their last login here): checked a batch a
+  // day in the background, so this route still answers fast (lib/discordAvatarRefresh).
+  void refreshStaleAvatars().catch((err) => log.warn('discord-avatars.refresh-failed', {}, err));
 
   // No bot token is not a failure — a deployment with nothing to register 200s and cron stays quiet.
   // A real Discord failure 502s so the journal carries it.
