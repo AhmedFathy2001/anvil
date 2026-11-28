@@ -45,7 +45,7 @@ export const FALLEN_COLOR = 0x2c2f33;
 
 /**
  * The Discord embed for it: the death embed the post already has, retitled and recoloured, with a
- * line that says what happened. The mode stamp ("[Hardcore]") is added after, as on any mode post.
+ * line that says what happened. The mode badge (lib/worldModes markMode) is added after, as on any mode post.
  */
 export function fallenEmbed(embed: Record<string, unknown> | null): Record<string, unknown> | null {
   if (!embed) return embed;

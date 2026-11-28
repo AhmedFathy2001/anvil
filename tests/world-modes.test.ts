@@ -6,8 +6,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { apexOrigin } from '../src/lib/seo.ts';
+
 import {
   markMode,
+  modeBadgeFile,
+  modeBadgePath,
+  parseModeBadgePath,
   modeFeedId,
   modeKeyFromFeedId,
   modeKeyFromWebhookKey,
@@ -157,12 +162,47 @@ test('seen modes: unknown ones are remembered once, bounded', () => {
   assert.deepEqual(parseSeenModes('not json'), []);
 });
 
-test('marking: label once, the mode art only when the post has none', () => {
-  assert.deepEqual(markMode({ title: 'Twisted bow' }, 'Deadman', 'I'), { title: '[Deadman] Twisted bow', thumbnail: { url: 'I' } });
-  assert.deepEqual(markMode({ title: '[Deadman] Twisted bow' }, 'Deadman', 'I')?.title, '[Deadman] Twisted bow');
-  assert.deepEqual(markMode({ title: '[Seasonal] Twisted bow' }, 'Leagues', null), { title: '[Leagues] Twisted bow' });
-  assert.deepEqual(markMode({ title: 'x', thumbnail: { url: 'item' } }, 'Leagues', 'I')?.thumbnail, { url: 'item' });
-  assert.equal(markMode(null, 'Deadman', 'I'), null);
+test('marking: no title stamp, the post thumbnail badged, the mode art only when it has none', () => {
+  const dmm = { key: 'deadman', label: 'Deadman' };
+  const apex = apexOrigin();
+  assert.deepEqual(markMode({ title: 'Twisted bow' }, dmm, 'I'), { title: 'Twisted bow', thumbnail: { url: 'I' } });
+  assert.equal(markMode({ title: '[Deadman] Twisted bow' }, dmm, 'I')?.title, 'Twisted bow', 'an old stamp is dropped');
+  assert.deepEqual(markMode({ title: '[Seasonal] Twisted bow' }, { key: 'leagues', label: 'Leagues' }, null), { title: 'Twisted bow' });
+  assert.equal(markMode(null, dmm, 'I'), null);
+  // Our own art is badged: item sprites, wiki sprites (an upscale query dropped), raw upstream URLs.
+  const hc = { key: 'hardcore', label: 'Hardcore Worlds' };
+  assert.deepEqual(markMode({ title: 'x', thumbnail: { url: `${apex}/img/item/22374.png` } }, hc, 'I')?.thumbnail, { url: `${apex}/img/mode/hardcore/item/22374.png` });
+  assert.deepEqual(markMode({ title: 'x', thumbnail: { url: `${apex}/img/wiki/Attack_icon.png?x=2` } }, hc, 'I')?.thumbnail, { url: `${apex}/img/mode/hardcore/wiki/Attack_icon.png` });
+  assert.deepEqual(markMode({ title: 'x', thumbnail: { url: 'https://static.runelite.net/cache/item/icon/4151.png' } }, dmm, 'I')?.thumbnail, { url: `${apex}/img/mode/deadman/item/4151.png` });
+  // Anything else keeps its thumbnail as it is: foreign URLs, and modes with no catalogued icon.
+  assert.deepEqual(markMode({ title: 'x', thumbnail: { url: 'https://cdn.example.com/a.png' } }, hc, 'I')?.thumbnail, { url: 'https://cdn.example.com/a.png' });
+  assert.deepEqual(markMode({ title: 'x', thumbnail: { url: `${apex}/img/item/1.png` } }, { key: 'echo-rush', label: 'Echo Rush' }, 'I')?.thumbnail, { url: `${apex}/img/item/1.png` });
+});
+
+test('mode badge paths: catalogued keys and our own asset refs only', () => {
+  assert.equal(modeBadgeFile('hardcore'), 'Hardcore_Worlds_icon.png');
+  assert.equal(modeBadgeFile('echo-rush'), null);
+  assert.equal(modeBadgePath('hardcore', { kind: 'item', id: 22374 }), '/img/mode/hardcore/item/22374.png');
+  assert.equal(modeBadgePath('hardcore', { kind: 'wiki', file: 'Skull_(status)_icon.png' }), '/img/mode/hardcore/wiki/Skull_(status)_icon.png');
+  assert.equal(modeBadgePath('echo-rush', { kind: 'item', id: 1 }), null);
+  assert.deepEqual(parseModeBadgePath('/img/mode/hardcore/item/22374.png'), { key: 'hardcore', ref: { kind: 'item', id: 22374 } });
+  assert.deepEqual(parseModeBadgePath('/img/mode/leagues/wiki/thumb/Vorkath.png/320px-Vorkath.png'), {
+    key: 'leagues',
+    ref: { kind: 'wiki', file: 'thumb/Vorkath.png/320px-Vorkath.png' },
+  });
+  for (const bad of [
+    '/img/mode/echo-rush/item/1.png', // not catalogued
+    '/img/mode/hardcore/item/22374', // the png spelling only
+    '/img/mode/hardcore/item/0.png',
+    '/img/mode/hardcore/item/1234567.png',
+    '/img/mode/hardcore/wiki/../secret.png',
+    '/img/mode/hardcore/wiki/a.svg',
+    '/img/mode/hardcore/wiki/x/y.png',
+    '/img/mode/hardcore/https://evil.example/a.png',
+    '/img/mode/hardcore/url/aHR0cA.png',
+    '/img/mode/hardcore',
+    '/img/mode//item/1.png',
+  ]) assert.equal(parseModeBadgePath(bad), null, bad);
 });
 
 test('a board counts only the game modes it names', async () => {

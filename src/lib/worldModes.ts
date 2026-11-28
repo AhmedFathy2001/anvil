@@ -14,6 +14,9 @@
 //
 // Pure (no db): the routes, the Discord page and the tests read it.
 
+import { encodeWikiFile, normalizeWikiFile, parseAssetPath, proxyWikiUrl, type AssetRef } from '@/lib/assetUrls';
+import { absoluteAssetUrl, apexOrigin } from '@/lib/seo';
+
 export interface WorldModeDef {
   key: string;
   label: string;
@@ -404,16 +407,82 @@ export function withSeenMode(seen: SeenMode[], mode: WorldMode): SeenMode[] | nu
   return [...seen, { key: mode.key, label: mode.label }];
 }
 
-/** Embed marker: "[Deadman] …" on the title, the mode's art as the thumbnail when there's none. */
+// ── The mode badge on a post's thumbnail ──
+//
+// A mode's post is marked by its art, not its words: the post's own thumbnail (the item, the skill,
+// the boss) with the mode's icon as a badge on its bottom-right corner, rendered once by
+// /img/mode/<key>/… (app/img/mode, lib/assetCache getModeBadgedAsset) and cached like any game art.
+// The path names only a catalogued mode key and one of our own asset refs (an item id or a validated
+// wiki file), so the route can never be pointed at an arbitrary URL; the badge is always the mode's
+// own catalogued wiki icon, never a clan-set one.
+
+export const MODE_ASSET_PREFIX = '/img/mode/';
+
+/** The wiki file of a catalogued mode's default icon (`Hardcore_Worlds_icon.png`), or null. */
+export function modeBadgeFile(key: string): string | null {
+  const icon = BY_KEY.get(key)?.icon;
+  return icon && icon.startsWith(WIKI) ? normalizeWikiFile(icon.slice(WIKI.length)) : null;
+}
+
+/** `/img/mode/hardcore/item/22374.png`, `/img/mode/hardcore/wiki/Attack_icon.png`; null for a mode with no badge. */
+export function modeBadgePath(key: string, ref: AssetRef): string | null {
+  if (!modeBadgeFile(key)) return null;
+  return ref.kind === 'item'
+    ? `${MODE_ASSET_PREFIX}${key}/item/${Math.trunc(ref.id)}.png`
+    : `${MODE_ASSET_PREFIX}${key}/wiki/${encodeWikiFile(ref.file)}`;
+}
+
+/** Parse a `/img/mode/…` path (any query ignored) back into its mode key and source, or null. */
+export function parseModeBadgePath(path: string): { key: string; ref: AssetRef } | null {
+  const p = path.split(/[?#]/)[0];
+  if (!p.startsWith(MODE_ASSET_PREFIX)) return null;
+  const rest = p.slice(MODE_ASSET_PREFIX.length);
+  const slash = rest.indexOf('/');
+  if (slash <= 0) return null;
+  const key = rest.slice(0, slash);
+  if (!modeBadgeFile(key)) return null;
+  const src = rest.slice(slash);
+  // The source is spelled exactly like its own /img path, and parsed by the same validation.
+  const ref = src.startsWith('/item/')
+    ? (/^\/item\/\d{1,6}\.png$/.test(src) ? parseAssetPath(`/img${src}`) : null)
+    : src.startsWith('/wiki/') ? parseAssetPath(`/img${src}`) : null;
+  return ref ? { key, ref } : null;
+}
+
+/** Our asset ref behind a thumbnail URL — apex-absolute, relative, or a raw wiki/RuneLite one; null for anything else. */
+function thumbnailRef(url: string): AssetRef | null {
+  const origin = apexOrigin();
+  let path = url.startsWith(`${origin}/img/`) ? url.slice(origin.length) : url;
+  if (!path.startsWith('/img/')) path = proxyWikiUrl(path);
+  return path.startsWith('/img/') ? parseAssetPath(path) : null;
+}
+
+/**
+ * Embed marker: the post's thumbnail badged with the mode's icon (see above), or the mode's art as
+ * the thumbnail when the post has none. The title is left alone — an older plugin's "[Seasonal] "
+ * stamp (and our own old "[Label] " one) is stripped. A thumbnail that is not one of our assets, or a
+ * mode with no catalogued icon, keeps its thumbnail as it is.
+ */
 export function markMode(
   embed: Record<string, unknown> | null,
-  label: string,
+  mode: { key: string; label: string },
   iconUrl: string | null,
 ): Record<string, unknown> | null {
   if (!embed) return embed;
-  const tag = `[${label}]`;
-  const raw = typeof embed.title === 'string' ? embed.title : '';
-  // Older plugins' seasonal posts were already stamped by a previous pass; never stamp twice.
-  const title = raw.startsWith(tag) ? raw : `${tag} ${raw.replace(/^\[Seasonal\]\s*/, '')}`.trim();
-  return { ...embed, title, ...(embed.thumbnail || !iconUrl ? {} : { thumbnail: { url: iconUrl } }) };
+  const out: Record<string, unknown> = { ...embed };
+  if (typeof embed.title === 'string') {
+    const tag = `[${mode.label}] `;
+    const raw = embed.title.replace(/^\[Seasonal\]\s*/, '');
+    out.title = (raw.startsWith(tag) ? raw.slice(tag.length) : raw).trim();
+  }
+  const thumb = embed.thumbnail as { url?: unknown } | null | undefined;
+  const thumbUrl = thumb && typeof thumb.url === 'string' ? thumb.url : null;
+  if (thumbUrl) {
+    const ref = thumbnailRef(thumbUrl);
+    const badged = ref ? modeBadgePath(mode.key, ref) : null;
+    if (badged) out.thumbnail = { ...thumb, url: absoluteAssetUrl(badged) };
+  } else if (iconUrl) {
+    out.thumbnail = { url: iconUrl };
+  }
+  return out;
 }
