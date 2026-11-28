@@ -1927,6 +1927,29 @@ export const weeklyParticipants = pgTable('weekly_participants', {
 ]);
 
 /**
+ * Boss Rush: proof for kills the hiscores cannot vouch for (Tormented Demons, Demonic gorillas): the
+ * plugin's screenshot of a player's 1st kill at such a target and every 25th after. Staff look at
+ * them beside the count; they score nothing themselves. Purged 90 days after the rush, like the rest.
+ */
+export const rushKillShots = pgTable('rush_kill_shots', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  participantId: integer('participant_id').notNull().references(() => weeklyParticipants.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  target: text('target').notNull(),
+  /** Which kill at the target this is (1, 25, 50…), by the plugin's count. */
+  killNumber: integer('kill_number').notNull(),
+  occurredAt: text('occurred_at').notNull(),
+  proofKey: text('proof_key'),
+  screenshotUrl: text('screenshot_url'),
+  cleanScreenshotUrl: text('clean_screenshot_url'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  index('rush_kill_shots_comp_idx').on(table.competitionId, table.participantId),
+  uniqueIndex('rush_kill_shots_proof_key_unique').on(table.proofKey).where(sql`proof_key is not null`),
+]);
+
+/**
  * Boss Rush: a counted death's screenshot, for the player and staff to look back on (a dispute, a
  * laugh). One row per death the rush took points for; the plugin uploads the frame under proof_key
  * (POST /api/plugin/facts/proof). Pictures go 90 days after the rush ends, like a bingo's.

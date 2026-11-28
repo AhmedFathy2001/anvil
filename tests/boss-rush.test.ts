@@ -22,6 +22,7 @@ import {
   togetherRuns,
   rushInOrder,
   rushHiscoresCheck,
+  rushKillProofAt,
   type RushEvent,
 } from '@/lib/bossRushRules';
 import { type HuntDrop, defaultHuntTitle, huntFromInput, huntPanelLine, isRush, matchHuntReport, rankHunt, rushBossKeys, rushTargets, serializeHunt, parseHunt } from '@/lib/itemHunt';
@@ -331,4 +332,13 @@ test('"plugin only" kills ahead of the hiscores are held, target by target', () 
   // No start reading (or no hiscores reading yet): nothing at a hiscores target is assumed.
   assert.equal(rushHiscoresCheck({ 'Chambers of Xeric': 4 }, keyOf, null, { chambersOfXeric: 500 }).held, 4);
   assert.equal(rushHiscoresCheck({ 'Chambers of Xeric': 4 }, keyOf, { chambersOfXeric: 100 }, null).held, 4);
+});
+
+test('kill proofs: the 1st kill at a target, then every 25th', () => {
+  assert.equal(rushKillProofAt(0, 1), 1);
+  assert.equal(rushKillProofAt(1, 2), null);
+  assert.equal(rushKillProofAt(24, 25), 25);
+  assert.equal(rushKillProofAt(25, 26), null);
+  assert.equal(rushKillProofAt(48, 52), 50);
+  assert.equal(rushKillProofAt(0, 30), 25);
 });

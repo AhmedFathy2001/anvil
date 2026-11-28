@@ -18,7 +18,7 @@ import { countsWorld } from '@/lib/competitionGame';
 import { and, asc, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, huntDrops, rushDeathShots, users, weeklyCompetitions, weeklyParticipants, type HuntDropRow } from '@/db/schema';
+import { clanAuditLog, clanRoster, huntDrops, rushDeathShots, rushKillShots, users, weeklyCompetitions, weeklyParticipants, type HuntDropRow } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
 import { dropCounts } from '@/lib/h2hRules';
 import {
@@ -63,7 +63,7 @@ import {
   serializeHunt,
 } from '@/lib/itemHunt';
 import { huntRates } from '@/lib/huntRates';
-import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns, rushHiscoresCheck, type RushEvent, type RushHeldRow, type RushRules } from '@/lib/bossRushRules';
+import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns, rushHiscoresCheck, rushKillProofAt, type RushEvent, type RushHeldRow, type RushRules } from '@/lib/bossRushRules';
 import { bossKeyForName } from '@/lib/pluginStats';
 import { killTargetKeys } from '@/lib/pluginFacts/match';
 import { claimTileFacts, type FactOwner } from '@/lib/pluginFacts/factIdStore';
@@ -690,8 +690,8 @@ export async function creditRushKills(
   now: Date = new Date(),
   /** The game mode the kills came from (lib/worldModes key); null = the main game. */
   modeKey: string | null = null,
-): Promise<{ credited: number; factIndexes: number[] }> {
-  const done = { credited: 0, factIndexes: [] as number[] };
+): Promise<{ credited: number; factIndexes: number[]; shots: string[] }> {
+  const done = { credited: 0, factIndexes: [] as number[], shots: [] as string[] };
   // Only facts with an id: the id is what makes a resent fact count once (every current plugin sends one).
   if (owner == null || !facts.some((f) => f.id)) return done;
   // Only the rushes that count this world: the main game, or the mode a rush is set to (lib/competitionGame).
@@ -742,19 +742,33 @@ export async function creditRushKills(
       }
       const factId = fact.id;
       const credited = await db.transaction(async (tx) => {
-        if (!(await claimTileFacts(tx, owner, [factId], -comp.id))) return false;
+        if (!(await claimTileFacts(tx, owner, [factId], -comp.id))) return null;
         // clan-scope: global -- the member's own seat, found through this clan's running rushes.
-        await tx
+        const [after] = await tx
           .update(weeklyParticipants)
           .set({
             rushKc: sql`${weeklyParticipants.rushKc} + ${total}`,
             rushSeen: sql`coalesce(${weeklyParticipants.rushSeen}, '{}'::jsonb) || ${sql.join(counts, sql` || `)}`,
             ...(group.length ? { rushRaids: sql`coalesce(${weeklyParticipants.rushRaids}, '[]'::jsonb) || ${JSON.stringify(group)}::jsonb` } : {}),
           })
-          .where(eq(weeklyParticipants.id, seat.id));
-        return true;
+          .where(eq(weeklyParticipants.id, seat.id))
+          .returning({ seen: weeklyParticipants.rushSeen });
+        return after?.seen ?? {};
       });
-      if (credited) done.credited += total;
+      if (credited) {
+        done.credited += total;
+        // Kills the hiscores cannot vouch for: the 1st at a target and every RUSH_KILL_PROOF_EVERY-th
+        // after ask the plugin for a screenshot, filed under a key it uploads to.
+        for (const [t, n] of byTarget) {
+          if (bossKeyForName(t) != null) continue;
+          const now2 = credited[t] ?? n;
+          const proofAt = rushKillProofAt(now2 - n, now2);
+          if (proofAt == null) continue;
+          const proofKey = newProofKey();
+          await db.insert(rushKillShots).values({ competitionId: comp.id, participantId: seat.id, clanMemberId: member.clanMemberId, target: t, killNumber: proofAt, occurredAt: now.toISOString(), proofKey });
+          done.shots.push(proofKey);
+        }
+      }
     }
   }
   done.factIndexes = [...hit];
@@ -1202,4 +1216,18 @@ export async function rushHeldKills(comp: Competition): Promise<{ rsn: string; r
     const c = counts?.get(huntRsnKey(s.key));
     return c && c.held > 0 ? [{ rsn: s.rsn, rows: c.heldRows }] : [];
   });
+}
+
+/** Staff: a rush's kill proofs (targets the hiscores do not keep), by entrant, newest first. */
+export async function rushKillProofsOf(competitionId: number): Promise<Map<string, { target: string; n: number; at: string; url: string | null }[]>> {
+  // clan-scope: global -- one competition the caller already resolved for its clan.
+  const rows = await db
+    .select({ rsn: weeklyParticipants.rsn, target: rushKillShots.target, n: rushKillShots.killNumber, at: rushKillShots.occurredAt, url: rushKillShots.screenshotUrl })
+    .from(rushKillShots)
+    .innerJoin(weeklyParticipants, eq(weeklyParticipants.id, rushKillShots.participantId))
+    .where(eq(rushKillShots.competitionId, competitionId))
+    .orderBy(desc(rushKillShots.occurredAt));
+  const out = new Map<string, { target: string; n: number; at: string; url: string | null }[]>();
+  for (const r of rows) out.set(r.rsn, [...(out.get(r.rsn) ?? []), { target: r.target, n: r.n, at: r.at, url: r.url }]);
+  return out;
 }

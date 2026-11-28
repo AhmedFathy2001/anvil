@@ -13,7 +13,9 @@ export function utcWords(ms: number): string {
 }
 
 export interface HuntStampInput {
-  kind: 'drop' | 'death';
+  kind: 'drop' | 'death' | 'kill';
+  /** Kills: the target and which kill there this is (1, 25, 50…). */
+  killNumber?: number;
   /** The competition's title. */
   competition: string;
   /** Item hunt or Boss Rush: the stamp's heading. */
@@ -38,21 +40,24 @@ export interface HuntStampInput {
 export function huntStampModel(i: HuntStampInput): StampModel {
   const heading = i.rush ? 'BOSS RUSH' : 'ITEM HUNT';
   const drop = i.kind === 'drop';
-  const detail = drop
-    ? `${i.item ?? 'A drop'}${(i.quantity ?? 1) > 1 ? ` x${i.quantity}` : ''}`
-    : i.source ? `Died to ${i.source}` : 'Died';
+  const kill = i.kind === 'kill';
+  const detail = kill
+    ? `${i.source ?? 'Kill'} kill ${i.killNumber ?? ''}`.trim()
+    : drop
+      ? `${i.item ?? 'A drop'}${(i.quantity ?? 1) > 1 ? ` x${i.quantity}` : ''}`
+      : i.source ? `Died to ${i.source}` : 'Died';
   const meta = [`RSN: ${i.rsn}`, `Event: ${i.competition}`];
   if (drop && i.source) meta.push(`From: ${i.source}`);
   meta.push(`Recorded: ${utcWords(i.recordedAt)} UTC`);
   meta.push(`Stamped: ${utcWords(i.stampedAt)} UTC`);
   const hash = i.sha256 ? `, sha256 ${i.sha256.slice(0, 12)}` : '';
   return {
-    title: `${heading} ${drop ? 'DROP' : 'DEATH'}`,
+    title: `${heading} ${kill ? 'KILL' : drop ? 'DROP' : 'DEATH'}`,
     detail,
     meta,
     lines: [],
     anvil: [],
-    footer: `${drop ? 'Drop' : 'Death'} #${i.id}${hash}, stamped by Anvil`,
+    footer: `${kill ? 'Kill proof' : drop ? 'Drop' : 'Death'} #${i.id}${hash}, stamped by Anvil`,
     split: i.split,
   };
 }

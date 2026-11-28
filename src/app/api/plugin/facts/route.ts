@@ -73,6 +73,8 @@ export async function POST(request: Request) {
   // A running Boss Rush counts kill facts first, board or no board (lib/itemHuntDb creditRushKills):
   // each fact once per rush, by its id. A failure here never stands in the way of a board's credit.
   const rushHit = new Set<number>();
+  // Kill proofs a rush asks for (lib/itemHuntDb creditRushKills): the plugin screenshots now and uploads under each key.
+  let rushShots: string[] = [];
   const kills = facts.flatMap((f, i) => (f.k === 'kill' ? [{ i, fact: { id: f.id, n: f.n } }] : []));
   if (kills.length) {
     const member = await resolvePluginMember(request).catch(() => null);
@@ -80,13 +82,14 @@ export async function POST(request: Request) {
       const rushOwner = owner ?? { userId: member.userId, accountId: member.accountId };
       const done = await creditRushKills({ ...member, accountHash: request.headers.get('X-Account-Hash')?.trim() || null }, rushOwner, member.clanId, kills.map((k) => k.fact), new Date(), worldModeOf(request)?.key ?? null).catch((err) => {
         console.warn('[plugin/facts] rush credit failed', err);
-        return { credited: 0, factIndexes: [] as number[] };
+        return { credited: 0, factIndexes: [] as number[], shots: [] as string[] };
       });
       for (const j of done.factIndexes) rushHit.add(kills[j].i);
+      rushShots = done.shots;
     }
   }
   if (facts.length === 0) {
-    return Response.json({ credits: [], notes: [], ...(overflow.length ? { retry: overflow } : {}), ...(duplicate.size ? { duplicates: duplicate.size } : {}) });
+    return Response.json({ credits: [], notes: [], ...(overflow.length ? { retry: overflow } : {}), ...(duplicate.size ? { duplicates: duplicate.size } : {}), ...(rushShots.length ? { rushShots } : {}) });
   }
 
   mark('read');
@@ -225,6 +228,7 @@ export async function POST(request: Request) {
   // Credits whose picture never came, reversed on the way out (the lifecycle tick does it too).
   afterReply(() => sweepOverdueProofs(Date.now(), 10));
   return Response.json({
+    ...(rushShots.length ? { rushShots } : {}),
     // A replayed older proof on a drop/kill/value tile has no count of the plugin's rule to correct.
     credits: credits.filter((c) => !(c.kind === 'tile' && (c.tileKind === 'drop' || c.tileKind === 'kill' || c.tileKind === 'value'))).map((c) => ({
       t: c.tileId,
