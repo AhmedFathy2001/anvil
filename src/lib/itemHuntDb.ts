@@ -63,7 +63,7 @@ import {
   serializeHunt,
 } from '@/lib/itemHunt';
 import { huntRates } from '@/lib/huntRates';
-import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns } from '@/lib/bossRushRules';
+import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns, type RushEvent, type RushRules } from '@/lib/bossRushRules';
 import { bossKeyForName } from '@/lib/pluginStats';
 import { killTargetKeys } from '@/lib/pluginFacts/match';
 import { claimTileFacts, type FactOwner } from '@/lib/pluginFacts/factIdStore';
@@ -96,14 +96,53 @@ function huntEntrants(config: HuntConfig, participants: EntrantSource[], rates: 
       // keep (the way Boss of the Week reads it), plus the plugin's at the ones they do not.
       const mine = rush?.get(huntRsnKey(p.rsn));
       const kc = config.rush.kcSource === 'any' ? (statGain ?? 0) + (mine?.offHiscores ?? 0) : mine?.kc ?? 0;
-      return { rsn: p.rsn, statGain, rush: { kc, deaths: mine?.deaths ?? 0, synergy: mine?.synergy ?? 0, adjust: mine?.adjust ?? 0 } };
+      return { rsn: p.rsn, statGain, rush: { kc, deaths: mine?.deaths ?? 0, synergy: mine?.synergy ?? 0, adjust: mine?.adjust ?? 0, events: rushTimeline(config.rush, kc, mine) } };
     }
     return { rsn: p.rsn, statGain, ...(config.v === 2 ? { due: huntRowProgress(config, p.huntBaseline, p.huntCurrent, rates).due } : {}) };
   });
 }
 
+/**
+ * When each of an entrant's kills, deaths and synergy happened, for scoring in order (lib/bossRushRules
+ * rushTotal). Kills: the hiscores gains as they were seen ("every kill"), or the plugin's kills at group
+ * targets; what has no time (gains before times were kept, the plugin's other kills) counts from the
+ * start. Deaths: each counted one's own time. Drops are added by rankHunt, which has them.
+ */
+function rushTimeline(rules: RushRules, kc: number, mine: RushCounts extends Map<string, infer V> ? V | undefined : never): RushEvent[] {
+  const out: RushEvent[] = [];
+  const timed = rules.kcSource === 'any' ? (mine?.gains ?? []) : (mine?.killTimes ?? []).map((at): [number, number] => [at, 1]);
+  let known = 0;
+  for (const [at, by] of timed) {
+    if (known >= kc) break;
+    const n = Math.min(by, kc - known);
+    known += n;
+    out.push({ at, pts: n * rules.kcPoints, kind: 'kill' });
+  }
+  if (kc > known) out.push({ at: 0, pts: (kc - known) * rules.kcPoints, kind: 'kill' });
+  const deaths = mine?.deathTimes ?? [];
+  for (const at of deaths) out.push({ at, pts: -rules.deathPoints, kind: 'death' });
+  const untimed = Math.max(0, (mine?.deaths ?? 0) - deaths.length);
+  if (untimed > 0) out.push({ at: 0, pts: -untimed * rules.deathPoints, kind: 'death' });
+  for (const [at, pts] of mine?.synergyAt ?? []) out.push({ at, pts, kind: 'synergy' });
+  return out;
+}
+
 /** A rush's plugin-reported kills (all, and at targets the hiscores do not keep), deaths and Clan Synergy per entrant, by normalised name. */
-type RushCounts = Map<string, { kc: number; offHiscores: number; deaths: number; synergy: number; adjust: number }>;
+type RushCounts = Map<
+  string,
+  {
+    kc: number;
+    offHiscores: number;
+    deaths: number;
+    synergy: number;
+    adjust: number;
+    /** When things happened, for scoring in order: hiscores gains [at, by], plugin kills at group targets, counted deaths, synergy [at, pts]. */
+    gains: [number, number][];
+    killTimes: number[];
+    deathTimes: number[];
+    synergyAt: [number, number][];
+  }
+>;
 
 /**
  * Read off the seats themselves, whatever list a caller ranks over: the prize settle and the
@@ -113,15 +152,48 @@ async function rushCounts(config: HuntConfig, competitionId: number): Promise<Ru
   if (!isRush(config)) return null;
   // clan-scope: global -- one competition's seats by its id; the caller settled the owning clan.
   const rows = await db
-    .select({ rsn: weeklyParticipants.rsnNormalized, kc: weeklyParticipants.rushKc, byTarget: weeklyParticipants.rushSeen, deaths: weeklyParticipants.rushDeaths, raids: weeklyParticipants.rushRaids, adjust: weeklyParticipants.rushAdjust, optedOut: weeklyParticipants.optedOut })
+    .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsnNormalized, kc: weeklyParticipants.rushKc, byTarget: weeklyParticipants.rushSeen, deaths: weeklyParticipants.rushDeaths, raids: weeklyParticipants.rushRaids, adjust: weeklyParticipants.rushAdjust, optedOut: weeklyParticipants.optedOut, gains: weeklyParticipants.valueLog })
     .from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, competitionId));
+  // clan-scope: global -- the same competition's own counted deaths, for when each happened.
+  const shots = await db
+    .select({ participantId: rushDeathShots.participantId, at: rushDeathShots.occurredAt })
+    .from(rushDeathShots)
+    .where(eq(rushDeathShots.competitionId, competitionId));
+  const deathsAt = new Map<number, number[]>();
+  for (const s of shots) {
+    const ms = Date.parse(s.at);
+    if (Number.isFinite(ms)) deathsAt.set(s.participantId, [...(deathsAt.get(s.participantId) ?? []), ms]);
+  }
+  const s = config.rush.synergy;
+  const synergyAt = new Map<string, [number, number][]>();
+  if (s.on && s.points > 0) {
+    for (const run of togetherRuns(new Map(rows.filter((r) => !r.optedOut).map((r) => [huntRsnKey(r.rsn), r.raids ?? []])))) {
+      const each = s.mode === 'flat' ? s.points : Math.min(s.max, (run.who.length - 1) * s.points);
+      for (const who of run.who) synergyAt.set(who, [...(synergyAt.get(who) ?? []), [run.at, each]]);
+    }
+  }
   // Grouped over every seat in it, whichever list the caller ranks: a clanmate left off a prize
   // list still raided with the winner.
   const synergy = rushSynergy(config.rush, new Map(rows.filter((r) => !r.optedOut).map((r) => [huntRsnKey(r.rsn), r.raids ?? []])));
   const off = new Set(config.rush.targets.filter((t) => bossKeyForName(t) == null).map((t) => t.toLowerCase()));
   const offOf = (by: Record<string, number> | null) => Object.entries(by ?? {}).reduce((n, [t, v]) => n + (off.has(t.toLowerCase()) && typeof v === 'number' ? v : 0), 0);
-  return new Map(rows.map((r) => [huntRsnKey(r.rsn), { kc: r.kc, offHiscores: offOf(r.byTarget), deaths: r.deaths, synergy: synergy.get(huntRsnKey(r.rsn)) ?? 0, adjust: r.adjust }]));
+  return new Map(
+    rows.map((r) => [
+      huntRsnKey(r.rsn),
+      {
+        kc: r.kc,
+        offHiscores: offOf(r.byTarget),
+        deaths: r.deaths,
+        synergy: synergy.get(huntRsnKey(r.rsn)) ?? 0,
+        adjust: r.adjust,
+        gains: (r.gains ?? []).filter((g) => Array.isArray(g) && Number.isFinite(g[0]) && Number.isFinite(g[1])),
+        killTimes: (r.raids ?? []).map((x) => x[1]).filter((t) => Number.isFinite(t)),
+        deathTimes: deathsAt.get(r.id) ?? [],
+        synergyAt: synergyAt.get(huntRsnKey(r.rsn)) ?? [],
+      },
+    ]),
+  );
 }
 
 function toHuntDrop(r: HuntDropRow): HuntDrop {

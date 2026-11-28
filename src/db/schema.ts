@@ -1912,6 +1912,9 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   rushDeathAt: text('rush_death_at'),
   // Points staff added or took off by hand (lib/itemHuntDb adjustRushPoints).
   rushAdjust: integer('rush_adjust').notNull().default(0),
+  /** Item hunts and Boss Rushes: each time the seat's value rose, [when (epoch ms), by how much]. What a
+   *  rush plays its kills back in order from, so a death only takes what the player had then. */
+  valueLog: jsonb('value_log').$type<[number, number][]>(),
   // Each raid the plugin saw them finish during the rush, [[key, atMs], ...]: Clan Synergy (lib/bossRushRules rushSynergy).
   rushRaids: jsonb('rush_raids').$type<[string, number][]>(),
 }, (table) => [

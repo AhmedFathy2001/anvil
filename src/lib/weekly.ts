@@ -184,6 +184,8 @@ export async function fetchParticipantStat(
 
 export interface WeeklyValueUpdate {
   participantId: number;
+  /** An item hunt / Boss Rush seat: its gains are logged with their time (value_log). */
+  hunt?: boolean;
   type: CompetitionType;
   metric: string;
   /** Freshly observed ABSOLUTE value: effective max(hiscores, live) from the sweep, or the pushed live value. */
@@ -266,6 +268,12 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
   // The gain moved: stamp when, for the team/clan "who reached the total first" tie-break
   // (lib/competitionTeams). A re-read of the same value leaves it alone.
   if (u.currentValue === null || u.value > u.currentValue) updates.gainAt = nowIso;
+  // A hunt (a Boss Rush) keeps WHEN each gain was seen: a rush scores in time order. The gain is
+  // read off the row as it stands (old value in SET), so a sweep and a push seeing one rise log it once.
+  if (u.hunt) {
+    const at = Date.parse(nowIso);
+    updates.valueLog = sql`case when ${u.value} > coalesce(${weeklyParticipants.currentValue}, 0) then coalesce(${weeklyParticipants.valueLog}, '[]'::jsonb) || jsonb_build_array(jsonb_build_array(${at}::bigint, ${u.value} - coalesce(${weeklyParticipants.currentValue}, 0))) else ${weeklyParticipants.valueLog} end`;
+  }
 
   // Flag an implausible CUMULATIVE gain — one that couldn't be earned in the elapsed comp time (a
   // stale baseline that swept pre-event XP into the gain). Measured over the comp, NOT the sweep
