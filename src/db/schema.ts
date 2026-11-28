@@ -1915,6 +1915,8 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   /** Item hunts and Boss Rushes: each time the seat's value rose, [when (epoch ms), by how much]. What a
    *  rush plays its kills back in order from, so a death only takes what the player had then. */
   valueLog: jsonb('value_log').$type<[number, number][]>(),
+  /** The per-boss split as the HISCORES alone show it (no plugin live overlay): what a rush checks plugin kills against. */
+  hiscoresParts: jsonb('hiscores_parts').$type<Record<string, number>>(),
   // Each raid the plugin saw them finish during the rush, [[key, atMs], ...]: Clan Synergy (lib/bossRushRules rushSynergy).
   rushRaids: jsonb('rush_raids').$type<[string, number][]>(),
 }, (table) => [

@@ -695,6 +695,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       const value = m.value;
       const outcome = await applyWeeklyValue({
         parts: effectiveMetricParts(snapshot, w.comp.type, w.comp.metric, liveMap),
+        // The hiscores' own split, no plugin live values: what a Boss Rush checks plugin kills against.
+        hiscoresParts: w.comp.kind === 'hunt' ? effectiveMetricParts(snapshot, w.comp.type, w.comp.metric, {}) : null,
         participantId: w.participant.id,
         hunt: w.comp.kind === 'hunt',
         type: w.comp.type,

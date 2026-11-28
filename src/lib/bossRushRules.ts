@@ -105,6 +105,53 @@ export interface RushTally {
   /** Points staff added or took off by hand. */
   adjust: number;
   total: number;
+  /** Plugin kills held back: more than the hiscores show yet (rushHiscoresCheck). */
+  held?: number;
+}
+
+/** A target where the plugin's kills run ahead of the hiscores: what each says. */
+export interface RushHeldRow {
+  target: string;
+  plugin: number;
+  hiscores: number;
+}
+
+/**
+ * "Plugin only" kills checked against the hiscores, target by target. `current` must be the hiscores'
+ * own reading (never blended with the plugin's live push, which the same client controls). A kill the
+ * hiscores do not show yet is held, not scored, until they catch up (they read every ~15 minutes);
+ * what is still ahead when the rush ends never scores. A target the hiscores cannot vouch for here
+ * (no start reading, no reading yet, or the player not listed there) holds everything: unverifiable,
+ * shown to staff, never assumed. Targets the hiscores do not keep at all (Tormented Demons, an Entry
+ * Mode) count as reported; their proof is the plugin's kill screenshots.
+ */
+export function rushHiscoresCheck(
+  byTarget: Record<string, number> | null | undefined,
+  keyOf: (target: string) => string | null,
+  baseline: Record<string, number> | null | undefined,
+  current: Record<string, number> | null | undefined,
+): { scored: number; held: number; rows: RushHeldRow[] } {
+  let scored = 0;
+  let held = 0;
+  const rows: RushHeldRow[] = [];
+  for (const [target, n] of Object.entries(byTarget ?? {})) {
+    if (typeof n !== 'number' || n <= 0) continue;
+    const key = keyOf(target);
+    if (!key) {
+      scored += n;
+      continue;
+    }
+    const start = baseline?.[key];
+    const now = current?.[key];
+    const gained = typeof start === 'number' && typeof now === 'number' && now > 0 ? Math.max(0, now - Math.max(0, start)) : 0;
+    const ok = Math.min(n, gained);
+    scored += ok;
+    if (n > ok) {
+      held += n - ok;
+      rows.push({ target, plugin: n, hiscores: gained });
+    }
+  }
+  return { scored, held, rows };
 }
 
 export function rushTotal(rules: RushRules, kc: number, deaths: number, bonus: number, synergy = 0, adjust = 0, events?: RushEvent[]): RushTally {

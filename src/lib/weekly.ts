@@ -186,6 +186,8 @@ export interface WeeklyValueUpdate {
   participantId: number;
   /** An item hunt / Boss Rush seat: its gains are logged with their time (value_log). */
   hunt?: boolean;
+  /** The split read off the hiscores alone (no live overlay), kept apart for the rush's kill check. */
+  hiscoresParts?: Record<string, number> | null;
   type: CompetitionType;
   metric: string;
   /** Freshly observed ABSOLUTE value: effective max(hiscores, live) from the sweep, or the pushed live value. */
@@ -270,6 +272,7 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
   if (u.currentValue === null || u.value > u.currentValue) updates.gainAt = nowIso;
   // A hunt (a Boss Rush) keeps WHEN each gain was seen: a rush scores in time order. The gain is
   // read off the row as it stands (old value in SET), so a sweep and a push seeing one rise log it once.
+  if (u.hiscoresParts) updates.hiscoresParts = u.hiscoresParts;
   if (u.hunt) {
     const at = Date.parse(nowIso);
     updates.valueLog = sql`case when ${u.value} > coalesce(${weeklyParticipants.currentValue}, 0) then coalesce(${weeklyParticipants.valueLog}, '[]'::jsonb) || jsonb_build_array(jsonb_build_array(${at}::bigint, ${u.value} - coalesce(${weeklyParticipants.currentValue}, 0))) else ${weeklyParticipants.valueLog} end`;

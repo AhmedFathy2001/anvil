@@ -21,6 +21,7 @@ import {
   rushTakesRaidMode,
   togetherRuns,
   rushInOrder,
+  rushHiscoresCheck,
   type RushEvent,
 } from '@/lib/bossRushRules';
 import { type HuntDrop, defaultHuntTitle, huntFromInput, huntPanelLine, isRush, matchHuntReport, rankHunt, rushBossKeys, rushTargets, serializeHunt, parseHunt } from '@/lib/itemHunt';
@@ -143,8 +144,8 @@ test('standings: kills + drop points + synergy + staff - deaths, never below 0 u
   assert.deepEqual(rows.map((r) => [r.rsn, r.count]), [['Bob', 110], ['Alice', 103], ['Cara', 0]]);
   assert.deepEqual(rows[1].rush, { kc: 100, deaths: 4, bonus: 5, synergy: 2, adjust: 0, total: 103 });
   assert.equal(huntPanelLine(c, rows[0], null).figure, '110 pts');
-  assert.equal(huntPanelLine(c, rows[0], null).sub, '90 kc · +10 drops · +10 by staff');
-  assert.equal(huntPanelLine(c, rows[1], null).sub, '100 kc · +5 drops · +2 synergy · 4 deaths');
+  assert.equal(huntPanelLine(c, rows[0], null).sub, '90 kc, +10 drops, +10 by staff');
+  assert.equal(huntPanelLine(c, rows[1], null).sub, '100 kc, +5 drops, +2 synergy, 4 deaths');
 
   const below = rush({}, { floorZero: false });
   assert.equal(rankHunt(below, entrants, [], window).find((r) => r.rsn === 'Cara')?.count, -8);
@@ -312,4 +313,22 @@ test('"first player only": the first drop by anyone scores, every later one is 0
   const rows = rankHunt(c, e, [drop('Bob', 22006, T0 + 1000), drop('Ann', 22006, T0 + 2000), drop('Bob', 22006, T0 + 3000), drop('Ann', 12922, T0 + 4000)], window);
   assert.equal(rows.find((r) => r.rsn === 'Bob')?.count, 10);
   assert.equal(rows.find((r) => r.rsn === 'Ann')?.count, 5);
+});
+
+test('"plugin only" kills ahead of the hiscores are held, target by target', () => {
+  const keyOf = (t: string) => ({ 'Chambers of Xeric': 'chambersOfXeric', Vorkath: 'vorkath' } as Record<string, string>)[t] ?? null;
+  const r = rushHiscoresCheck(
+    { 'Chambers of Xeric': 5, Vorkath: 3, 'Tormented Demon': 40 },
+    keyOf,
+    { chambersOfXeric: 100, vorkath: 0 },
+    { chambersOfXeric: 103, vorkath: 0 },
+  );
+  // CoX: 5 reported, 3 on the hiscores -> 3 score, 2 held. Vorkath: not listed -> unverifiable, all held.
+  // Tormented Demons: not on the hiscores at all -> as reported (their proof is screenshots).
+  assert.equal(r.scored, 3 + 0 + 40);
+  assert.equal(r.held, 2 + 3);
+  assert.deepEqual(r.rows, [{ target: 'Chambers of Xeric', plugin: 5, hiscores: 3 }, { target: 'Vorkath', plugin: 3, hiscores: 0 }]);
+  // No start reading (or no hiscores reading yet): nothing at a hiscores target is assumed.
+  assert.equal(rushHiscoresCheck({ 'Chambers of Xeric': 4 }, keyOf, null, { chambersOfXeric: 500 }).held, 4);
+  assert.equal(rushHiscoresCheck({ 'Chambers of Xeric': 4 }, keyOf, { chambersOfXeric: 100 }, null).held, 4);
 });
