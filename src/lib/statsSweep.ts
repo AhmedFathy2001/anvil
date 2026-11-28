@@ -696,6 +696,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       const outcome = await applyWeeklyValue({
         parts: effectiveMetricParts(snapshot, w.comp.type, w.comp.metric, liveMap),
         participantId: w.participant.id,
+        hunt: w.comp.kind === 'hunt',
         type: w.comp.type,
         metric: w.comp.metric,
         value,

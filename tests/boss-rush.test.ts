@@ -20,6 +20,8 @@ import {
   targetsFromInput,
   rushTakesRaidMode,
   togetherRuns,
+  rushInOrder,
+  type RushEvent,
 } from '@/lib/bossRushRules';
 import { type HuntDrop, defaultHuntTitle, huntFromInput, huntPanelLine, isRush, matchHuntReport, rankHunt, rushBossKeys, rushTargets, serializeHunt, parseHunt } from '@/lib/itemHunt';
 
@@ -280,4 +282,20 @@ test('kills finished together: same target, within the window, two or more peopl
   assert.equal(runs.length, 1);
   assert.equal(runs[0].target, 'Nex');
   assert.deepEqual(runs[0].who, ['Ann', 'Bob']);
+});
+
+test('never below 0, played in order: deaths at 0 cost nothing, the next kill counts', () => {
+  const at = (n: number) => T0 + n * 60_000;
+  const tenDeaths: RushEvent[] = Array.from({ length: 10 }, (_, i) => ({ at: at(i + 1), pts: -1, kind: 'death' }));
+  assert.equal(rushInOrder([...tenDeaths, { at: at(20), pts: 1, kind: 'kill' }]), 1);
+  // Points held when the deaths land are taken; a kill at the same moment as a death comes first.
+  assert.equal(rushInOrder([{ at: at(0), pts: 5, kind: 'kill' }, ...tenDeaths, { at: at(30), pts: 2, kind: 'kill' }]), 2);
+  assert.equal(rushInOrder([{ at: at(1), pts: -1, kind: 'death' }, { at: at(1), pts: 1, kind: 'kill' }]), 0);
+
+  const e = [{ rsn: 'Bob', statGain: 1, rush: { kc: 1, deaths: 10, events: [...tenDeaths, { at: at(20), pts: 1, kind: 'kill' as const }] } }];
+  assert.equal(rankHunt(rush(), e, [], window)[0].count, 1);
+  // A drop after the deaths counts in full too.
+  assert.equal(rankHunt(rush(), [{ rsn: 'Bob', statGain: 0, rush: { kc: 0, deaths: 10, events: tenDeaths } }], [drop('Bob', 22006, at(40))], window)[0].count, 10);
+  // Without times (an older caller), the old sum stands.
+  assert.equal(rankHunt(rush(), [{ rsn: 'Bob', statGain: 1, rush: { kc: 1, deaths: 10 } }], [], window)[0].count, 0);
 });

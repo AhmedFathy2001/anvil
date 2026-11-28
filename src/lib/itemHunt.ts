@@ -12,6 +12,7 @@
 // PURE: no database, no datasets. The form (a client component), the routes and the tests all read
 // the rules from here. Source matching is the drop tiles' own (lib/pluginFacts/match sourceMatches).
 
+import { parseStamp } from '@/lib/dbTime';
 import { bossKeyForName } from '@/lib/pluginStats';
 import { BOSSES, RAIDS_ANY_MODE, SKILL_LABELS, bossMetricLabel, metricKeys } from '@/lib/constants';
 import { dropCounts } from '@/lib/h2hRules';
@@ -19,7 +20,7 @@ import skillPets from '@/data/skillPets.json';
 import { PET_BOSS_KEYS, PET_GROUPS } from '@/lib/petGroups';
 import { sourceMatches } from '@/lib/pluginFacts/match';
 import { itemIconUrl } from '@/lib/tileIcons';
-import { type RushRules, type RushTally, rushFromInput, rushTotal } from '@/lib/bossRushRules';
+import { type RushEvent, type RushRules, type RushTally, rushFromInput, rushTotal } from '@/lib/bossRushRules';
 
 /** 'rush': Boss Rush, kills + rare-drop bonuses - deaths at the chosen bosses (lib/bossRushRules). */
 export type HuntRule = 'first' | 'most' | 'points' | 'rush';
@@ -860,7 +861,7 @@ export interface HuntDrop {
 export interface HuntEntrant {
   rsn: string;
   /** Boss Rush: the kills that count (lib/bossRushRules kcSource), and deaths at a rush boss. */
-  rush?: { kc: number; deaths: number; synergy?: number; adjust?: number };
+  rush?: { kc: number; deaths: number; synergy?: number; adjust?: number; /** Kills, deaths and synergy with their times: scored in order (lib/bossRushRules rushInOrder). */ events?: RushEvent[] };
   /** Stat gained since the hunt started (kills at the source, or XP), or null with nothing tracked. */
   statGain: number | null;
   /** v2: Due, as a fraction (1 = one drop expected by now; huntRowProgress). Null: no rate, or not read yet. */
@@ -1238,7 +1239,9 @@ export function rankHunt(
     const scoring = scoringDrops(config, mine);
     let count = 0;
     for (const d of scoring) count += dropScore(config, d);
-    const rush = isRush(config) ? rushTotal(config.rush, e.rush?.kc ?? 0, e.rush?.deaths ?? 0, count, e.rush?.synergy ?? 0, e.rush?.adjust ?? 0) : undefined;
+    // A rush scores in time order when its entrant came with their times: each scoring drop joins them.
+    const events = isRush(config) && e.rush?.events ? [...e.rush.events, ...scoring.map((d): RushEvent => ({ at: parseStamp(d.occurredAt) ?? 0, pts: dropScore(config, d), kind: 'drop' }))] : undefined;
+    const rush = isRush(config) ? rushTotal(config.rush, e.rush?.kc ?? 0, e.rush?.deaths ?? 0, count, e.rush?.synergy ?? 0, e.rush?.adjust ?? 0, events) : undefined;
     if (rush) count = rush.total;
     return {
       rsn: e.rsn,

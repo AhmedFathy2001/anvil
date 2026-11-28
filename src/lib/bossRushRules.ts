@@ -107,11 +107,28 @@ export interface RushTally {
   total: number;
 }
 
-export function rushTotal(rules: RushRules, kc: number, deaths: number, bonus: number, synergy = 0, adjust = 0): RushTally {
+export function rushTotal(rules: RushRules, kc: number, deaths: number, bonus: number, synergy = 0, adjust = 0, events?: RushEvent[]): RushTally {
   const counted = rules.deaths ? deaths : 0;
   const team = rules.synergy.on ? synergy : 0;
   const raw = kc * rules.kcPoints + bonus + team + adjust - counted * rules.deathPoints;
-  return { kc, deaths: counted, bonus, synergy: team, adjust, total: rules.floorZero ? Math.max(0, raw) : raw };
+  // "Never below 0" is played in order when the times are known: a death at 0 costs nothing, and the
+  // next kill counts in full. Staff adjustments land last.
+  const total = !rules.floorZero ? raw : events ? Math.max(0, rushInOrder(events.filter((e) => rules.deaths || e.kind !== 'death')) + adjust) : Math.max(0, raw);
+  return { kc, deaths: counted, bonus, synergy: team, adjust, total };
+}
+
+/** One scoring moment of a rush, signed: a kill, a drop, Clan Synergy, a death. */
+export interface RushEvent {
+  at: number;
+  pts: number;
+  kind: 'kill' | 'drop' | 'synergy' | 'death';
+}
+
+/** The score played forward in time, never below 0 at any step; at one moment, gains before losses. */
+export function rushInOrder(events: RushEvent[]): number {
+  let total = 0;
+  for (const e of [...events].sort((a, b) => a.at - b.at || b.pts - a.pts)) total = Math.max(0, total + e.pts);
+  return total;
 }
 
 const synergyLive = (s: RushSynergy) => s.on && s.points > 0 && (s.mode === 'flat' || s.max > 0);
