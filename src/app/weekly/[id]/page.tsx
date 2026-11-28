@@ -37,6 +37,7 @@ import SelfEntry from '@/components/weekly/SelfEntry';
 import { myEntry, signupOpen, weeklyFeePotGp } from '@/lib/weeklySignups';
 import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
 import { loadHuntView } from '@/lib/itemHuntView';
+import { huntScoresPoints } from '@/lib/itemHunt';
 import { buildCompetitionFeed, buildHuntFeed, rushFeedExtra, watchedPlaces, type FeedFilter } from '@/lib/competitionFeed';
 import CompetitionFeed, { CompetitionLatest, CompetitionTabs, WhatCounts } from '@/components/weekly/CompetitionFeed';
 import { momentsForCompetition } from '@/lib/momentsStore';
@@ -107,7 +108,7 @@ export async function generateMetadata({
   return clanSectionMetadata({
     title: `${competition.title} — ${clanName}`,
     // Who's winning, said the way the card shows it, so the line and the picture agree.
-    description: weeklyLinkDescription({ ...competition, status: weeklyStatus(competition) }, participants.length, board),
+    description: weeklyLinkDescription({ ...competition, status: weeklyStatus(competition), points: huntScoresPoints(competition.hunt) }, participants.length, board),
     image: `/api/og/weekly/${compId}`,
   });
 }

@@ -20,7 +20,7 @@ import skillPets from '@/data/skillPets.json';
 import { PET_BOSS_KEYS, PET_GROUPS } from '@/lib/petGroups';
 import { sourceMatches } from '@/lib/pluginFacts/match';
 import { itemIconUrl } from '@/lib/tileIcons';
-import { type RushEvent, type RushRules, type RushTally, rushFromInput, rushTotal } from '@/lib/bossRushRules';
+import { type RushEvent, type RushRules, type RushTally, rushFromInput, rushTargetsLine, rushTotal } from '@/lib/bossRushRules';
 
 /** 'rush': Boss Rush, kills + rare-drop bonuses - deaths at the chosen bosses (lib/bossRushRules). */
 export type HuntRule = 'first' | 'most' | 'points' | 'rush';
@@ -463,6 +463,12 @@ function rushFromBody(body: Record<string, unknown>, opts: { lenient?: boolean }
   };
 }
 
+/** Is a hunt's board number points (a Boss Rush, a points hunt) rather than drops? Takes the stored hunt JSON. */
+export function huntScoresPoints(hunt: string | null | undefined): boolean {
+  const rule = parseHunt(hunt)?.rule;
+  return rule === 'rush' || rule === 'points';
+}
+
 export const isRush = (config: HuntConfig | null | undefined): config is HuntConfig & { rush: RushRules } => config?.rule === 'rush' && !!config.rush;
 
 /** A rush's targets the hiscores keep, as their keys. */
@@ -556,9 +562,11 @@ export function huntTargetsLabel(config: HuntConfig): string {
   return names.slice(0, 160);
 }
 
-/** "Uncut onyx from Zulrah · most by the end" */
+/** "Uncut onyx from Zulrah, most by the end" */
 export function huntLine(config: HuntConfig | null, metric: string): string {
-  return `${config ? huntTargetsLabel(config) : metric} · ${huntRuleWords(config)}`;
+  // A rush names its targets short ("CoX, CoX: CM, ToB and 4 more"): the full raid names took three lines on a phone.
+  const targets = isRush(config) ? rushTargetsLine(config.rush.targets, 60) || huntTargetsLabel(config) : config ? huntTargetsLabel(config) : metric;
+  return `${targets}, ${huntRuleWords(config)}`;
 }
 
 /** "Item hunt: Tumeken's shadow from Tombs of Amascut · first to get it" */
@@ -997,14 +1005,25 @@ export function huntPanelLine(
   return { figure, sub: words.length > 0 ? words.slice(0, 2).join(' · ') : null };
 }
 
-/** "312 kc · +55 drops · -4 deaths": what a rush score is made of. */
+/**
+ * "312 kc, 9 drops (+55), 4 deaths": what a rush score is made of, each part as it counts. A kill or
+ * death worth other than 1 shows its points ("10 kc (+20)", "3 deaths (-15)"); a drop is never
+ * called a point, so "9 drops (+55)" is nine drops worth 55.
+ */
 export function rushTallyWords(t: RushTally): string {
-  const parts = [`${t.kc.toLocaleString('en-US')} kc`];
-  if (t.bonus) parts.push(`+${t.bonus.toLocaleString('en-US')} drops`);
-  if (t.synergy) parts.push(`+${t.synergy.toLocaleString('en-US')} synergy`);
-  if (t.adjust) parts.push(`${t.adjust > 0 ? '+' : ''}${t.adjust.toLocaleString('en-US')} by staff`);
-  if (t.deaths) parts.push(`${t.deaths.toLocaleString('en-US')} ${t.deaths === 1 ? 'death' : 'deaths'}`);
-  if (t.held) parts.push(`${t.held.toLocaleString('en-US')} kc waiting on the hiscores`);
+  const n = (x: number) => x.toLocaleString('en-US');
+  const kcPts = t.kcPts ?? t.kc;
+  const deathPts = t.deathPts ?? t.deaths;
+  const parts = [kcPts === t.kc ? `${n(t.kc)} kc` : `${n(t.kc)} kc (+${n(kcPts)})`];
+  if (t.bonus || t.drops) parts.push(t.drops ? `${n(t.drops)} ${t.drops === 1 ? 'drop' : 'drops'} (+${n(t.bonus)})` : `+${n(t.bonus)} from drops`);
+  if (t.synergy) parts.push(`+${n(t.synergy)} synergy`);
+  if (t.adjust) parts.push(`${t.adjust > 0 ? '+' : ''}${n(t.adjust)} by staff`);
+  if (t.deaths) {
+    const word = `${n(t.deaths)} ${t.deaths === 1 ? 'death' : 'deaths'}`;
+    parts.push(deathPts === t.deaths ? word : deathPts === 0 ? `${word} (no cost)` : `${word} (-${n(deathPts)})`);
+  }
+  if (t.floor) parts.push(`+${n(t.floor)} as a score never goes below 0`);
+  if (t.held) parts.push(`${n(t.held)} kc waiting on the hiscores`);
   return parts.join(', ');
 }
 
@@ -1259,7 +1278,8 @@ export function rankHunt(
     for (const d of scoring) count += dropScore(config, d);
     // A rush scores in time order when its entrant came with their times: each scoring drop joins them.
     const events = isRush(config) && e.rush?.events ? [...e.rush.events, ...scoring.map((d): RushEvent => ({ at: parseStamp(d.occurredAt) ?? 0, pts: dropScore(config, d), kind: 'drop' }))] : undefined;
-    const tally = isRush(config) ? rushTotal(config.rush, e.rush?.kc ?? 0, e.rush?.deaths ?? 0, count, e.rush?.synergy ?? 0, e.rush?.adjust ?? 0, events) : undefined;
+    const worth = isRush(config) ? scoring.filter((d) => dropScore(config, d) > 0).length : 0;
+    const tally = isRush(config) ? rushTotal(config.rush, e.rush?.kc ?? 0, e.rush?.deaths ?? 0, count, e.rush?.synergy ?? 0, e.rush?.adjust ?? 0, events, worth) : undefined;
     const rush = tally && e.rush?.held ? { ...tally, held: e.rush.held } : tally;
     if (rush) count = rush.total;
     return {

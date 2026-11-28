@@ -1,4 +1,5 @@
-import { huntIconFor } from '@/lib/itemHunt';
+import { rushTargetsLine } from '@/lib/bossRushRules';
+import { huntIconFor, huntKindWord, isRush, parseHunt } from '@/lib/itemHunt';
 import { competitionBoard } from '@/lib/itemHuntDb';
 import { eq } from 'drizzle-orm';
 
@@ -57,6 +58,11 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
   // An item hunt draws the item or pet it hunts.
   const art = await remoteSprite(kind === 'hunt' ? huntIconFor(comp.hunt) : competitionImageUrl(kind, comp.metric), kind === 'boss' ? 560 : 300);
 
+  // A Boss Rush or a points hunt is scored in points: its board number is never "drops".
+  const hunt = kind === 'hunt' ? parseHunt(comp.hunt) : null;
+  const points = hunt?.rule === 'rush' || hunt?.rule === 'points';
+  const gain = (n: number) => weeklyGain(kind, n, points);
+
   // The clan's own title only when it says something the metric doesn't ("Double XP week").
   let title = label;
   let subtitle = comp.title && !comp.title.toLowerCase().includes(label.toLowerCase()) ? comp.title : null;
@@ -67,6 +73,14 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
     title = asList(comp.title.replace(/^(pet|item) hunt:\s*/i, '') || comp.title);
     subtitle = asList(label);
   }
+  if (isRush(hunt)) {
+    // "Boss Rush: Raids" on the title's one line drew "Boss Rush:" and lost the rest; the eyebrow says
+    // Boss Rush already. Its targets go under it short and once each ("CoX, CoX: CM, ToB and 4 more"):
+    // the stored metric is the full raid names, and clipped to one line it read "Chambers of Xeric,
+    // Chambers of Xeric…".
+    title = comp.title.replace(/^boss rush:\s*/i, '').trim() || comp.title;
+    subtitle = rushTargetsLine(hunt.rush.targets) || subtitle;
+  }
 
   const count = participants.length;
   const left = timeLeft(comp.endDate);
@@ -74,14 +88,14 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
     stage === 'upcoming'
       ? [`${count} member${count === 1 ? '' : 's'} signed up`, timeLeft(comp.startDate) ? `starts in ${timeLeft(comp.startDate)}` : null]
           .filter(Boolean)
-          .join(' · ')
+          .join(', ')
       : stage === 'completed'
         ? board.length
-          ? `${weeklyTotal(kind, board.reduce((s, e) => s + e.gained, 0))} across ${board.length} member${board.length === 1 ? '' : 's'}.`
+          ? `${weeklyTotal(kind, board.reduce((s, e) => s + e.gained, 0), points)} across ${board.length} member${board.length === 1 ? '' : 's'}.`
           : 'Finished.'
         : [`${board.length || count} member${(board.length || count) === 1 ? '' : 's'} ${VERB[kind]}`, left ? `${left} left` : null]
             .filter(Boolean)
-            .join(' · ');
+            .join(', ');
 
   let winner = null;
   if (stage === 'completed' && board[0]) {
@@ -91,7 +105,7 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
     const best = mine.find((m) => m.kind === 'pet') ?? mine.find((m) => m.itemId != null && m.kind !== 'death');
     winner = {
       rsn: top.rsn,
-      gain: weeklyGain(kind, top.gained),
+      gain: gain(top.gained),
       highlight: best?.itemName
         ? `and got ${best.itemName}${best.kc ? ` on kill ${best.kc.toLocaleString('en-US')}` : ''}`
         : null,
@@ -101,13 +115,13 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
 
   return weeklyCard({
     kind,
-    eyebrow: `${KIND_LABEL[kind]} · ${stage === 'completed' ? 'Finished' : name}`,
+    eyebrow: `${hunt ? huntKindWord(hunt) : KIND_LABEL[kind]} · ${stage === 'completed' ? 'Finished' : name}`,
     stage,
     title,
     subtitle,
     line,
     art,
-    top: board.slice(0, 3).map((e) => ({ rsn: e.rsn, gain: weeklyGain(kind, e.gained) })),
+    top: board.slice(0, 3).map((e) => ({ rsn: e.rsn, gain: gain(e.gained) })),
     winner,
   });
 }

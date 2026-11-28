@@ -105,6 +105,14 @@ export interface RushTally {
   /** Points staff added or took off by hand. */
   adjust: number;
   total: number;
+  /** What the kills are worth (kc x kcPoints). */
+  kcPts: number;
+  /** What the counted deaths took off (deaths x deathPoints). */
+  deathPts: number;
+  /** How many drops make up `bonus` (the ones worth points). */
+  drops: number;
+  /** Points the "never below 0" floor kept: deaths at 0 cost nothing. */
+  floor: number;
   /** Plugin kills held back: more than the hiscores show yet (rushHiscoresCheck). */
   held?: number;
 }
@@ -154,14 +162,14 @@ export function rushHiscoresCheck(
   return { scored, held, rows };
 }
 
-export function rushTotal(rules: RushRules, kc: number, deaths: number, bonus: number, synergy = 0, adjust = 0, events?: RushEvent[]): RushTally {
+export function rushTotal(rules: RushRules, kc: number, deaths: number, bonus: number, synergy = 0, adjust = 0, events?: RushEvent[], drops = 0): RushTally {
   const counted = rules.deaths ? deaths : 0;
   const team = rules.synergy.on ? synergy : 0;
   const raw = kc * rules.kcPoints + bonus + team + adjust - counted * rules.deathPoints;
   // "Never below 0" is played in order when the times are known: a death at 0 costs nothing, and the
   // next kill counts in full. Staff adjustments land last.
   const total = !rules.floorZero ? raw : events ? Math.max(0, rushInOrder(events.filter((e) => rules.deaths || e.kind !== 'death')) + adjust) : Math.max(0, raw);
-  return { kc, deaths: counted, bonus, synergy: team, adjust, total };
+  return { kc, deaths: counted, bonus, synergy: team, adjust, total, kcPts: kc * rules.kcPoints, deathPts: counted * rules.deathPoints, drops, floor: Math.max(0, total - raw) };
 }
 
 /** One scoring moment of a rush, signed: a kill, a drop, Clan Synergy, a death. */
@@ -256,13 +264,13 @@ function synergyWords(s: RushSynergy): string {
   return s.mode === 'flat' ? `+${pts(s.points)} a kill done together` : `+${pts(s.points)} per clanmate with you, up to +${s.max} a kill`;
 }
 
-/** "1 kill = 1 pt · each death -1 · plugin kills only": the rules on one line. */
+/** "1 kill = 1 pt, each death -1, plugin kills only": the rules on one line. */
 export function rushRulesWords(rules: RushRules): string {
   const parts = [`1 kill = ${pts(rules.kcPoints)}`];
   parts.push(rules.deaths && rules.deathPoints > 0 ? `each death -${rules.deathPoints}` : 'deaths cost nothing');
   parts.push(rules.kcSource === 'plugin' ? 'plugin kills only' : 'every kill counts');
   if (synergyLive(rules.synergy)) parts.push(`Clan Synergy ${synergyWords(rules.synergy)}`);
-  return parts.join(' · ');
+  return parts.join(', ');
 }
 
 // ── Raids, mode by mode ──────────────────────────────────────────────────────────────────────
@@ -282,6 +290,45 @@ export const RUSH_RAID_TARGETS: readonly { name: string; raid: 'cox' | 'tob' | '
   { name: 'Tombs of Amascut', raid: 'toa', group: true },
   { name: 'Tombs of Amascut: Expert Mode', raid: 'toa', group: true },
 ];
+
+/** The short names the standings use for the raid modes ("CoX: CM", "ToA: Expert"). */
+const RAID_SHORT: Record<string, string> = {
+  'chambers of xeric': 'CoX',
+  'chambers of xeric challenge mode': 'CoX: CM',
+  'theatre of blood entry mode': 'ToB: Entry',
+  'theatre of blood': 'ToB',
+  'theatre of blood hard mode': 'ToB: HM',
+  'tombs of amascut entry mode': 'ToA: Entry',
+  'tombs of amascut': 'ToA',
+  'tombs of amascut expert mode': 'ToA: Expert',
+};
+
+/** A target as a short label: a raid mode by its short name, anything else as it is. */
+export function rushTargetShort(target: string): string {
+  return RAID_SHORT[plain(target)] ?? target.trim();
+}
+
+/**
+ * The targets as one short line, each once: "CoX, CoX: CM, ToB, ToA and 3 more". Names are added
+ * while the line stays within `maxChars` (the share card has one line for it); the rest are counted.
+ */
+export function rushTargetsLine(targets: readonly string[], maxChars = 44): string {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const t of targets) {
+    const s = rushTargetShort(t);
+    if (!s || seen.has(s.toLowerCase())) continue;
+    seen.add(s.toLowerCase());
+    names.push(s);
+  }
+  for (let n = names.length; n > 0; n--) {
+    const rest = names.length - n;
+    const head = names.slice(0, n).join(', ');
+    const line = rest > 0 ? `${head} and ${rest} more` : head;
+    if (line.length <= maxChars || n === 1) return line;
+  }
+  return '';
+}
 
 /**
  * Where Clan Synergy counts besides the raids: the bosses people fight in a group, by hiscores key.

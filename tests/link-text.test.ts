@@ -70,6 +70,10 @@ test('weekly gains speak the competition’s unit', () => {
   assert.equal(weeklyGain('skill', 4_820_113), '+4.82M xp');
   assert.equal(weeklyGain('boss', 212), '212 kc');
   assert.equal(weeklyGain('efficiency', 31_460), '+31.5h');
+  // A hunt counts drops; a Boss Rush or points hunt counts points (the share card said "14 drops" for 14 points).
+  assert.equal(weeklyGain('hunt', 2), '2 drops');
+  assert.equal(weeklyGain('hunt', 14, true), '14 pts');
+  assert.equal(weeklyGain('hunt', 1, true), '1 pt');
 });
 
 test('a weekly reads as a race while it runs and a result once it ends', () => {
