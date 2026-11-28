@@ -15,8 +15,7 @@ import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
-import { FINAL_READ_WAIT_MS } from '@/lib/finalReadGate';
-import { dbStampOf } from '@/lib/dbTime';
+import { FINAL_READ_WAIT_MS, liveBefore, takeLateRead } from '@/lib/finalReadGate';
 import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
 import { computeGain, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
 import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
@@ -142,6 +141,8 @@ interface FetchedBingo {
   baseline: HiscoresSnapshot;
   current: HiscoresSnapshot;
   liveMap: Record<string, number>;
+  /** A read after the end (settling): how long after it, ms; stamped on what it credits. */
+  finalLagMs?: number;
 }
 /**
  * Where this sweep's hiscores reads come from.
@@ -266,7 +267,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
         if (!hasStatTiles || (player.lastStatsFetch && Date.parse(player.lastStatsFetch) >= Date.parse(settleAt))) continue;
         const entry = claim(ensureEntry(player.clanMemberId, player.name));
         entry.bingo.push({ ctx, player, needsSnapshot: false });
-        entry.staleKey = olderOf(entry.staleKey, player.lastStatsFetch);
+        // First in the queue: read as soon after the end as the budget allows.
+        entry.staleKey = '';
         continue;
       }
       // Recapture when there's no baseline yet OR the one we have was taken before the event started
@@ -676,6 +678,30 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           .where(eq(eventParticipants.id, b.player.id));
         b.ctx.result.playersSnapshotted++;
         fetchedBingo.push({ ctx: b.ctx, player: b.player, baseline: JSON.parse(baselineJson), current: snapshot, liveMap });
+      } else if (b.ctx.settleAt) {
+        // The read after the end. Only the plugin's readings from before the end count beside it; and a
+        // read more than LATE_READ_MS after the end gives way to a pre-end plugin reading (it would carry
+        // play after the end). Recorded either way, with when, for staff (event_participants.final_read_at).
+        const endMs = Date.parse(b.ctx.settleAt);
+        const lagMs = Date.parse(ts) - endMs;
+        const preEnd = liveBefore(liveMap, entry.liveKeyTimes, endMs);
+        const take = takeLateRead(lagMs, Object.keys(preEnd).length > 0);
+        await db
+          .update(eventParticipants)
+          .set({ ...(take ? { cachedStats: snapshotJson } : {}), lastStatsFetch: ts, finalReadAt: ts })
+          .where(eq(eventParticipants.id, b.player.id));
+        if (!take) log.info('stats-cron.final-read-late', { eventId: b.ctx.event.id, playerId: b.player.id, lagMs });
+        b.ctx.result.playersChecked++;
+        let baseline: HiscoresSnapshot;
+        let current: HiscoresSnapshot = snapshot;
+        try {
+          baseline = JSON.parse(b.player.statsSnapshot!);
+          if (!take && b.player.cachedStats) current = JSON.parse(b.player.cachedStats);
+        } catch {
+          b.ctx.result.errors.push(`Invalid snapshot for ${b.player.name}`);
+          continue;
+        }
+        fetchedBingo.push({ ctx: b.ctx, player: b.player, baseline, current, liveMap: preEnd, finalLagMs: Math.max(0, lagMs) });
       } else {
         await db.update(eventParticipants).set({ cachedStats: snapshotJson, lastStatsFetch: ts }).where(eq(eventParticipants.id, b.player.id));
         b.ctx.result.playersChecked++;
@@ -824,8 +850,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
                 buildContributionSnapshot(tile.statGoal!, [{ playerId: f.player.id, gained }]),
               ),
               awardedPoints: gate.awardedPoints,
-              // A read after the end credits what the hiscores showed by then, as of the end.
-              ...(ctx.settleAt ? { completedAt: dbStampOf(ctx.settleAt) } : {}),
+              // A read after the end: the real time stays, marked with how late it was (staff audit).
+              ...(f.finalLagMs != null ? { finalReadLagMs: f.finalLagMs } : {}),
             })
             .onConflictDoNothing()
             .returning({ id: completions.id });
@@ -882,7 +908,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           eventId: ctx.event.id,
           teamId,
           statTiles: open,
-          ...(ctx.settleAt ? { at: ctx.settleAt } : {}),
+          ...(ctx.settleAt ? { finalReadEnd: ctx.settleAt } : {}),
           onCompleted: (tile) => {
             ctx.completionSet.add(`${teamId}-${tile.id}`);
             ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: '(team total)' });

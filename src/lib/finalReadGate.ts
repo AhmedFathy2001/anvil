@@ -13,3 +13,28 @@ export function finalReadsDone(remaining: number, endMs: number, nowMs: number):
 export function eventReadsDone(hasStatTiles: boolean, endMs: number, nowMs: number): boolean {
   return !hasStatTiles || !Number.isFinite(endMs) || nowMs - endMs >= FINAL_READ_WAIT_MS;
 }
+
+/** A read this long after the end has likely caught play after it: a pre-end plugin reading wins over it. */
+export const LATE_READ_MS = 15 * 60 * 1000;
+
+/**
+ * The plugin's live readings as they stood at the end: each key only if it last rose at or before the
+ * end. A key that rose after it carries play after the end, and is left to the hiscores instead.
+ */
+export function liveBefore(live: Record<string, number>, keyTimes: Record<string, string> | null | undefined, endMs: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(live)) {
+    const t = keyTimes?.[k] ? Date.parse(keyTimes[k]) : NaN;
+    if (Number.isFinite(t) && t <= endMs) out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Take a post-end hiscores read as the final reading? Yes when it came soon after the end, or when
+ * there is no pre-end plugin reading to prefer; a late read with a pre-end reading is set aside (it
+ * would count play after the end).
+ */
+export function takeLateRead(lagMs: number, hasPreEndLive: boolean): boolean {
+  return lagMs <= LATE_READ_MS || !hasPreEndLive;
+}

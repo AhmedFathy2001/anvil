@@ -1195,6 +1195,10 @@ export const completions = pgTable('completions', {
   // decay). NULL = no modifier applied; standings fall back to the tile's live weight, which
   // keeps legacy events (and admin mid-event point re-tuning) exactly as they were.
   awardedPoints: integer('awarded_points'),
+  // Credited by a hiscores read AFTER the event ended (lib/statsSweep settling pass): how long after the
+  // end that read was taken, ms. NULL for every completion made while the event ran. completed_at stays
+  // the real time; standings still count it as inside the event. For staff to audit late credits.
+  finalReadLagMs: integer('final_read_lag_ms'),
 }, (table) => [
   uniqueIndex('team_tile_unique').on(table.teamId, table.tileId),
   index('completions_tile_id_idx').on(table.tileId),
@@ -1276,6 +1280,8 @@ export const eventParticipants = pgTable('event_participants', {
   playerToken: text('player_token'),
   cachedStats: text('cached_stats'),
   lastStatsFetch: text('last_stats_fetch'),
+  /** When this player was read from the hiscores AFTER the event ended (the settling pass), ISO. */
+  finalReadAt: text('final_read_at'),
   // Real-time boss KC pushed by the plugin, as a flat JSON map of hiscores boss key -> absolute
   // count ({"zulrah":1250}). Separate from cachedStats so the hourly hiscores cron never clobbers
   // it; reads take max(cachedStats, pluginStats) per key, and the cron prunes an entry once

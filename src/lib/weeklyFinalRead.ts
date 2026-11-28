@@ -17,6 +17,10 @@ import { countsWorld } from '@/lib/competitionGame';
 import { log } from '@/lib/logger';
 import { applyWeeklyValue, fetchParticipantStat } from '@/lib/weekly';
 import { competitionStat, effectiveMetricParts } from '@/lib/weeklyMetric';
+import { liveBefore, takeLateRead } from '@/lib/finalReadGate';
+import { parseStatKeyTimes } from '@/lib/liveStats';
+import { parsePluginStats } from '@/lib/pluginStats';
+import { metricKeys } from '@/lib/constants';
 
 type Comp = typeof weeklyCompetitions.$inferSelect;
 
@@ -81,6 +85,8 @@ export async function finalHiscoresRead(
         baselineValue: weeklyParticipants.baselineValue,
         currentValue: weeklyParticipants.currentValue,
         lastUpdated: weeklyParticipants.lastUpdated,
+        live: clanRoster.liveStats,
+        liveKeyTimes: clanRoster.liveStatKeyTimes,
       })
       .from(weeklyParticipants)
       .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
@@ -128,6 +134,17 @@ export async function finalHiscoresRead(
             // Not on the hiscores at all is an answer too; a timeout is not, and is tried again.
             if (res.kind === 'unranked') await markRead(p.id);
             if (res.kind !== 'value') continue;
+            // A read well after the end (the budget, a retry) may carry play after it: when the plugin
+            // pushed this stat before the end, that standing (already in currentValue) is kept instead.
+            const endMs = Date.parse(comp.endDate);
+            const lagMs = Date.now() - endMs;
+            const keys = metricKeys(stat.metric);
+            const preEnd = liveBefore(parsePluginStats(p.live), parseStatKeyTimes(p.liveKeyTimes), endMs);
+            if (!takeLateRead(lagMs, keys.some((k) => k in preEnd))) {
+              log.info('weekly.final-read-late', { competitionId: comp.id, rsn: p.rsn, lagMs });
+              await markRead(p.id);
+              continue;
+            }
             const applied = await applyWeeklyValue({
               participantId: p.id,
               hunt: comp.type === 'hunt',

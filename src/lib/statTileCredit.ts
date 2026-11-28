@@ -1,4 +1,4 @@
-import { dbStampOf } from '@/lib/dbTime';
+import { liveBefore } from '@/lib/finalReadGate';
 import { afterRaceCompletion } from '@/lib/raceRoutesDb';
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
@@ -47,8 +47,9 @@ export async function creditStatTilesForTeam(opts: {
   clip?: boolean;
   /** Told about each tile this call completed (the sweep keeps its own tally). */
   onCompleted?: (tile: StatTile) => void;
-  /** A read after the event ended: a completion is dated at the end (ISO), not now. */
-  at?: string;
+  /** The settling pass after the event ended (ISO end): plugin readings after it are ignored, and a
+   *  completion keeps its real time, marked with how long after the end it came (final_read_lag_ms). */
+  finalReadEnd?: string;
 }): Promise<string[]> {
   const { eventId, teamId, statTiles } = opts;
   const completed: string[] = [];
@@ -92,6 +93,11 @@ export async function creditStatTilesForTeam(opts: {
       .from(clanRoster)
       .where(inArray(clanRoster.id, memberIds));
     for (const r of rows) keyTimesByMember.set(r.id, parseStatKeyTimes(r.keyTimes));
+  }
+  // Settling after the end: a member's plugin reading of a key counts only if it last rose by the end.
+  if (opts.finalReadEnd) {
+    const endMs = Date.parse(opts.finalReadEnd);
+    for (const [id, live] of teamLive) teamLive.set(id, liveBefore(live, keyTimesByMember.get(id), endMs));
   }
   const freshAt = (p: (typeof teamPlayers)[number], keys: string[]): number => {
     if (p.frozenAt) return parseStamp(p.frozenAt) ?? 0;
@@ -209,7 +215,7 @@ export async function creditStatTilesForTeam(opts: {
         creditPlayerId: individualFinisher?.id ?? null,
         statContributions: JSON.stringify(buildContributionSnapshot(tile.statGoal!, splitRows)),
         awardedPoints: gate?.awardedPoints ?? null,
-        ...(opts.at ? { completedAt: dbStampOf(opts.at) } : {}),
+        ...(opts.finalReadEnd ? { finalReadLagMs: Math.max(0, Date.now() - Date.parse(opts.finalReadEnd)) } : {}),
       })
       .onConflictDoNothing()
       .returning({ id: completions.id });
