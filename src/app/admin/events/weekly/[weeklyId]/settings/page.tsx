@@ -3,6 +3,7 @@ import WeeklyTargetPanel from '../WeeklyTargetPanel';
 import { competitionNotStarted } from '@/lib/competitionTeamsDb';
 import { huntFormFromConfig } from '@/lib/huntForm';
 import RushDeathsPanel from '../RushDeathsPanel';
+import RushHeldPanel from '../RushHeldPanel';
 import HuntSettingsPanel from '../HuntSettingsPanel';
 import { huntRows, isRush, parseHunt } from '@/lib/itemHunt';
 import { getEffectiveParticipants } from '@/lib/weekly';
@@ -80,6 +81,7 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
         }
       />
     )}
+    {hunt && isRush(hunt) && <RushHeldPanel comp={comp} />}
     {hunt && isRush(hunt) && <RushDeathsPanel competitionId={comp.id} />}
     <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />
     <WeeklyGamePanel

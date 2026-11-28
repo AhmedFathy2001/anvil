@@ -863,7 +863,7 @@ export interface HuntDrop {
 export interface HuntEntrant {
   rsn: string;
   /** Boss Rush: the kills that count (lib/bossRushRules kcSource), and deaths at a rush boss. */
-  rush?: { kc: number; deaths: number; synergy?: number; adjust?: number; /** Kills, deaths and synergy with their times: scored in order (lib/bossRushRules rushInOrder). */ events?: RushEvent[] };
+  rush?: { kc: number; deaths: number; synergy?: number; adjust?: number; /** Kills, deaths and synergy with their times: scored in order (lib/bossRushRules rushInOrder). */ events?: RushEvent[]; /** Plugin kills held back for the hiscores. */ held?: number };
   /** Stat gained since the hunt started (kills at the source, or XP), or null with nothing tracked. */
   statGain: number | null;
   /** v2: Due, as a fraction (1 = one drop expected by now; huntRowProgress). Null: no rate, or not read yet. */
@@ -1004,7 +1004,8 @@ export function rushTallyWords(t: RushTally): string {
   if (t.synergy) parts.push(`+${t.synergy.toLocaleString('en-US')} synergy`);
   if (t.adjust) parts.push(`${t.adjust > 0 ? '+' : ''}${t.adjust.toLocaleString('en-US')} by staff`);
   if (t.deaths) parts.push(`${t.deaths.toLocaleString('en-US')} ${t.deaths === 1 ? 'death' : 'deaths'}`);
-  return parts.join(' · ');
+  if (t.held) parts.push(`${t.held.toLocaleString('en-US')} kc waiting on the hiscores`);
+  return parts.join(', ');
 }
 
 export const huntRsnKey = (rsn: string) => norm(rsn);
@@ -1258,7 +1259,8 @@ export function rankHunt(
     for (const d of scoring) count += dropScore(config, d);
     // A rush scores in time order when its entrant came with their times: each scoring drop joins them.
     const events = isRush(config) && e.rush?.events ? [...e.rush.events, ...scoring.map((d): RushEvent => ({ at: parseStamp(d.occurredAt) ?? 0, pts: dropScore(config, d), kind: 'drop' }))] : undefined;
-    const rush = isRush(config) ? rushTotal(config.rush, e.rush?.kc ?? 0, e.rush?.deaths ?? 0, count, e.rush?.synergy ?? 0, e.rush?.adjust ?? 0, events) : undefined;
+    const tally = isRush(config) ? rushTotal(config.rush, e.rush?.kc ?? 0, e.rush?.deaths ?? 0, count, e.rush?.synergy ?? 0, e.rush?.adjust ?? 0, events) : undefined;
+    const rush = tally && e.rush?.held ? { ...tally, held: e.rush.held } : tally;
     if (rush) count = rush.total;
     return {
       rsn: e.rsn,

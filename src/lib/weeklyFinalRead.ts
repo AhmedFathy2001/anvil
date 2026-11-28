@@ -16,7 +16,8 @@ import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema'
 import { countsWorld } from '@/lib/competitionGame';
 import { log } from '@/lib/logger';
 import { applyWeeklyValue, fetchParticipantStat } from '@/lib/weekly';
-import { competitionStat } from '@/lib/weeklyMetric';
+import { competitionStat, effectiveMetricParts } from '@/lib/weeklyMetric';
+import { isRush, parseHunt } from '@/lib/itemHunt';
 
 type Comp = typeof weeklyCompetitions.$inferSelect;
 
@@ -57,7 +58,8 @@ export async function finalHiscoresRead(
   // An item hunt with no stat beside its drops reads nothing; a mode-only competition is scored
   // off its own table (lib/weeklyModeScores), not the main game's.
   // An item hunt places by its drops, so the stat beside them can't move a result.
-  if (comp.type === 'hunt') return out;
+  // A Boss Rush scores its kills, though: the last ones before the end count from this read.
+  if (comp.type === 'hunt' && !isRush(parseHunt(comp.hunt ?? null))) return out;
   const stat = competitionStat(comp);
   if (!stat || !countsWorld(comp.countsOn, null)) return out;
   // A process where the cron never started a budget: give this one its own. A budget the cron
@@ -112,6 +114,9 @@ export async function finalHiscoresRead(
             if (res.kind !== 'value') continue;
             const applied = await applyWeeklyValue({
               participantId: p.id,
+              hunt: comp.type === 'hunt',
+              // The split per boss too: a rush checks its plugin kills target by target (lib/bossRushRules).
+              parts: 'snapshot' in res && res.snapshot ? effectiveMetricParts(res.snapshot, stat.type, stat.metric, {}) ?? undefined : undefined,
               type: stat.type,
               metric: stat.metric,
               value: res.value,

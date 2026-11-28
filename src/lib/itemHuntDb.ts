@@ -63,7 +63,7 @@ import {
   serializeHunt,
 } from '@/lib/itemHunt';
 import { huntRates } from '@/lib/huntRates';
-import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns, type RushEvent, type RushRules } from '@/lib/bossRushRules';
+import { MAX_RUSH_ADJUST, RUSH_SAME_DEATH_MS, isGroupTarget, raidOfTarget, rushFromInput, rushSynergy, rushTakesRaidMode, togetherRuns, rushHiscoresCheck, type RushEvent, type RushHeldRow, type RushRules } from '@/lib/bossRushRules';
 import { bossKeyForName } from '@/lib/pluginStats';
 import { killTargetKeys } from '@/lib/pluginFacts/match';
 import { claimTileFacts, type FactOwner } from '@/lib/pluginFacts/factIdStore';
@@ -96,7 +96,7 @@ function huntEntrants(config: HuntConfig, participants: EntrantSource[], rates: 
       // keep (the way Boss of the Week reads it), plus the plugin's at the ones they do not.
       const mine = rush?.get(huntRsnKey(p.rsn));
       const kc = config.rush.kcSource === 'any' ? (statGain ?? 0) + (mine?.offHiscores ?? 0) : mine?.kc ?? 0;
-      return { rsn: p.rsn, statGain, rush: { kc, deaths: mine?.deaths ?? 0, synergy: mine?.synergy ?? 0, adjust: mine?.adjust ?? 0, events: rushTimeline(config.rush, kc, mine) } };
+      return { rsn: p.rsn, statGain, rush: { kc, deaths: mine?.deaths ?? 0, synergy: mine?.synergy ?? 0, adjust: mine?.adjust ?? 0, held: mine?.held ?? 0, events: rushTimeline(config.rush, kc, mine) } };
     }
     return { rsn: p.rsn, statGain, ...(config.v === 2 ? { due: huntRowProgress(config, p.huntBaseline, p.huntCurrent, rates).due } : {}) };
   });
@@ -136,6 +136,9 @@ type RushCounts = Map<
     deaths: number;
     synergy: number;
     adjust: number;
+    /** "Plugin only": kills held back because the hiscores do not show them yet, and where. */
+    held: number;
+    heldRows: RushHeldRow[];
     /** When things happened, for scoring in order: hiscores gains [at, by], plugin kills at group targets, counted deaths, synergy [at, pts]. */
     gains: [number, number][];
     killTimes: number[];
@@ -152,7 +155,7 @@ async function rushCounts(config: HuntConfig, competitionId: number): Promise<Ru
   if (!isRush(config)) return null;
   // clan-scope: global -- one competition's seats by its id; the caller settled the owning clan.
   const rows = await db
-    .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsnNormalized, kc: weeklyParticipants.rushKc, byTarget: weeklyParticipants.rushSeen, deaths: weeklyParticipants.rushDeaths, raids: weeklyParticipants.rushRaids, adjust: weeklyParticipants.rushAdjust, optedOut: weeklyParticipants.optedOut, gains: weeklyParticipants.valueLog })
+    .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsnNormalized, kc: weeklyParticipants.rushKc, baseParts: weeklyParticipants.baselineParts, curParts: weeklyParticipants.currentParts, byTarget: weeklyParticipants.rushSeen, deaths: weeklyParticipants.rushDeaths, raids: weeklyParticipants.rushRaids, adjust: weeklyParticipants.rushAdjust, optedOut: weeklyParticipants.optedOut, gains: weeklyParticipants.valueLog })
     .from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, competitionId));
   // clan-scope: global -- the same competition's own counted deaths, for when each happened.
@@ -178,11 +181,16 @@ async function rushCounts(config: HuntConfig, competitionId: number): Promise<Ru
   const synergy = rushSynergy(config.rush, new Map(rows.filter((r) => !r.optedOut).map((r) => [huntRsnKey(r.rsn), r.raids ?? []])));
   const off = new Set(config.rush.targets.filter((t) => bossKeyForName(t) == null).map((t) => t.toLowerCase()));
   const offOf = (by: Record<string, number> | null) => Object.entries(by ?? {}).reduce((n, [t, v]) => n + (off.has(t.toLowerCase()) && typeof v === 'number' ? v : 0), 0);
+  // "Plugin only": each target's kills checked against its hiscores gain (lib/bossRushRules rushHiscoresCheck).
+  const checked = (r: (typeof rows)[number]) =>
+    config.rush.kcSource === 'plugin' ? rushHiscoresCheck(r.byTarget, bossKeyForName, r.baseParts, r.curParts) : { scored: r.kc, held: 0, rows: [] };
   return new Map(
     rows.map((r) => [
       huntRsnKey(r.rsn),
       {
-        kc: r.kc,
+        kc: Math.min(r.kc, checked(r).scored),
+        held: checked(r).held,
+        heldRows: checked(r).rows,
         offHiscores: offOf(r.byTarget),
         deaths: r.deaths,
         synergy: synergy.get(huntRsnKey(r.rsn)) ?? 0,
@@ -1177,4 +1185,21 @@ export async function rushFeedFacts(competitionId: number): Promise<{ deaths: { 
   const runs = togetherRuns(new Map(live.map((s) => [s.rsn, s.raids ?? []])));
   const together = runs.slice(-40).map((r) => ({ target: r.target, at: new Date(r.at).toISOString(), who: r.who }));
   return { deaths, together };
+}
+
+/**
+ * Staff: who has "plugin only" kills held back because the hiscores do not show them yet, target by
+ * target. Empty for a rush on "every kill" (its kills are the hiscores'). Held kills score once the
+ * hiscores catch up; what is still ahead when the rush ends never does.
+ */
+export async function rushHeldKills(comp: Competition): Promise<{ rsn: string; rows: RushHeldRow[] }[]> {
+  const config = parseHunt(comp.hunt);
+  if (!isRush(config) || config.rush.kcSource !== 'plugin') return [];
+  const counts = await rushCounts(config, comp.id);
+  // clan-scope: global -- one competition's seats, for their display names.
+  const seats = await db.select({ rsn: weeklyParticipants.rsn, key: weeklyParticipants.rsnNormalized }).from(weeklyParticipants).where(eq(weeklyParticipants.competitionId, comp.id));
+  return seats.flatMap((s) => {
+    const c = counts?.get(huntRsnKey(s.key));
+    return c && c.held > 0 ? [{ rsn: s.rsn, rows: c.heldRows }] : [];
+  });
 }
