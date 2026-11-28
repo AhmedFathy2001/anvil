@@ -8,7 +8,7 @@ import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema'
 import { releaseWeeklyPool, reserveWeeklyAward } from '@/lib/coffer';
 import { countsTowardLeaderboard } from '@/lib/weekly';
 import { competitionBoard, huntPrizeBoard } from '@/lib/itemHuntDb';
-import { huntBountyRows, huntRsnKey, parseHunt } from '@/lib/itemHunt';
+import { huntBountyRows, huntRowPlaced, huntRsnKey, parseHunt } from '@/lib/itemHunt';
 import { parseWeeklyPrizes, winnersFor, feePlaces } from '@/lib/weeklyPrizes';
 import { ordinal } from '@/lib/utils';
 
@@ -98,8 +98,9 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   // automatically" has no holds (lib/itemHunt unconfirmedPrizeDrops).
   const hunt = comp.type === 'hunt' ? await huntPrizeBoard(comp, eligible, prizes.places.length) : null;
   if (hunt && hunt.holds.length > 0) return { settled: false, reserved: 0, unfunded: 0 };
+  const huntConfig = hunt ? parseHunt(comp.hunt) : null;
   const board = hunt
-    ? hunt.rows.map((r) => ({ rsn: r.rsn, gained: r.count }))
+    ? hunt.rows.map((r) => ({ rsn: r.rsn, gained: huntConfig && huntRowPlaced(huntConfig, r) ? Math.max(1, r.count) : 0 }))
     : (await competitionBoard(comp, eligible)).map((e) => ({ rsn: e.rsn, gained: e.gained }));
   // Who each bounty claim belongs to: a claim names the player by their rsn key.
   const byKey = new Map(eligible.map((r) => [huntRsnKey(r.rsn), r]));
