@@ -16,10 +16,9 @@ import { bankTagString, inventorySetupJson } from '@/lib/runeliteExport';
 import { groundMarkersJson } from '@/lib/groundMarkers';
 import { parseRouteBlock, type RouteBlock } from '@/lib/guideRoutes';
 import { setupResult, withSlot } from '@/lib/gearNow';
+import { ownedCounts } from '@/lib/gearOwnership';
+import { ownedPool, yourVersion, QUIVER_CAPES, type YourVersionCtx } from '@/lib/yourVersion';
 import type { Guide } from '@/db/schema';
-
-/** Dizana's quiver and the max cape that holds it: both give the second ammo slot. */
-const QUIVER_CAPES = [28951, 28947, 28902];
 
 export interface SetupView {
   key: string;
@@ -38,6 +37,10 @@ export interface SetupView {
   twoHanded: boolean;
   /** Dizana's quiver (or its max cape) is worn: the quiver ammo slot shows. */
   hasQuiver: boolean;
+  /** The reader's version wears a quiver (their cape), so its ammo slot shows. */
+  myHasQuiver: boolean;
+  /** The reader's version's weapon is two-handed. */
+  myTwoHanded: boolean;
 }
 
 export interface GuideViewData {
@@ -100,13 +103,38 @@ export async function loadGuideView(guide: Guide, viewer: GuideViewer, over: { a
   }
   const filters = viewerFilters(viewer, over);
   const prefs = viewer.prefs ? { skipped: new Set(viewer.prefs.skipped.keys()), budgetCap: viewer.prefs.budgetCap, prices } : {};
+  // Owner-only: the reader's own snapshot, so their version can take items of theirs the guide doesn't list.
+  let mine: YourVersionCtx | null = null;
+  if (viewer.snapshot) {
+    const nameOf = new Map(mapping.map((m) => [m.id, m.name]));
+    const held = [...ownedCounts(viewer.snapshot).keys()];
+    const monster = block ? (idx.monster(block.monsters?.[0] ?? block.monster) as Monster | null) : null;
+    mine = {
+      idx,
+      monster,
+      pool: ownedPool(viewer.snapshot, idx, equivalentsFor(held, 'holds'), (id) => nameOf.get(id), prefs),
+      snapshot: viewer.snapshot,
+      needs: eq,
+      name: (id) => nameOf.get(id) ?? idx.item(id)?.n,
+      price: (id) => priceMap.get(id),
+    };
+  }
   const setups: SetupView[] = [];
   const all: { s: GearSetup; community: boolean }[] = [...(block?.setups ?? []).map((s) => ({ s, community: false })), ...community.filter((c) => c.status !== 'promoted').map((c) => ({ s: c.setup, community: true }))];
   all.forEach(({ s, community: isCommunity }, i) => {
     const key = isCommunity ? (s.id ?? `c${s.communityId}`) : setupKey(s, i);
-    const resolved = viewer.snapshot ? resolveSetup(s, viewer.snapshot, eq, prefs) : null;
+    const resolved = viewer.snapshot && mine ? yourVersion(s, resolveSetup(s, viewer.snapshot, eq, prefs), mine) : null;
+    // Names and prices for the reader's own stand-ins (their page only).
+    for (const id of [...(resolved?.slots.map((x) => x.use ?? 0) ?? []), ...(resolved?.supplies?.map((x) => x.use) ?? [])]) {
+      if (id > 0 && names[id] == null) {
+        const nm = mine?.name(id);
+        if (nm) names[id] = nm;
+        const p = priceMap.get(id);
+        if (p != null) prices[id] = p;
+      }
+    }
     const n = block ? numbers(s, block, idx) : { dps: null, ttk: null };
-    const mine = resolved && block ? numbers(personalSetup(s, resolved), block, idx) : null;
+    const my = resolved && block ? numbers(personalSetup(s, resolved), block, idx) : null;
     const cape = resolved?.gear.cape ?? s.gear.cape;
     setups.push({
       key,
@@ -116,10 +144,12 @@ export async function loadGuideView(guide: Guide, viewer: GuideViewer, over: { a
       resolved,
       dps: n.dps,
       ttk: n.ttk,
-      myDps: mine?.dps ?? null,
+      myDps: my?.dps ?? null,
       community: isCommunity,
       twoHanded: !!idx.item(s.gear.weapon)?.h2,
-      hasQuiver: QUIVER_CAPES.includes(cape ?? 0) || !!s.quiver,
+      myTwoHanded: !!idx.item(resolved?.gear.weapon ?? s.gear.weapon)?.h2,
+      hasQuiver: QUIVER_CAPES.includes(s.gear.cape ?? 0) || !!s.quiver,
+      myHasQuiver: resolved ? QUIVER_CAPES.includes(cape ?? 0) || !!resolved.quiver : QUIVER_CAPES.includes(s.gear.cape ?? 0) || !!s.quiver,
     });
   });
   const main = setups.filter((x) => !x.community);

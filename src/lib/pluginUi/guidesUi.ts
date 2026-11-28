@@ -252,7 +252,8 @@ export interface GuidePanelData {
   dps: string;
   usingFallbacks: string | null;
   slots: PanelSlot[];
-  inventory: ({ id: number; q?: number } | null)[];
+  /** The reader's version: `tip` names a stand-in of theirs or a supply they hold none of (`missing`: drawn faint). */
+  inventory: ({ id: number; q?: number; missing?: boolean; tip?: string } | null)[];
   pouch: { id: number; q: number }[];
   spellbook: string;
   /** 0 standard, 1 ancient, 2 lunar, 3 arceuus. */
@@ -606,7 +607,7 @@ function inventoryGrid(d: GuidePanelData): Node {
   // The game's 28 slots, less the empty rows at the bottom (a short supply list stays short).
   const last = d.inventory.slice(0, 28).reduce((m, it, i) => (it ? i : m), -1);
   const cells = Array.from({ length: Math.max(4, Math.ceil((last + 1) / 4) * 4) }, (_, i) => d.inventory[i]).map((it) =>
-    it ? icon({ item: it.id, qty: it.q && it.q > 1 ? it.q : undefined, w: 32, h: 28 }) : text('', 'muted', { w: 32 }),
+    it ? icon({ item: it.id, qty: it.q && it.q > 1 ? it.q : undefined, w: 32, h: 28, ...(it.missing ? { dim: true } : {}), ...(it.tip ? { tip: it.tip } : {}) }) : text('', 'muted', { w: 32 }),
   );
   const frame = col([{ t: 'grid', cols: 4, gap: 3, vgap: 2, c: cells }], { bg: STONE, edge: '#14100b', inset: FRAME_IN });
   return centred(frame, 4 * 32 + 3 * 3 + 2 * FRAME_IN + 2);
@@ -632,7 +633,7 @@ function setupTab(d: GuidePanelData): Node {
     // above, it already names the setup: saying it twice is noise.
     picker ? null : text(cur.name, 'white', { font: 'bold', wrap: W_CARD }),
     small(d.dps, PROGRESS),
-    d.usingFallbacks ? small(`↓ Using a fallback: ${d.usingFallbacks}`, SOFT, { wrap: W_CARD }) : null,
+    d.usingFallbacks ? small(`↓ Your version: ${d.usingFallbacks}`, SOFT, { wrap: W_CARD }) : null,
     equipmentGrid(d),
     anyMissing || anyFallback
       ? (() => {

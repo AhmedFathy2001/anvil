@@ -114,10 +114,25 @@ export interface SlotPick {
   guide: number;
   /** What this player will wear: the best owned on the list, else the best they'd still get. */
   use: number | null;
-  /** 'guide' = they own the guide's item · 'fallback' = an owned fallback · 'missing' = nothing owned. */
-  kind: 'guide' | 'fallback' | 'missing';
+  /**
+   * 'guide' = they own the guide's item · 'fallback' = an owned fallback · 'missing' = nothing owned.
+   * Only from lib/yourVersion: 'owned' = nothing on the list owned, so the best item of theirs for the
+   * slot (by the DPS engine) · 'upgrade' = an item of theirs that beats the guide's.
+   */
+  kind: 'guide' | 'fallback' | 'owned' | 'upgrade' | 'missing';
   /** The list, best first. */
   options: number[];
+  /** 'owned' / 'upgrade': DPS with their item minus DPS with the guide's there (rest as their version). */
+  delta?: number | null;
+}
+
+/** One supply (inventory item) in the player's version: theirs, a stand-in of theirs, or missing. */
+export interface SupplyPick {
+  /** The guide's item. */
+  id: number;
+  /** What they'll carry: the guide's item, an owned stand-in, or the guide's item still (missing). */
+  use: number;
+  kind: 'have' | 'swap' | 'missing';
 }
 
 /** A slot's list, best first: the setup's item, then its fallbacks (duplicates dropped). */
@@ -140,6 +155,8 @@ export interface Resolved {
   missingSupplies: { id: number; need: number; have: number }[];
   /** Fallbacks in use, for "Using 1 fallback: Ava's assembler for Dizana's quiver". */
   fallbacks: SlotPick[];
+  /** Per supply, when lib/yourVersion resolved them (stand-ins for unowned supplies). */
+  supplies?: SupplyPick[];
 }
 
 /**
@@ -196,6 +213,15 @@ export function resolveSetup(setup: GearSetup, snap: Snapshot | null | undefined
 }
 
 /** The setup as the player will run it: their items in place of the guide's (for exports and DPS). */
-export function personalSetup(setup: GearSetup, r: Resolved): GearSetup {
-  return { ...setup, gear: r.gear, quiver: r.quiver };
+export function personalSetup(setup: GearSetup, r: Pick<Resolved, 'gear' | 'quiver' | 'supplies'>): GearSetup {
+  const swap = new Map((r.supplies ?? []).filter((x) => x.kind === 'swap').map((x) => [x.id, x.use]));
+  const inventory = swap.size && setup.inventory ? setup.inventory.map((it) => (it && swap.has(it.id) ? { ...it, id: swap.get(it.id)! } : it)) : setup.inventory;
+  return { ...setup, gear: r.gear, quiver: r.quiver, inventory };
+}
+
+/** "Your Amulet of fury instead of Necklace of anguish · −0.30 DPS" ("+0.28 DPS" for an upgrade). */
+export function swapNote(p: Pick<SlotPick, 'guide' | 'use' | 'delta'>, names: Record<number, string>): string {
+  const d = p.delta;
+  const dps = d != null && d !== 0 ? ` · ${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(2)} DPS` : '';
+  return `Your ${names[p.use ?? 0] ?? 'item'}${p.guide ? ` instead of ${names[p.guide] ?? "the guide's item"}` : ' (the guide has none here)'}${dps}`;
 }

@@ -50,8 +50,8 @@ const SLOT_LABEL: Record<string, string> = {
 const slotGlyph = (slot: string) => wikiImageUrl(`${SLOT_LABEL[slot === 'quiver' ? 'ammo' : slot]}_slot.png`);
 
 export interface SlotNote {
-  /** "fallback": the reader will use another item; "missing": they own nothing on the list. */
-  kind: 'fallback' | 'missing';
+  /** "fallback": the reader will use another item; "upgrade": a better one of theirs; "missing": they own nothing for it. */
+  kind: 'fallback' | 'upgrade' | 'missing';
   text: string;
 }
 
@@ -128,6 +128,11 @@ export function PaperDoll({
                 ↓
               </span>
             )}
+            {note?.kind === 'upgrade' && (
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#1b1610] text-[10px] font-bold text-emerald-300 ring-1 ring-emerald-400/60" aria-hidden>
+                ↑
+              </span>
+            )}
           </button>
         );
       })}
@@ -135,16 +140,27 @@ export function PaperDoll({
   );
 }
 
-/** The 4×7 inventory, items loose on the panel. */
-export function InventoryGrid({ inventory, names, size = 34 }: { inventory: (InvItem | null)[] | undefined; names: Names; size?: number }) {
+/**
+ * The 4×7 inventory, items loose on the panel. `notes` (the reader's version) marks a stand-in of
+ * theirs (tooltip) and dims a supply they hold none of, with its name written on it.
+ */
+export function InventoryGrid({ inventory, names, size = 34, notes = {} }: { inventory: (InvItem | null)[] | undefined; names: Names; size?: number; notes?: Record<number, { dim: boolean; text: string }> }) {
   const cells = Array.from({ length: 28 }, (_, i) => inventory?.[i] ?? null);
   return (
     <StonePanel className="inline-grid grid-cols-4 gap-x-1 gap-y-0.5 px-2.5 py-2">
-      {cells.map((it, i) => (
-        <span key={i} className="flex items-center justify-center" style={{ width: size, height: size * 0.84 }}>
-          {it ? <ItemSprite id={it.id} name={names[it.id]} qty={it.q} size={Math.round(size * 0.88)} /> : null}
-        </span>
-      ))}
+      {cells.map((it, i) => {
+        const note = it ? notes[it.id] : undefined;
+        return (
+          <span key={i} className="relative flex items-center justify-center" style={{ width: size, height: size * 0.84 }}>
+            {it ? <ItemSprite id={it.id} name={names[it.id]} qty={it.q} size={Math.round(size * 0.88)} dim={note?.dim} title={note?.text ?? names[it.id]} /> : null}
+            {note?.dim && (
+              <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 truncate text-center text-[8px] leading-tight text-[#ece4d4]" style={{ textShadow: '1px 1px 0 #000' }}>
+                {names[it!.id] ?? 'Item'}
+              </span>
+            )}
+          </span>
+        );
+      })}
     </StonePanel>
   );
 }

@@ -23,7 +23,7 @@ import { ladderFor, loadGuideView, type SetupView } from '@/lib/guideView';
 import { bylines, communityCounts, followsOf, libraryIdOf, ranksFor, recentGuides, recordView } from '@/lib/guideCommunity';
 import { writtenByLine, byShort } from '@/lib/guideCredit';
 import { parseRouteBlock, goalLabel, routeProgress } from '@/lib/guideRoutes';
-import { slotOptions } from '@/lib/gearOwnership';
+import { personalSetup, slotOptions, swapNote } from '@/lib/gearOwnership';
 import { baseItem } from '@/lib/itemFamilies';
 import { formatGp } from '@/lib/itemPrices';
 import { fmtDuration } from '@/lib/dps/summary';
@@ -214,7 +214,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
   const comm = view.setups.filter((s) => s.community && s.setup.tier === tier);
   const want = extra.setup ?? args.setup;
   const current: SetupView | undefined = [...pills, ...comm].find((s) => s.key === want) ?? (tier && view.defaults[tier] >= 0 ? view.setups[view.defaults[tier]] : pills[0]);
-  const s = current ? (current.resolved ? { ...current.setup, gear: current.resolved.gear, quiver: current.resolved.quiver } : current.setup) : null;
+  const s = current ? (current.resolved ? personalSetup(current.setup, current.resolved) : current.setup) : null;
   const names = view.names;
   const ladder = current ? await ladderFor(current, view.setups, view.block, view.prices) : [];
   const credits = view.credits.library;
@@ -290,15 +290,25 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
       })),
       current: current?.key ?? null,
       dps: current ? `${((current.resolved ? current.myDps : current.dps) ?? 0).toFixed(1)} DPS${current.ttk != null ? `, ~${fmtDuration(current.ttk)}` : ''}` : '',
-      usingFallbacks: current?.resolved?.slots.filter((x) => x.kind === 'fallback').map((x) => `${names[x.use!] ?? 'item'} for ${names[x.guide] ?? 'item'}`).join(', ') || null,
+      usingFallbacks:
+        current?.resolved?.slots
+          .filter((x) => x.use && (x.kind === 'fallback' || x.kind === 'owned' || x.kind === 'upgrade'))
+          .map((x) => (x.kind === 'fallback' ? `${names[x.use!] ?? 'item'} for ${names[x.guide] ?? 'item'}` : `${x.kind === 'upgrade' ? 'upgrade: ' : ''}${swapNote(x, names)}`))
+          .join(', ') || null,
       slots: s
         ? SLOTS.map((slot) => {
             const n = slotNote(slot);
             const id = slot === 'quiver' ? s.quiver ?? null : s.gear[slot] ?? null;
-            return { slot, id, fallback: n?.kind === 'fallback' ? `you'll use ${names[n.use!] ?? 'a fallback'}` : null, missing: n?.kind === 'missing' };
+            const fallback = n?.kind === 'fallback' ? `you'll use ${names[n.use!] ?? 'a fallback'}` : n && (n.kind === 'owned' || n.kind === 'upgrade') ? `${n.kind === 'upgrade' ? 'upgrade: ' : ''}${swapNote(n, names)}` : null;
+            return { slot, id, fallback, missing: n?.kind === 'missing' };
           })
         : [],
-      inventory: s?.inventory ?? [],
+      inventory: (s?.inventory ?? []).map((it) => {
+        if (!it) return it;
+        const sup = current?.resolved?.supplies?.find((x) => x.use === it.id && x.kind !== 'have');
+        if (!sup) return it;
+        return sup.kind === 'swap' ? { ...it, tip: `Your ${names[sup.use] ?? 'item'} instead of ${names[sup.id] ?? 'the guide\'s'}` } : { ...it, missing: true, tip: `${names[sup.id] ?? 'Item'}: not owned` };
+      }),
       pouch: (s?.runePouch ?? []).map((r) => ({ id: r.id, q: r.q ?? 1 })),
       spellbook: spellbookName(s?.spellbook),
       spellbookId: s?.spellbook ?? 0,

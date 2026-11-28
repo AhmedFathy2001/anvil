@@ -14,7 +14,7 @@ import GearProgression from '@/components/gear/GearProgression';
 import { renderGuide } from '@/lib/guideMarkdown';
 import { TIERS, splitSegments, type GearBlock, type GearSetup, type TierKey } from '@/lib/guideTiers';
 import { GUIDE_ACCOUNTS, GUIDE_BUILDS, accountLabel, buildLabel, setupFit, defaultSetup, type GuideAccount, type GuideBuild } from '@/lib/guideSetups';
-import { personalSetup, slotOptions } from '@/lib/gearOwnership';
+import { personalSetup, slotOptions, swapNote } from '@/lib/gearOwnership';
 import { bankTagString, inventorySetupJson, type ExportSetup } from '@/lib/runeliteExport';
 import { groundMarkersJson, markerCountLabel, MARKERS_IMPORT_HINT } from '@/lib/groundMarkers';
 import { formatGp } from '@/lib/itemPrices';
@@ -28,13 +28,21 @@ export interface SetupWire {
   index: number;
   setup: GearSetup;
   fit: { ok: boolean; reason: string | null };
-  resolved: { gear: Record<string, number>; quiver: number | null; slots: { slot: string; guide: number; use: number | null; kind: 'guide' | 'fallback' | 'missing'; options: number[] }[]; missingSupplies: { id: number; need: number; have: number }[] } | null;
+  resolved: {
+    gear: Record<string, number>;
+    quiver: number | null;
+    slots: { slot: string; guide: number; use: number | null; kind: 'guide' | 'fallback' | 'owned' | 'upgrade' | 'missing'; options: number[]; delta?: number | null }[];
+    missingSupplies: { id: number; need: number; have: number }[];
+    supplies?: { id: number; use: number; kind: 'have' | 'swap' | 'missing' }[];
+  } | null;
   dps: number | null;
   ttk: number | null;
   myDps: number | null;
   community: boolean;
   twoHanded: boolean;
   hasQuiver: boolean;
+  myHasQuiver: boolean;
+  myTwoHanded: boolean;
   /** Item ids on this setup's slot lists the reader owns (any form). Empty when nothing is known. */
   owned: number[];
 }
@@ -158,17 +166,27 @@ export default function GuidePage(p: GuidePageProps) {
   const current = pills[sel != null && sel < pills.length ? sel : Math.max(0, dflt)] ?? null;
   const allBlocked = pills.length > 0 && pills.every((x) => !x.fit.ok);
   const useMine = mineOn && !!current?.resolved;
-  const shown = current ? (useMine ? personalSetup(current.setup, { ...current.resolved!, slots: [], missing: [], fallbacks: [], missingSupplies: [] }) : current.setup) : null;
+  const shown = current ? (useMine ? personalSetup(current.setup, current.resolved!) : current.setup) : null;
 
   const notes: Record<string, SlotNote> = {};
   if (current?.resolved && useMine) {
     for (const sl of current.resolved.slots) {
       if (sl.kind === 'fallback' && sl.use) notes[sl.slot] = { kind: 'fallback', text: `You'll use ${p.names[sl.use] ?? 'a fallback'}` };
+      if ((sl.kind === 'owned' || sl.kind === 'upgrade') && sl.use) notes[sl.slot] = { kind: sl.kind === 'upgrade' ? 'upgrade' : 'fallback', text: swapNote(sl, p.names) };
       if (sl.kind === 'missing') notes[sl.slot] = { kind: 'missing', text: 'Not in your bank, inventory or worn gear' };
     }
   }
   const missing = current?.resolved ? current.resolved.slots.filter((s) => s.kind === 'missing' && s.use) : [];
   const fallbacksInUse = current?.resolved && useMine ? current.resolved.slots.filter((s) => s.kind === 'fallback') : [];
+  const swapsInUse = current?.resolved && useMine ? current.resolved.slots.filter((s) => (s.kind === 'owned' || s.kind === 'upgrade') && s.use) : [];
+  // Supplies: their stand-ins noted, the ones they hold none of dimmed with their name.
+  const supplyNotes: Record<number, { dim: boolean; text: string }> = {};
+  if (current?.resolved?.supplies && useMine) {
+    for (const x of current.resolved.supplies) {
+      if (x.kind === 'swap') supplyNotes[x.use] = { dim: false, text: `Your ${p.names[x.use] ?? 'item'} instead of ${p.names[x.id] ?? 'the guide\'s'}` };
+      if (x.kind === 'missing') supplyNotes[x.id] = { dim: true, text: `${p.names[x.id] ?? 'Item'}: not in your bank, inventory or worn gear` };
+    }
+  }
   const markers = current ? (current.setup.markers?.length ? current.setup.markers : p.block?.markers?.[current.setup.tier] ?? []) : [];
 
   async function copy(kind: 'banktag' | 'setup' | 'markers') {
@@ -334,6 +352,15 @@ export default function GuidePage(p: GuidePageProps) {
                     {fallbacksInUse.map((f) => `${p.names[f.use!] ?? 'item'} for ${p.names[f.guide] ?? 'item'}`).join(' · ')}
                   </p>
                 )}
+                {swapsInUse.length > 0 && (
+                  <ul className="space-y-0.5 text-xs text-text-muted">
+                    {swapsInUse.map((f) => (
+                      <li key={f.slot}>
+                        <span className={f.kind === 'upgrade' ? 'font-semibold text-emerald-300' : 'text-gold'}>{f.kind === 'upgrade' ? '↑ Upgrade' : '↓ From your bank'}</span> · {swapNote(f, p.names)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="flex flex-wrap items-start gap-6">
                   <div className="space-y-2">
                     <div className="text-[11px] uppercase tracking-widest text-text-muted">Equipment</div>
@@ -341,8 +368,8 @@ export default function GuidePage(p: GuidePageProps) {
                       <PaperDoll
                         gear={shown.gear}
                         quiver={shown.quiver}
-                        hasQuiver={current.hasQuiver}
-                        twoHanded={current.twoHanded}
+                        hasQuiver={useMine ? current.myHasQuiver : current.hasQuiver}
+                        twoHanded={useMine ? current.myTwoHanded : current.twoHanded}
                         names={p.names}
                         notes={notes}
                         onSlot={(slot) => setAlt({ setup: current, slot })}
@@ -352,7 +379,7 @@ export default function GuidePage(p: GuidePageProps) {
                   </div>
                   <div className="space-y-2">
                     <div className="text-[11px] uppercase tracking-widest text-text-muted">Inventory</div>
-                    <InventoryGrid inventory={shown.inventory} names={p.names} />
+                    <InventoryGrid inventory={shown.inventory} names={p.names} notes={supplyNotes} />
                   </div>
                   <div className="min-w-[200px] flex-1 space-y-3">
                     {!!shown.runePouch?.length && (
@@ -818,6 +845,15 @@ function AlternativesDialog({ setup, slot, names, prices, skipped, signedIn, lad
               );
             })}
           </ul>
+          {pick && (pick.kind === 'owned' || pick.kind === 'upgrade') && pick.use && (
+            <div className="flex items-center gap-2 rounded-lg border border-gold bg-[#2a2114] p-2 text-xs">
+              <ItemSprite id={pick.use} name={names[pick.use]} size={30} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm">{names[pick.use] ?? `Item ${pick.use}`}</span>
+                <span className="text-text-muted">{pick.kind === 'upgrade' ? 'Upgrade from your bank' : 'Your best owned item for this slot'}</span>
+              </span>
+            </div>
+          )}
           {options.length < 2 && <p className="text-xs text-text-muted">The guide lists no fallback for this slot.</p>}
           {signedIn && options.length > 1 && (
             <div className="space-y-1.5 border-t border-card-border pt-2 text-xs">
