@@ -22,6 +22,7 @@ import {
   huntPets,
   huntRows,
   huntBountyBoard,
+  firstClaims,
   isRush,
   rushTallyWords,
   type HuntRowProgress,
@@ -183,6 +184,8 @@ export function buildHuntView(
   );
   const targets = huntRows(config).map((t) => ({ id: t.id, name: t.name, pet: !!t.pet }));
   const targetIds = new Set(targets.map((t) => t.id));
+  // "First player only" rows: which drop of each scored (lib/itemHunt firstClaims).
+  const claimed = firstClaims(config, [...standings.drops].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt)));
   const rows: HuntViewRow[] = standings.rows.map((r) => ({
     rank: r.rank,
     rsn: r.rsn,
@@ -203,7 +206,7 @@ export function buildHuntView(
     ...(mine.has(r.rsn) && deathShots.has(r.rsn) ? { deathShots: deathShots.get(r.rsn) } : {}),
     heldIds: [...new Set(r.drops.map((d) => d.itemId).filter((id): id is number => id != null && targetIds.has(id)))],
     drops: r.drops.map((d, i) => ({
-      score: config.rule !== 'points' && config.rule !== 'rush' ? null : (config.repeat === 'first' || (config.rule === 'rush' && !!config.items.find((it) => it.id === d.itemId)?.once)) && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
+      score: config.rule !== 'points' && config.rule !== 'rush' ? null : d.itemId != null && claimed.has(d.itemId) && claimed.get(d.itemId) !== d.id ? 0 : (config.repeat === 'first' || (config.rule === 'rush' && !!config.items.find((it) => it.id === d.itemId)?.once)) && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
       id: d.id,
       itemId: d.itemId,
       itemName: d.itemName,

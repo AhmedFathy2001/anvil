@@ -299,3 +299,17 @@ test('never below 0, played in order: deaths at 0 cost nothing, the next kill co
   // Without times (an older caller), the old sum stands.
   assert.equal(rankHunt(rush(), [{ rsn: 'Bob', statGain: 1, rush: { kc: 1, deaths: 10 } }], [], window)[0].count, 0);
 });
+
+test('"first player only": the first drop by anyone scores, every later one is 0', () => {
+  const c = rush({
+    items: [
+      { id: 22006, name: 'Skeletal visage', sources: ['Vorkath'], points: 10, first: true },
+      { id: 12922, name: 'Tanzanite fang', sources: ['Zulrah'], points: 5 },
+    ],
+  });
+  assert.equal(c.items[0].first, true);
+  const e = [{ rsn: 'Ann', statGain: 0, rush: { kc: 0, deaths: 0 } }, { rsn: 'Bob', statGain: 0, rush: { kc: 0, deaths: 0 } }];
+  const rows = rankHunt(c, e, [drop('Bob', 22006, T0 + 1000), drop('Ann', 22006, T0 + 2000), drop('Bob', 22006, T0 + 3000), drop('Ann', 12922, T0 + 4000)], window);
+  assert.equal(rows.find((r) => r.rsn === 'Bob')?.count, 10);
+  assert.equal(rows.find((r) => r.rsn === 'Ann')?.count, 5);
+});

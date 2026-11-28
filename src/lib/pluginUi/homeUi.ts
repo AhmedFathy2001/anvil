@@ -1275,7 +1275,11 @@ function rushDropsCard(w: ScheduleWeekly): Node | null {
   if (!items.length) return null;
   const rows = items.map((it) => {
     const name = text(clip(it.name, 19), it.got ? 'white' : SOFT, { icon: icon({ item: it.id, w: 24, h: 22 }), tip: it.got ? `${it.name}: first ${it.got.rsn}${it.n ? ` (${it.n} in all)` : ''}` : it.name });
-    return row(name, undefined, text(it.once ? `+${it.pts} once` : `+${it.pts}`, it.got ? GREEN : GOLD, { font: 'bold', ...(it.once ? { tip: 'Only your first one scores' } : {}) }), { gap: 6 });
+    // Gold whoever has one: a got row still scores for everyone (bar a "first only" row, which reads taken).
+    const taken = !!it.first && !!it.got;
+    const label = it.first ? `+${it.pts} first` : it.once ? `+${it.pts} once` : `+${it.pts}`;
+    const tip = it.first ? (taken ? `Taken by ${it.got!.rsn}` : 'Only the first player to get one scores it') : it.once ? 'Only your first one scores' : undefined;
+    return row(name, undefined, text(label, taken ? FAINT : GOLD, { font: 'bold', ...(tip ? { tip } : {}) }), { gap: 6 });
   });
   return section([row(title('Drops that score'), undefined, muted(`${items.length}`)), ...more(rows, 5, `rush-drops:${w.id}`, 4)], { gap: 4 });
 }

@@ -73,6 +73,8 @@ export interface HuntItem {
   pet?: true;
   /** Boss Rush: only each player's first one scores (a kit you can claim once), whatever `repeat` says. */
   once?: true;
+  /** Boss Rush: only the first player to get one scores it, once; everyone after gets nothing for it. */
+  first?: true;
   /**
    * v2: "Closest to it", the stat that shows progress toward this row (kills at its boss, XP in its
    * skill). null = nothing shown for it. Absent on every v1 config, which has the one stat below.
@@ -439,7 +441,7 @@ function rushFromBody(body: Record<string, unknown>, opts: { lenient?: boolean }
       ? []
       : [...new Map((Array.isArray(it.sources) ? it.sources : []).filter((x): x is string => typeof x === 'string' && !!x.trim()).map((x) => [norm(x), x.trim().slice(0, 80)])).values()].slice(0, MAX_HUNT_SOURCES);
     const pts = typeof it.points === 'number' && Number.isFinite(it.points) ? Math.round(it.points) : 1;
-    items.push({ id, name, sources, count: 'drops', points: Math.min(MAX_ITEM_POINTS, Math.max(0, pts)), ...(pet ? { pet: true as const } : {}), ...(it.once === true ? { once: true as const } : {}), stat: null });
+    items.push({ id, name, sources, count: 'drops', points: Math.min(MAX_ITEM_POINTS, Math.max(0, pts)), ...(pet ? { pet: true as const } : {}), ...(it.first === true ? { first: true as const } : it.once === true ? { once: true as const } : {}), stat: null });
   }
   return {
     ok: true,
@@ -1023,6 +1025,19 @@ export function dropScore(config: HuntConfig, drop: Pick<HuntDrop, 'itemId' | 'q
 }
 
 /**
+ * A rush's "first player only" rows: the item, and the one drop of it that scores (the earliest
+ * counted, by anyone). `counted` must already be the counted drops inside the window, oldest first.
+ */
+export function firstClaims(config: HuntConfig, counted: Pick<HuntDrop, 'id' | 'itemId'>[]): Map<number, number> {
+  const out = new Map<number, number>();
+  if (config.rule !== 'rush') return out;
+  const first = new Set(config.items.filter((it) => it.first).map((it) => it.id));
+  if (first.size === 0) return out;
+  for (const d of counted) if (d.itemId != null && first.has(d.itemId) && !out.has(d.itemId)) out.set(d.itemId, d.id);
+  return out;
+}
+
+/**
  * A points hunt that scores each item once: a player's drops less the repeats, oldest kept. A rush
  * can also mark single rows "counts once" (a kit claimed once) while the rest score every time.
  */
@@ -1229,7 +1244,9 @@ export function rankHunt(
   drops: HuntDrop[],
   window: { startMs: number | null; endMs: number | null },
 ): HuntRow[] {
-  const counted = countedDrops(drops, window);
+  // "First player only" rows: every drop but the first one of them, by anyone, scores nothing.
+  const claimed = firstClaims(config, countedDrops(drops, window));
+  const counted = countedDrops(drops, window).filter((d) => d.itemId == null || !claimed.has(d.itemId) || claimed.get(d.itemId) === d.id);
   const byRsn = new Map<string, HuntDrop[]>();
   for (const d of counted) byRsn.set(d.rsnKey, [...(byRsn.get(d.rsnKey) ?? []), d]);
   const complete = config.ends.kind === 'all' ? completionOf(config, counted) : null;
