@@ -84,6 +84,13 @@ async function searchHunt(q: string): Promise<SearchResult | null> {
   }
 }
 
+/** How a Boss Rush drop row scores (lib/itemHunt HuntItem once / first). */
+export const RUSH_SCORE_MODES = [
+  { value: 'every', label: 'Every drop scores' },
+  { value: 'once', label: 'Once per player' },
+  { value: 'first', label: 'First player only' },
+];
+
 export default function HuntFields({
   value,
   onChange,
@@ -573,7 +580,16 @@ export default function HuntFields({
                         <span className="text-text-muted">{it.count === 'quantity' ? 'pts each' : it.points === 1 ? 'pt' : 'pts'}</span>
                       </label>
                     )}
-                    {rush && <Checkbox checked={!!it.once} onChange={(on) => setItem(it.id, { once: on })} label="Counts once" className="text-sm" />}
+                    {rush && (
+                      <div className="w-full max-w-[13rem] sm:w-52">
+                        <Select
+                          value={it.first ? 'first' : it.once ? 'once' : 'every'}
+                          onChange={(v) => setItem(it.id, { once: v === 'once', first: v === 'first' })}
+                          ariaLabel={`Who scores ${it.name}`}
+                          options={RUSH_SCORE_MODES}
+                        />
+                      </div>
+                    )}
                     {rush && it.rate != null && <span className="text-xs text-text-muted">{rarityWords(it.rate)}</span>}
                     {!it.pet && !rush && (
                       <div className="w-full max-w-xs sm:w-60">

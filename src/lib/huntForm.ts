@@ -33,6 +33,8 @@ export interface HuntFormItem {
   rate?: number | null;
   /** Boss Rush: only each player's first one scores (lib/itemHunt HuntItem.once). */
   once?: boolean;
+  /** Boss Rush: only the first player to get one scores it (lib/itemHunt HuntItem.first). */
+  first?: boolean;
 }
 
 export interface HuntFormValue {
@@ -83,7 +85,7 @@ export function huntPayload(v: HuntFormValue) {
       rule: 'rush',
       rush: v.rush,
       repeat: v.repeat,
-      items: v.items.map((it) => ({ id: it.id, name: it.name, sources: it.pet || it.anySource ? [] : it.sources, points: it.points, ...(it.once ? { once: true } : {}) })),
+      items: v.items.map((it) => ({ id: it.id, name: it.name, sources: it.pet || it.anySource ? [] : it.sources, points: it.points, ...(it.first ? { first: true } : it.once ? { once: true } : {}) })),
       confirm: v.confirm,
     };
   }
@@ -138,7 +140,7 @@ export function huntFormFromConfig(config: HuntConfig): HuntFormValue {
   });
   const rush = config.rule === 'rush' && config.rush;
   return {
-    items: rush ? items.map((it) => { const row = config.items.find((x) => x.id === it.id); return { ...it, points: row?.points ?? 0, once: !!row?.once }; }) : items,
+    items: rush ? items.map((it) => { const row = config.items.find((x) => x.id === it.id); return { ...it, points: row?.points ?? 0, once: !!row?.once, first: !!row?.first }; }) : items,
     rule: config.rule,
     repeat: config.repeat ?? 'every',
     ends: config.ends,

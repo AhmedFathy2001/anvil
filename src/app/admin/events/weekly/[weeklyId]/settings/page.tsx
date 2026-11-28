@@ -73,7 +73,7 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
             ? {
                 rules: hunt.rush,
                 repeat: hunt.repeat === 'first' ? 'first' : 'every',
-                items: hunt.items.map((it) => ({ id: it.id, name: it.name, points: it.points ?? 0, once: !!it.once })),
+                items: hunt.items.map((it) => ({ id: it.id, name: it.name, points: it.points ?? 0, once: !!it.once, first: !!it.first })),
                 entrants: (await getEffectiveParticipants(comp.id)).map((p) => ({ id: p.id, rsn: p.rsn })),
               }
             : null

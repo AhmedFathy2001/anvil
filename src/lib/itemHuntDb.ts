@@ -856,18 +856,26 @@ export async function updateHuntSettings(
         return typeof v === 'number' && Number.isFinite(v) ? { ...it, points: Math.min(MAX_ITEM_POINTS, Math.max(0, Math.round(v))) } : it;
       });
     }
-    // Which rows count once (a kit claimed once), by item id.
-    const once = input.once && typeof input.once === 'object' ? (input.once as Record<string, unknown>) : null;
-    if (once) {
+    // Who scores each row: once per player (a kit claimed once), or only the first player at all.
+    for (const flag of ['once', 'first'] as const) {
+      const map = input[flag] && typeof input[flag] === 'object' ? (input[flag] as Record<string, unknown>) : null;
+      if (!map) continue;
       next.items = next.items.map((it) => {
-        const v = once[String(it.id)];
+        const v = map[String(it.id)];
         if (typeof v !== 'boolean') return it;
         const row = { ...it };
-        if (v) row.once = true;
-        else delete row.once;
+        if (v) row[flag] = true;
+        else delete row[flag];
         return row;
       });
     }
+    // One or the other: "first player only" already means once.
+    next.items = next.items.map((it) => {
+      if (!it.first || !it.once) return it;
+      const row = { ...it };
+      delete row.once;
+      return row;
+    });
   }
   if (serializeHunt(next) === serializeHunt(config)) return { ok: true, config };
   await db.update(weeklyCompetitions).set({ hunt: serializeHunt(next) }).where(eq(weeklyCompetitions.id, comp.id));
@@ -910,7 +918,7 @@ export async function adjustRushPoints(
 }
 
 /** A rush's drop points by item id, for the audit log. */
-const rushPoints = (config: HuntConfig) => Object.fromEntries(config.items.map((it) => [it.id, it.once ? `${it.points ?? 0} (once)` : it.points ?? 0]));
+const rushPoints = (config: HuntConfig) => Object.fromEntries(config.items.map((it) => [it.id, it.first ? `${it.points ?? 0} (first player only)` : it.once ? `${it.points ?? 0} (once)` : it.points ?? 0]));
 
 /**
  * A hunt ranked over exactly the entrants handed in, for the prize settle (lib/weeklyPrizeSettle).

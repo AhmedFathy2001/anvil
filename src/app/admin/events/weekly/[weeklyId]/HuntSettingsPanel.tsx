@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import Checkbox from '@/components/Checkbox';
 import NumberInput from '@/components/NumberInput';
 import Radio from '@/components/Radio';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
+import { RUSH_SCORE_MODES } from '@/components/weekly/HuntFields';
 import { MAX_RUSH_ADJUST } from '@/lib/bossRushRules';
 import ThingIcon from '@/components/ThingIcon';
 import { HuntEndingFields, RushFields } from '@/components/weekly/HuntFields';
@@ -20,7 +20,7 @@ import { itemIconUrl } from '@/lib/tileIcons';
 export interface RushSettings {
   rules: RushRules;
   repeat: 'every' | 'first';
-  items: { id: number; name: string; points: number; once?: boolean }[];
+  items: { id: number; name: string; points: number; once?: boolean; first?: boolean }[];
   /** For "Adjust points". */
   entrants: { id: number; rsn: string }[];
 }
@@ -85,10 +85,11 @@ export default function HuntSettingsPanel({ competitionId, initial, finished, ro
   const [rules, setRules] = useState<RushRules | null>(rush?.rules ?? null);
   const [points, setPoints] = useState<Record<number, number>>(() => Object.fromEntries((rush?.items ?? []).map((it) => [it.id, it.points])));
   const [repeat, setRepeat] = useState<'every' | 'first'>(rush?.repeat ?? 'every');
-  const [once, setOnce] = useState<Record<number, boolean>>(() => Object.fromEntries((rush?.items ?? []).map((it) => [it.id, !!it.once])));
+  const modeOf = (it: { once?: boolean; first?: boolean }) => (it.first ? 'first' : it.once ? 'once' : 'every');
+  const [mode, setMode] = useState<Record<number, string>>(() => Object.fromEntries((rush?.items ?? []).map((it) => [it.id, modeOf(it)])));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const rushDirty = !!rush && (JSON.stringify(rules) !== JSON.stringify(rush.rules) || repeat !== rush.repeat || rush.items.some((it) => points[it.id] !== it.points || once[it.id] !== !!it.once));
+  const rushDirty = !!rush && (JSON.stringify(rules) !== JSON.stringify(rush.rules) || repeat !== rush.repeat || rush.items.some((it) => points[it.id] !== it.points || mode[it.id] !== modeOf(it)));
   const dirty = JSON.stringify(ends) !== JSON.stringify(initial.ends) || confirm !== initial.confirm || rushDirty;
 
   async function save() {
@@ -98,7 +99,7 @@ export default function HuntSettingsPanel({ competitionId, initial, finished, ro
       const res = await clanFetch(`/api/admin/weekly/${competitionId}/hunt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'settings', ends, confirm, ...(rush ? { rush: rules, points, once, repeat } : {}) }),
+        body: JSON.stringify({ action: 'settings', ends, confirm, ...(rush ? { rush: rules, points, once: Object.fromEntries(Object.entries(mode).map(([id, m]) => [id, m === 'once'])), first: Object.fromEntries(Object.entries(mode).map(([id, m]) => [id, m === 'first'])), repeat } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       setMessage(res.ok ? { ok: true, text: 'Saved.' } : { ok: false, text: data.error || 'Could not save.' });
@@ -144,7 +145,9 @@ export default function HuntSettingsPanel({ competitionId, initial, finished, ro
                         <ThingIcon src={itemIconUrl(it.id)} alt="" size={24} />
                         <span className="min-w-0 flex-1 truncate text-sm">{it.name}</span>
                         <NumberInput value={points[it.id] ?? 0} onChange={(v) => setPoints({ ...points, [it.id]: v })} min={0} max={MAX_ITEM_POINTS} fallback={0} className="w-20" aria-label={`Points for ${it.name}`} />
-                        <Checkbox checked={!!once[it.id]} onChange={(on) => setOnce({ ...once, [it.id]: on })} label="Once" className="text-xs" />
+                        <div className="w-40 shrink-0">
+                          <Select value={mode[it.id] ?? 'every'} onChange={(v) => setMode({ ...mode, [it.id]: v })} ariaLabel={`Who scores ${it.name}`} options={RUSH_SCORE_MODES} />
+                        </div>
                       </li>
                     ))}
                   </ul>
