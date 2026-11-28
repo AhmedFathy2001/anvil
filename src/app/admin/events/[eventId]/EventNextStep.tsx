@@ -9,6 +9,7 @@ import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
 import type { Event, Submission, Tile } from '@/lib/types';
 import { CheckboxBox } from '@/components/Checkbox';
+import { displayImageUrl } from '@/lib/displayImage';
 
 /** Start an event now, going through the readiness gate (lib/eventReadiness) and its override. */
 export function useStartNow(eventId: number, onEventChange: (e: Event) => void) {
@@ -256,8 +257,8 @@ export function ProofsToCheck({
                 onChange={() => toggle(s.id)}
               />
               {s.imageUrl ? (
-                <a href={s.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
-                  <img src={s.imageUrl} alt="Proof" className="w-28 h-16 object-cover rounded-md border border-tile-border" />
+                <a href={displayImageUrl(s.imageUrl)} target="_blank" rel="noreferrer" className="shrink-0">
+                  <img src={displayImageUrl(s.imageUrl)} alt="Proof" className="w-28 h-16 object-cover rounded-md border border-tile-border" />
                 </a>
               ) : (
                 <span className="w-28 h-16 shrink-0 rounded-md item-slot text-[11px] text-text-dim">no image</span>

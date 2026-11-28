@@ -14,6 +14,7 @@ import { itemIconUrl } from '@/lib/tileIcons';
 import type { WeeklyPrizes } from '@/lib/weeklyPrizes';
 import WeeklyPrizeEditor from './WeeklyPrizeEditor';
 import type { WeeklyWinner } from '@/lib/coffer';
+import { displayImageUrl } from '@/lib/displayImage';
 
 /** A drop staff have something to decide about, with what they need to decide it. */
 export interface HuntAttention {
@@ -174,9 +175,9 @@ export default function HuntAdminClient({
                     {a.note && <p className="mt-1 text-xs italic text-text-muted">&ldquo;{a.note}&rdquo;</p>}
                   </div>
                   {a.screenshotUrl && (
-                    <a href={a.screenshotUrl} target="_blank" rel="noreferrer" className="block shrink-0" title="Open the screenshot">
+                    <a href={displayImageUrl(a.screenshotUrl)} target="_blank" rel="noreferrer" className="block shrink-0" title="Open the screenshot">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.screenshotUrl} alt={`${a.rsn}'s screenshot`} className="h-20 w-32 rounded border border-card-border object-cover" loading="lazy" />
+                      <img src={displayImageUrl(a.screenshotUrl)} alt={`${a.rsn}'s screenshot`} className="h-20 w-32 rounded border border-card-border object-cover" loading="lazy" />
                     </a>
                   )}
                 </div>

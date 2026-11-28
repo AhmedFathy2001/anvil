@@ -11,6 +11,7 @@ import { pageCount, proofFeedSearch, type ProofFeedQuery, type ProofFlagFilter }
 import { linkHost, type ProofAttachment } from '@/lib/proofAttachments';
 import { FLAG_TEXT } from '../EventNextStep';
 import { CheckboxBox } from '@/components/Checkbox';
+import { displayImageUrl } from '@/lib/displayImage';
 
 /**
  * Every proof on one board, newest first (api/admin/events/[eventId]/proofs).
@@ -341,8 +342,8 @@ export default function ProofFeedClient({ eventId }: { eventId: number }) {
                   onChange={() => toggle(s.id)}
                 />
                 {s.imageUrl ? (
-                  <a href={s.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
-                    <img src={s.imageUrl} alt="Proof" loading="lazy" className="w-28 h-16 object-cover rounded-md border border-tile-border" />
+                  <a href={displayImageUrl(s.imageUrl)} target="_blank" rel="noreferrer" className="shrink-0">
+                    <img src={displayImageUrl(s.imageUrl)} alt="Proof" loading="lazy" className="w-28 h-16 object-cover rounded-md border border-tile-border" />
                   </a>
                 ) : (
                   <span className="w-28 h-16 shrink-0 rounded-md item-slot grid place-items-center text-[11px] text-text-dim">no image</span>
@@ -360,14 +361,14 @@ export default function ProofFeedClient({ eventId }: { eventId: number }) {
                       {s.attachments.map((a) => (
                         <a
                           key={a.id}
-                          href={a.url}
+                          href={displayImageUrl(a.url)}
                           target="_blank"
                           rel={a.kind === 'link' ? 'noopener noreferrer nofollow ugc' : 'noreferrer'}
                           title={a.kind === 'link' ? a.url : undefined}
                           className="relative shrink-0"
                         >
                           {a.kind === 'image' ? (
-                            <img src={a.url} alt={a.label ? `${a.label} screenshot` : 'Extra screenshot'} loading="lazy" className="w-14 h-10 object-cover rounded border border-tile-border" />
+                            <img src={displayImageUrl(a.url)} alt={a.label ? `${a.label} screenshot` : 'Extra screenshot'} loading="lazy" className="w-14 h-10 object-cover rounded border border-tile-border" />
                           ) : (
                             <span className="inline-flex h-10 items-center px-2 rounded border border-tile-border text-xs text-gold">🔗 {linkHost(a.url)}</span>
                           )}

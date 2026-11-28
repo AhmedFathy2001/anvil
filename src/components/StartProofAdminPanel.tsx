@@ -20,6 +20,7 @@ import {
   type StartProofPick,
   type StartLocation,
 } from '@/lib/eventRules';
+import { displayImageUrl } from '@/lib/displayImage';
 
 /**
  * Starting-shot control on the event Overview tab (lib/startProof).
@@ -582,10 +583,10 @@ export default function StartProofAdminPanel({
               {data.rows.map((r) => (
                 <div key={r.playerId} className="flex items-center gap-3 py-2">
                   {r.proof ? (
-                    <a href={r.proof.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
+                    <a href={displayImageUrl(r.proof.imageUrl)} target="_blank" rel="noreferrer" className="shrink-0">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={r.proof.imageUrl}
+                        src={displayImageUrl(r.proof.imageUrl)}
                         alt={`${r.rsn} starting shot`}
                         className="w-16 h-10 object-cover rounded border border-card-border"
                       />

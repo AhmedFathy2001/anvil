@@ -15,6 +15,7 @@ import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 import { BoostedBadge, boostedClanNameStyle } from '@/components/ClanBoost';
 import { boostNameClass, boostPerks } from '@/lib/clanBoostRules';
+import { displayImageUrl } from '@/lib/displayImage';
 
 /**
  * The home page, in the pieces it's made of.
@@ -350,7 +351,7 @@ function ClanEventCard({ e }: { e: HomeClanEvent }) {
     >
       {e.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={e.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg border border-card-border object-cover" />
+        <img src={displayImageUrl(e.imageUrl)} alt="" className="h-10 w-10 shrink-0 rounded-lg border border-card-border object-cover" />
       ) : (
         <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-teal-400" />
       )}

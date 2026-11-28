@@ -32,6 +32,7 @@ import HubRecord from './HubRecord';
 import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
 import LocalTime from '@/components/LocalTime';
+import { displayImageUrl } from '@/lib/displayImage';
 
 export const dynamic = 'force-dynamic';
 
@@ -312,7 +313,7 @@ export default async function EventsIndexPage({
                 <ClanLink href={`/clan-events/${ce.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brown-light/40">
                   {ce.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={ce.imageUrl} alt="" className="h-7 w-7 shrink-0 rounded border border-card-border object-cover" />
+                    <img src={displayImageUrl(ce.imageUrl)} alt="" className="h-7 w-7 shrink-0 rounded border border-card-border object-cover" />
                   ) : (
                     <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-green" />
                   )}

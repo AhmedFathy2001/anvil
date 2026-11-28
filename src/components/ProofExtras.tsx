@@ -15,6 +15,7 @@ import Input from '@/components/Input';
 import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
 import { isWebLink, linkHost, MAX_ATTACHMENTS, orderAttachments, type AttachmentLabel, type ProofAttachment, type ProofAttachmentInput } from '@/lib/proofAttachments';
+import { displayImageUrl } from '@/lib/displayImage';
 
 const LABEL_TEXT: Record<AttachmentLabel, string> = { start: 'Start', end: 'End' };
 
@@ -88,13 +89,13 @@ function Thumb({ item, onRemove, footer }: { item: { kind: string; url: string; 
     <div className="space-y-1">
       <div className="relative">
         {item.kind === 'image' ? (
-          <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
+          <a href={displayImageUrl(item.url)} target="_blank" rel="noopener noreferrer" className="block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={item.url} alt={item.label ? `${LABEL_TEXT[item.label]} screenshot` : 'Extra screenshot'} className="w-full aspect-square object-cover rounded border border-card-border" />
+            <img src={displayImageUrl(item.url)} alt={item.label ? `${LABEL_TEXT[item.label]} screenshot` : 'Extra screenshot'} className="w-full aspect-square object-cover rounded border border-card-border" />
           </a>
         ) : (
           <a
-            href={item.url}
+            href={displayImageUrl(item.url)}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
             title={item.url}

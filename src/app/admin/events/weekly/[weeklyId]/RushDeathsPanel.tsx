@@ -1,5 +1,6 @@
 import LocalTime from '@/components/LocalTime';
 import { rushDeathShotsOf, rushKillProofsOf } from '@/lib/itemHuntDb';
+import { displayImageUrl } from '@/lib/displayImage';
 
 /**
  * Staff: every death a Boss Rush took points for, by entrant, each with its screenshot (the plugin
@@ -31,7 +32,7 @@ export default async function RushDeathsPanel({ competitionId }: { competitionId
                     <LocalTime date={d.at} format="short" />
                     {d.source && <>, {d.source}</>}
                     {d.url ? (
-                      <>, <a href={d.url} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
+                      <>, <a href={displayImageUrl(d.url)} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
                     ) : (
                       <>, no screenshot</>
                     )}
@@ -55,7 +56,7 @@ export default async function RushDeathsPanel({ competitionId }: { competitionId
                     <li key={`${k.target}-${k.n}`}>
                       {k.target}, kill {k.n.toLocaleString()}, <LocalTime date={k.at} format="short" />
                       {k.url ? (
-                        <>, <a href={k.url} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
+                        <>, <a href={displayImageUrl(k.url)} target="_blank" rel="noreferrer" className="underline hover:text-gold">screenshot</a></>
                       ) : (
                         <>, no screenshot</>
                       )}
